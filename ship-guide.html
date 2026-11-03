@@ -79,13 +79,13 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
   </section>
 
   <div class="seg" id="seg" role="tablist">
-    <button data-box="small" class="on">9 phones or fewer<small>Small box</small></button>
+    <button data-box="small" class="on">5 to 9 phones<small>Small box</small></button>
     <button data-box="medium">10 phones or more<small>Medium box</small></button>
   </div>
 
   <div class="calc">
     <b style="font-size:18px">How many phones are you sending?</b>
-    <div class="row"><button id="minus" aria-label="One fewer">−</button><b id="count">6</b><button id="plus" aria-label="One more">＋</button></div>
+    <div class="row"><button id="minus" aria-label="One fewer">−</button><b id="count">5</b><button id="plus" aria-label="One more">＋</button></div>
     <div class="need" id="need"></div>
     <div class="bundles" id="bundles"></div>
   </div>
@@ -105,7 +105,7 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
     <div class="sh"><div class="num">2</div><h2>Grab your gear</h2></div>
     <div class="card">
       <div class="gear" id="gear"></div>
-      <div class="tip" style="margin:12px 0 0"><b>Bubble wrap sleeves are $1.30 each.</b> Each sleeve protects up to 3 phones. The counter above tells you how many to get.</div>
+      <div class="tip" style="margin:12px 0 0"><b>Buy your bubble wrap sleeves at the Post Office. They're $1.30 each.</b> Each sleeve protects up to 3 phones. The counter above tells you how many to get. You don't need your own tape or pen. The Post Office does the taping and gives you a pen to sign.</div>
     </div>
   </section>
 
@@ -132,10 +132,10 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
       <p><b>Shake test:</b> close the lid and give the box a gentle shake. If anything moves or rattles, add a little scrunched paper or spare bubble wrap until it's snug.</p>
     </div>
     <div class="card">
-      <h3>Seal it up</h3>
-      <div class="ministep" style="margin-top:10px"><div class="badge">✍️</div><div><b>Sign the declaration.</b> The small "Sign here" box on the lid. The post office can't send the box without it.</div></div>
-      <div class="ministep" style="margin-top:12px"><div class="badge">🏷️</div><div><b>Stick the label on the top, flat.</b> No wrinkles or folds across the barcode. Use the dashed "postage paid label" area if it fits.</div></div>
-      <div class="ministep" style="margin-top:12px"><div class="badge">🧷</div><div><b>Tape every seam.</b> Run tape along the middle and both ends of the lid, and down the sides. Keep tape off the barcode.</div></div>
+      <h3>At the counter</h3>
+      <div class="ministep" style="margin-top:10px"><div class="badge">🏷️</div><div><b>Bring your printed label.</b> The Post Office person tapes it onto the box for you. Keep it flat and clean so the barcode scans.</div></div>
+      <div class="ministep" style="margin-top:12px"><div class="badge">✍️</div><div><b>Sign the declaration.</b> They'll give you a pen. Sign the small "Sign here" box on the lid. The box can't be sent without it.</div></div>
+      <div class="ministep" style="margin-top:12px"><div class="badge">🧷</div><div><b>No tape needed.</b> The Post Office tapes the box shut for you.</div></div>
     </div>
   </section>
 
@@ -144,14 +144,14 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
     <div class="sh"><div class="num">5</div><h2>Post it</h2></div>
     <div class="card">
       <div id="scenePost"></div>
-      <p style="margin-top:12px">Take the box to any <b>Post Office</b> and hand it over at the counter. Ask them to <b>scan it</b>, and keep the receipt.</p>
+      <p style="margin-top:12px">Take the box and your printed label to any <b>Post Office</b> and hand them over at the counter. They'll tape up the box, stick on the label and give you a pen to sign. Ask them to <b>scan it</b>, and keep the receipt.</p>
       <p>Then open the app and tap <b>“I’ve posted it”</b> on the Ship screen, so Ethan knows it's on its way.</p>
     </div>
     <a class="cta" href="./?go=ship">Back to the app · Ship</a>
   </section>
 
   <section class="step">
-    <div class="sh"><div class="num" style="background:var(--blue);box-shadow:none">✓</div><h2>Before you seal the box</h2></div>
+    <div class="sh"><div class="num" style="background:var(--blue);box-shadow:none">✓</div><h2>Before you go to the counter</h2></div>
     <div class="card checks" id="checks"></div>
     <div id="doneChar" style="text-align:center"></div>
   </section>
@@ -233,9 +233,9 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
       ? '<div class="item"><img src="guide/box-small.jpg" alt="Small parcel box" loading="lazy"><b>Small box</b><span>220 × 160 × 70 mm · up to 9 phones</span></div>'
       : '<div class="item"><svg viewBox="0 0 140 100">' + cardboardBox(24, 10, 80, 56, 24, 'MEDIUM') + '</svg><b>Medium box</b><span>for 10 phones or more</span></div>';
     return boxItem +
-      '<div class="item"><svg viewBox="0 0 140 100">' + DEFS + sleeve(14, 22, 112, 58) + '<rect x="30" y="38" width="62" height="26" rx="5" fill="#243a66" fill-opacity=".7"/></svg><b>Bubble wrap sleeves</b><span>$1.30 each · 3 phones per sleeve</span></div>' +
+      '<div class="item"><svg viewBox="0 0 140 100">' + DEFS + sleeve(14, 22, 112, 58) + '<rect x="30" y="38" width="62" height="26" rx="5" fill="#243a66" fill-opacity=".7"/></svg><b>Bubble wrap sleeves</b><span>$1.30 each · buy them at the Post Office</span></div>' +
       '<div class="item"><svg viewBox="0 0 140 100">' + label(22, 14, 96, 70) + '</svg><b>Your printed label</b><span>from Ethan</span></div>' +
-      '<div class="item"><svg viewBox="0 0 140 100">' + tape(70, 50).replace('r="20"', 'r="32"').replace('r="9"', 'r="14"') + '</svg><b>Parcel tape</b><span>and a pen to sign</span></div>';
+      '<div class="item"><svg viewBox="0 0 140 100">' + phoneFlat(22, 12, 28, 76, COL[1], '') + phoneFlat(56, 12, 28, 76, COL[2], '') + phoneFlat(90, 12, 28, 76, COL[3], '') + '</svg><b>Your phones</b><span>highest model first</span></div>';
   }
 
   // ---------- the wrapping steps (cross-section views) ----------
@@ -288,7 +288,7 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
     '<g transform="translate(104,120)"><rect width="60" height="40" rx="3" fill="#fff"/><rect x="0" y="0" width="60" height="9" fill="#d8ae78"/>' + label(5, 14, 50, 22) + '</g>');
 
   // ---------- box + sleeve counter ----------
-  var size = 'small', count = 6;
+  var size = 'small', count = 5;
   function render() {
     document.body.className = size;
     all('#seg button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-box') === size); });
@@ -304,11 +304,11 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
   }
   function all(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
   all('#seg button').forEach(function (b) { b.onclick = function () { size = b.getAttribute('data-box'); if (size === 'small' && count > 9) count = 9; if (size === 'medium' && count < 10) count = 10; render(); }; });
-  $('minus').onclick = function () { count = Math.max(1, count - 1); size = count >= 10 ? 'medium' : 'small'; render(); };
+  $('minus').onclick = function () { count = Math.max(5, count - 1); size = count >= 10 ? 'medium' : 'small'; render(); };
   $('plus').onclick = function () { count = Math.min(60, count + 1); size = count >= 10 ? 'medium' : 'small'; render(); };
 
   // ---------- checklist (remembered on this phone) ----------
-  var CHECKS = ['The highest model is inside the sleeve', 'No more than 3 phones in any one sleeve', 'Wrapped tight, nothing slides', 'The box doesn\'t rattle when I shake it', 'I signed the declaration on the lid', 'The label is flat on the top with the barcode clear', 'Tape on every seam'];
+  var CHECKS = ['The highest model is inside the sleeve', 'No more than 3 phones in any one sleeve', 'Wrapped tight, nothing slides', 'The box doesn\'t rattle when I shake it', 'I have my printed label, flat and clean', 'I\'ll sign the "Sign here" box at the counter'];
   var saved = {}; try { saved = JSON.parse(localStorage.getItem('guide_checks') || '{}'); } catch (e) { /* ignore */ }
   $('checks').innerHTML = CHECKS.map(function (c, i) { return '<label><input type="checkbox" data-i="' + i + '"' + (saved[i] ? ' checked' : '') + '><span>' + c + '</span></label>'; }).join('');
   all('#checks input').forEach(function (el) { el.onchange = function () { saved[el.getAttribute('data-i')] = el.checked; try { localStorage.setItem('guide_checks', JSON.stringify(saved)); } catch (e) { /* ignore */ } }; });
