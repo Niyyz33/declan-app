@@ -115,7 +115,7 @@ button.small { padding:9px 12px; font-size:14px; border-radius:11px; width:auto;
 .empty { text-align:center; padding:36px 10px; color:var(--muted); }
 .total { font-size:20px; font-weight:800; }
 .sync { font-size:13px; color:var(--muted); text-align:center; margin-top:14px; }
-a.btnlink { display:flex; align-items:center; justify-content:center; gap:7px; white-space:nowrap; text-align:center; text-decoration:none; font-weight:700; border-radius:14px; padding:15px 16px; color:#fff; background:var(--card2); border:1px solid var(--line); }
+a.btnlink { display:flex; align-items:center; justify-content:center; gap:7px; white-space:normal; overflow-wrap:anywhere; line-height:1.25; text-align:center; text-decoration:none; font-weight:700; border-radius:14px; padding:15px 16px; color:#fff; background:var(--card2); border:1px solid var(--line); }
 a.btnlink.green { background:linear-gradient(180deg, var(--green), var(--green2)); border:0; box-shadow:0 6px 18px rgba(37,194,77,.28); }
 ul.rules { margin:6px 0 0; padding-left:20px; } ul.rules li { margin:6px 0; }
 
@@ -123,7 +123,7 @@ ul.rules { margin:6px 0 0; padding-left:20px; } ul.rules li { margin:6px 0; }
 body.kb #tabs, body.kb .actionbar { display:none; }
 
 .maplink { color:var(--blue2); text-decoration:none; font-weight:600; }
-.phonecard .acts button { flex:none; }
+.phonecard .acts { flex-wrap:wrap; } .phonecard .acts button { flex:none; max-width:100%; }
 
 .big { font-size:30px; font-weight:800; letter-spacing:-.01em; margin:4px 0; }
 

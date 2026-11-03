@@ -1,6 +1,6 @@
 // Caches the app itself so it opens with no signal. Data always goes to the network (and the
 // phone queue in app.js covers writes while offline).
-const CACHE = 'declan-app-2026.11.03.2328'; // stamped by release.sh
+const CACHE = 'declan-app-2026.11.03.2335'; // stamped by release.sh
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'deductions.js', 'statement.js', 'ship-guide.html', 'guide/box-small.jpg', 'guides.html', 'guide-start.html', 'guide-inspect.html', 'guide-safety.html', 'guide-meetup.html', 'guide-mint.html', 'guide-help.html', 'guide.css', 'guide-kit.js', 'config.js', 'manifest.webmanifest', 'vendor/supabase.min.js', 'icons/icon-192.png', 'icons/icon-180.png', 'icons/logo.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

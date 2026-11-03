@@ -301,7 +301,7 @@
       '<div class="bar"><i style="width:' + Math.min(100, Math.round(ready / MIN_SHIP * 100)) + '%"></i></div>' +
       '<div class="muted">Ship when you have ' + MIN_SHIP + ' or more. Mint phones you keep.</div>' +
       (ready ? '<div style="height:12px"></div><button class="' + (ready >= MIN_SHIP ? '' : 'secondary') + '" id="ship">Get a shipping label</button>' : '') + '</div>' +
-      (settings.guides_published ? '<a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Guides: how to inspect, what to say, and more</a>' : '') +
+      (settings.guides_published ? '<a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Guides</a>' : '') +
       (tel ? '<h2>Need Ethan?</h2><div class="row"><a class="btnlink green" href="sms:' + tel + '">💬 Message Ethan</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div>' : '') +
       '<div class="row" style="margin-top:18px"><button class="link" id="help">Rules &amp; help</button><button class="link" id="out" style="text-align:right">Log out</button></div>' +
       '<div class="sync">' + (lastSync ? 'Synced ' + fmtDate(lastSync) + ' · ' : '') + esc(versionText(VERSION)) + '</div>');
@@ -335,7 +335,7 @@
       '<li>Made a mistake? In <b>Phones</b>, tap <b>Edit</b> or <b>Delete</b> — only until it’s shipped.</li>' +
       '<li>If the app closes halfway through a phone, it’s saved. Open the app and tap <b>Continue</b>.</li></ul></div>' +
       (tel ? '<div class="row"><a class="btnlink green" href="sms:' + tel + '">💬 Message Ethan</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div>' : '') +
-      '<a class="btnlink" href="ship-guide.html" style="margin-top:6px">📦 How to pack &amp; post your phones</a>' +
+      '<a class="btnlink" href="ship-guide.html" style="margin-top:6px">📦 How to pack &amp; post</a>' +
       '<div class="gap"></div><button class="secondary" id="back">Back</button><div class="sync">' + esc(versionText(VERSION)) + '</div>');
     $('back').onclick = function () { go('home'); };
   };
@@ -404,8 +404,8 @@
     if (id === 'parts') return '<div class="card"><div class="chips">' + faultChip('screen_third_party') +
       '<button type="button" class="chip bad' + (draft.partsBattery ? ' on' : '') + '" id="pbat">Replaced / third-party battery</button>' + faultChip('parts_other') + '</div><div class="hint">Look under Settings › General › About › Parts and Service History. Tap nothing if it’s all genuine.</div></div>';
     if (id === 'screen') return '<div class="card"><div class="chips">' + faultChip('screen_scratched') + faultChip('screen_broken') + '</div><div class="hint">Check under the light. A scratched or replaced screen counts as a broken screen.</div></div>';
-    if (id === 'cameras') return '<div class="card"><div class="row"><div><label>Smashed lenses</label><div class="stepper"><button type="button" data-lens="lc" data-d="-1">−</button><b id="lcv">' + draft.lensesCracked + '</b><button type="button" data-lens="lc" data-d="1">＋</button></div></div>' +
-      '<div><label>Camera exposed (lens gone)</label><div class="stepper"><button type="button" data-lens="le" data-d="-1">−</button><b id="lev">' + draft.lensesExposed + '</b><button type="button" data-lens="le" data-d="1">＋</button></div></div></div>' +
+    if (id === 'cameras') return '<div class="card"><div class="row" style="flex-wrap:wrap"><div style="min-width:150px"><label>Smashed lenses</label><div class="stepper"><button type="button" data-lens="lc" data-d="-1">−</button><b id="lcv">' + draft.lensesCracked + '</b><button type="button" data-lens="lc" data-d="1">＋</button></div></div>' +
+      '<div style="min-width:150px"><label>Camera exposed (lens gone)</label><div class="stepper"><button type="button" data-lens="le" data-d="-1">−</button><b id="lev">' + draft.lensesExposed + '</b><button type="button" data-lens="le" data-d="1">＋</button></div></div></div>' +
       '<label>Camera not working</label><div class="chips">' + faultChip('rearCam') + faultChip('frontCam') + '</div><div class="hint">Check the front and back cameras both work.</div></div>';
     if (id === 'frame') return '<div class="card"><div class="chips">' + faultChip('frame') + faultChip('back_broken') + '</div></div>';
     if (id === 'buttons') return '<div class="card"><div class="chips">' + faultChip('faceid') + faultChip('speaker') + faultChip('board') + '</div></div>';
@@ -678,7 +678,7 @@
           : '<div class="muted" style="margin-top:6px">Received by Ethan ' + fmtDate(b.received_at) + '</div>';
         return '<div class="card"><div class="row between"><b>' + ph.length + ' phones</b><span class="pill ' + t[0] + ' fixed">' + t[1] + '</span></div>' + body + (b._pending ? '<div class="muted">waiting to send</div>' : '') + '</div>';
       }).join('') : '';
-      shell('<h1>Ship</h1><a class="btnlink" href="ship-guide.html" style="margin-bottom:14px">📦 How to pack &amp; post (with Bubbles)</a>' + req + mine);
+      shell('<h1>Ship</h1><a class="btnlink" href="ship-guide.html" style="margin-bottom:14px">📦 How to pack &amp; post</a>' + req + mine);
       all('[data-p]').forEach(function (b) { b.onclick = function () { sel[b.getAttribute('data-p')] = !sel[b.getAttribute('data-p')]; render(); }; });
       if ($('few')) $('few').onclick = function () { window._few = !window._few; render(); };
       all('[data-posted]').forEach(function (b) { b.onclick = function () { if (!confirm('Have you posted the box?')) return; queue.push({ kind: 'posted', id: b.getAttribute('data-posted'), at: new Date().toISOString() }); setQueue(queue); syncQueue(); go('ship', undefined, true); }; });
@@ -950,7 +950,7 @@
 
   // owner side: book Declan's meetups
   VIEWS.omeetups = function () {
-    shell('<h1>Declan’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview Declan’s guides (he can’t see them yet)</a><div id="pushcard"></div><button id="book">＋ Book a meetup</button>' + meetupSections() +
+    shell('<h1>Declan’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview Declan’s guides</a><div id="pushcard"></div><button id="book">＋ Book a meetup</button>' + meetupSections() +
       '<div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { go('obook'); };
     renderPushCard();

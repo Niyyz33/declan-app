@@ -8,3 +8,4 @@ Update 2: run change-2.sql once (edit/delete, price limit, settings). Ship an up
 Branding: Cash for Phones Townsville (logo + colours from the Cash4Phones app).
 Update 3: run change-3.sql once (meetups + calendar secret), then deploy the calendar feed:
 `supabase functions deploy calendar --project-ref udkbhgzmmnrwmadqakia --no-verify-jwt`. Test the feed: `node supabase/functions/calendar/ics.test.mjs`.
+Before EVERY release: run `tests/overflow-audit.js` (in the test page at 320px wide) over every screen of the app (Declan + owner) and every guide, with long names and lots of data. It must report nothing sticking out of any box, button, drawing or screen.

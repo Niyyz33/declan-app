@@ -285,7 +285,7 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
   $('wrapSteps').innerHTML = STEPS.map(function (s, i) {
     var av = '<div class="av">' + bubbles({ l: s.pose.l, r: s.pose.r, mouth: i === 4 ? '' : 'o' }) + '</div>';
     return '<div class="card reveal">' + av + '<div class="ministep"><div class="badge">' + letters[i] + '</div><div><h3>' + s.t + '</h3><p>' + s.d + '</p></div></div>' +
-      '<div style="margin-top:6px">' + scene(330, 160, s.art(), '14 48 300 112') + '</div></div>';
+      '<div style="margin-top:6px">' + scene(330, 160, s.art(), '14 28 300 132') + '</div></div>';
   }).join('');
 
   // ---------- box scene + post office ----------
@@ -298,7 +298,7 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
     var bundles = '';
     var n = Math.min(count, size === 'small' ? 9 : 99), b = Math.ceil(n / 3);
     for (var i = 0; i < Math.min(b, 4); i++) bundles += '<g transform="translate(' + (266 + (i % 2) * 52) + ',' + (34 + Math.floor(i / 2) * 50) + ')"><rect width="46" height="40" rx="9" fill="url(#bw)" stroke="#8fc6ff" stroke-width="2"/>' + phoneFlat(8, 6, 14, 28, COL[1]) + phoneFlat(26, 6, 14, 28, COL[3]) + '</g>';
-    $('boxArt').innerHTML = scene(372, 150, open + bundles + '<g transform="translate(250,70) scale(.5)">' + '</g>' + '<text x="266" y="24" font-size="13.5" font-weight="800" fill="#ffd27a">' + b + (b === 1 ? ' bundle' : ' bundles') + ' go in</text><g transform="translate(240,4) scale(0)"></g>');
+    $('boxArt').innerHTML = scene(372, 150, open + bundles + '<g transform="translate(250,70) scale(.5)">' + '</g>' + '<text x="364" y="22" text-anchor="end" font-size="13.5" font-weight="800" fill="#ffd27a">' + b + (b === 1 ? ' bundle' : ' bundles') + ' go in</text><g transform="translate(240,4) scale(0)"></g>');
   }
   $('scenePost').innerHTML = scene(330, 190,
     '<rect x="0" y="162" width="330" height="28" fill="#0c2347"/>' +
