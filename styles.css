@@ -134,3 +134,7 @@ button, a, .chip, .tab, .stepper, .seg { -webkit-user-select: none; user-select:
 .fbbox { margin-top:8px; white-space:pre-wrap; overflow-wrap:anywhere; background:#03102a; border:1px solid var(--line); border-radius:12px; padding:12px; font-size:15px; line-height:1.45; }
 label.chk { display:flex; align-items:flex-start; gap:10px; margin-top:12px; }
 label.chk input { width:auto; margin-top:3px; flex:none; }
+.pricerow { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+.pricerow > div { background:#03102a; border:1px solid var(--line); border-radius:12px; padding:10px; min-width:0; }
+.pricerow small { display:block; color:var(--muted); font-size:12.5px; }
+.pricerow .big { font-size:22px; font-weight:800; overflow-wrap:anywhere; }

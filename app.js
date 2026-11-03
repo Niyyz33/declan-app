@@ -26,10 +26,11 @@
   var VERSION = (window.CONFIG && window.CONFIG.APP_VERSION) || 'dev';
   var MIN_SHIP = 5;
   var catalogue = load('catalogue', { models: [], deds: [] });
+  var listPrices = load('listprices', []);
   var serverPhones = load('phones', []);
   var serverBatches = load('batches', []);
   var queue = load('queue', []);
-  var profile = load('profile', { name: '', role: '' });
+  var profile = load('profile', { name: '', role: '', price_city: 'townsville' });
   var meetups = load('meetups', []);
   var payments = load('payments', []);
   var ownerData = load('ownerdata', { ff: [], bands: [], settings: {}, valuations: [] });
@@ -54,7 +55,7 @@
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
-  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata'].forEach(function (k) { save(k, null); }); profile = { name: '', role: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices'].forEach(function (k) { save(k, null); }); listPrices = []; profile = { name: '', role: '', price_city: 'townsville' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
   // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
   function versionText(v) {
     var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
@@ -63,6 +64,12 @@
     return 'App updated ' + d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
   }
   function isOwner() { return profile.role === 'owner'; }
+  // Recommended Facebook price for a phone: its model + storage in the city its partner sells in
+  function priceFor(p) {
+    var city = profile.price_city || 'townsville';
+    if (isOwner()) { var pr = partnersList.filter(function (x) { return x.id === p.partner_id; })[0]; city = (pr && pr.price_city) || 'townsville'; }
+    return listPrices.filter(function (x) { return x.city === city && x.model === p.model && x.storage_gb === p.storage_gb; })[0] || null;
+  }
   function fmtWhen(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function quoteText(min, max) { return min === max ? String(max / 100) : (min / 100) + '-' + (max / 100); }
   function mapsLink(place) { return 'https://maps.apple.com/?q=' + encodeURIComponent(place); }
@@ -167,16 +174,18 @@
       var m = await sb.from('partner_models').select('*').order('sort_order');
       var d = await sb.from('partner_deductions').select('*').limit(2000);
       if (!m.error && !d.error && m.data.length) { catalogue = { models: m.data, deds: d.data }; save('catalogue', catalogue); }
+      var lp = await sb.from('list_prices').select('model,storage_gb,city,list_cents,lowest_cents,estimate').limit(1000);
+      if (lp && !lp.error && lp.data && lp.data.length) { listPrices = lp.data; save('listprices', listPrices); }
     } catch (e) { /* offline */ }
   }
   async function loadProfile() {
     if (!sb || !session || !session.user || !navigator.onLine) return;
     try {
-      var p = await sb.from('partners').select('name,role').eq('id', session.user.id).maybeSingle();
+      var p = await sb.from('partners').select('name,role,price_city').eq('id', session.user.id).maybeSingle();
       var before = profile.role;
-      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '' }; save('profile', profile); }
+      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville' }; save('profile', profile); }
       if (before !== profile.role && current && current !== 'login') setTimeout(function () { go(isOwner() ? 'omeetups' : 'home'); }, 0);
-      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role'); if (pl && !pl.error) { partnersList = pl.data; save('partners', partnersList); } }
+      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city'); if (pl && !pl.error) { partnersList = pl.data; save('partners', partnersList); } }
       var s = await sb.from('app_settings').select('key,value');
       if (!s.error && s.data) { var o = {}; s.data.forEach(function (x) { o[x.key] = x.value; }); settings = o; save('settings', o); }
     } catch (e) { /* offline, or settings not set up yet */ }
@@ -592,7 +601,7 @@
           '<div class="money"><span>Paid ' + money(p.price_paid_cents) + '</span><span class="muted">Quote ' + money(p.quoted_min_cents) + (p.quoted_max_cents !== p.quoted_min_cents ? '–' + money(p.quoted_max_cents) : '') + '</span></div>' +
           (p.total_deductions_cents ? '<div class="muted">Deductions ' + money(p.total_deductions_cents) + '</div>' : '') +
           '<div style="margin-top:10px"><span class="pill ' + st[0] + '">' + st[1] + '</span>' + (overLimit(p) ? ' <span class="pill damaged">⚠ Over limit</span>' : '') + (p._failed ? ' <span class="err">couldn’t send</span>' : p._pending ? ' <span class="muted">waiting to send</span>' : '') + (track ? ' <span class="muted">· Tracking ' + esc(track) + '</span>' : '') + '</div>' +
-          (p.type === 'mint' && p.sold_price_cents != null ? '<div style="margin-top:8px"><b>Sold for ' + money(p.sold_price_cents) + '</b> <span class="muted">· ' + (p.sold_price_cents - p.price_paid_cents >= 0 ? '+' : '') + money(p.sold_price_cents - p.price_paid_cents) + ' on what you paid</span></div>' : '') +
+          (p.type === 'mint' && p.sold_price_cents != null ? '<div style="margin-top:8px"><b>Sold for ' + money(p.sold_price_cents) + '</b> <span class="muted">· ' + (p.sold_price_cents - p.price_paid_cents >= 0 ? '+' : '') + money(p.sold_price_cents - p.price_paid_cents) + ' on what you paid</span>' + (priceFor(p) ? '<div class="muted">Recommended list was ' + money(priceFor(p).list_cents) + ' · ' + (p.sold_price_cents - priceFor(p).list_cents >= 0 ? '+' : '') + money(p.sold_price_cents - priceFor(p).list_cents) + '</div>' : '') + '</div>' : '') +
           (!isOwner() && p.type === 'mint' && !p._failed ? '<div class="acts"><button class="small" data-sold="' + p.id + '">' + (p.sold_price_cents != null ? 'Change sale price' : '💰 Mark sold') + '</button>' + (p.sold_price_cents == null ? '<button class="secondary small" data-fb="' + p.id + '">📋 Facebook description</button>' : '') + (canEdit && p.sold_price_cents == null ? '<button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button>' : '') + '</div>'
             : canEdit ? '<div class="acts"><button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button></div>' : '') + '</div>';
       }).join('') : '<div class="empty">' + (phones.length ? 'Nothing matches that.' : 'No phones yet. Log your first one!') + '</div>'));
@@ -643,6 +652,12 @@
     return { title: title, description: lines.join('\n') };
   }
   var fbState = {};
+  function priceCard(p) {
+    var pr = priceFor(p);
+    if (!pr) return '<div class="card"><b>Recommended price</b><div class="muted" style="margin-top:6px">No price yet for this one. Ask Ethan.</div></div>';
+    return '<div class="card"><b>Recommended price</b><div class="pricerow"><div><small>List it at</small><div class="big">' + money(pr.list_cents) + '</div></div><div><small>Lowest to accept</small><div class="big">' + money(pr.lowest_cents) + '</div></div></div>' +
+      (pr.estimate ? '<div class="hint">An estimate. There aren’t many recent sales of this one.</div>' : '') + '<div class="hint">Battery and the case don’t change the price. For a lowball, offer about $20 under the list price.</div></div>';
+  }
   VIEWS.fbdesc = function (id) {
     var p = allPhones().filter(function (x) { return x.id === id; })[0];
     if (!p) return go('phones');
@@ -652,7 +667,7 @@
     function list(t) { return t.split(',').map(function (x) { return x.trim(); }).filter(Boolean); }
     function make() { return fbListing({ model: p.model, storage: p.storage_gb ? storageText(p.storage_gb) : '', battery: p.battery_pct, faults: faults, working: list(st.working), grade: st.grade, noCracks: st.noCracks, accessories: list(st.accessories), pickup: pickup.trim() }); }
     shell('<h1>Facebook description</h1>' +
-      '<div class="card"><b>' + esc(p.model) + (p.storage_gb ? ' ' + storageText(p.storage_gb) : '') + '</b><div class="muted">' + esc([p.colour, p.battery_pct != null ? 'battery ' + p.battery_pct + '%' : ''].filter(Boolean).join(' · ')) + (faults.length ? '<br>Faults: ' + esc(faults.join(', ')) : '') + '</div><div class="hint">Model, storage, colour, battery and faults come from what you logged.</div></div>' +
+      '<div class="card"><b>' + esc(p.model) + (p.storage_gb ? ' ' + storageText(p.storage_gb) : '') + '</b><div class="muted">' + esc([p.colour, p.battery_pct != null ? 'battery ' + p.battery_pct + '%' : ''].filter(Boolean).join(' · ')) + (faults.length ? '<br>Faults: ' + esc(faults.join(', ')) : '') + '</div><div class="hint">Model, storage, colour, battery and faults come from what you logged.</div></div>' + priceCard(p) +
       '<div class="card"><label>Condition</label><div class="chips" id="gradechips">' + grades.map(function (g) { return '<button type="button" class="chip' + (st.grade === g ? ' on' : '') + '" data-grade="' + g + '">' + (g || 'Leave out') + '</button>'; }).join('') + '</div>' +
       '<label class="chk"><input type="checkbox" id="nocr"' + (st.noCracks ? ' checked' : '') + '><span>No cracks or major damage (only tick if it’s true)</span></label>' +
       '<label>Comes with (optional)</label><input id="acc" placeholder="e.g. box, charger" value="' + esc(st.accessories) + '">' +
