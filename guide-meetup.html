@@ -36,9 +36,28 @@
     <div class="card"><div style="width:70px;margin:0 auto 8px" data-art="cash"></div><p>Hand over the cash, say thanks, and you’re done.</p><p><b>Log the phone after</b>, when you’re on your own. Don’t use the app while you’re with the seller.</p></div>
 
   </section>
+  <section class="step"><div class="sh"><div class="num">5</div><h2>Ask for a review</h2></div>
+    <p>Once they've been paid and you're saying goodbye, ask <b>every</b> seller. Keep it relaxed.</p>
+    <div class="say">If you've got a minute, a Google review would really help us out. Here's the link, you can write whatever you honestly thought.</div>
+    <div class="card" id="reviewbox"><p id="reviewmsg">Ethan will give you the review link.</p><a class="cta" id="share" href="#" style="display:none">📤 Share the review link</a><div class="gap" style="height:10px"></div><a class="cta alt" id="copy" href="#" style="display:none">Copy the link</a></div>
+    <div class="good"><b>Ask everyone</b>, not just the ones who seemed happy.</div>
+    <div class="warn"><b>Don't offer anything for a review.</b> No discount, no cash, nothing. And don't tell them what to write. They say it in their own words.</div>
+    <div class="tip">If they'd rather not, that's totally fine. Say thanks and leave it there.</div>
+  </section>
   <a class="cta" href="guide-mint.html">Next: mint phones →</a>
 </main>
 <script src="deductions.js"></script>
 <script src="guide-kit.js"></script>
+<script>
+(function () {
+  var url = ''; try { url = (JSON.parse(localStorage.getItem('declan_settings') || '{}').review_url || '').trim(); } catch (e) { /* none */ }
+  if (!url) return;
+  var share = document.getElementById('share'), copy = document.getElementById('copy');
+  document.getElementById('reviewmsg').textContent = 'Show them this, or send it to them:';
+  share.style.display = 'block'; copy.style.display = 'block';
+  share.onclick = function (e) { e.preventDefault(); if (navigator.share) navigator.share({ title: 'Leave us a review', url: url }).catch(function () {}); else { window.location.href = url; } };
+  copy.onclick = function (e) { e.preventDefault(); try { navigator.clipboard.writeText(url); copy.textContent = 'Copied ✓'; } catch (err) { copy.textContent = url; } };
+})();
+</script>
 </body>
 </html>
