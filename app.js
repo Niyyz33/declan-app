@@ -28,8 +28,14 @@
     else { $banner.hidden = true; }
   }
   var syncing = false;
+  // The saved login is renewed hourly in the background. With no signal that renewal fails, so a
+  // phone that's been offline a while must still OPEN the app (the login is still saved) and just
+  // wait to send until signal returns and the renewal works.
+  function hasStoredLogin() { try { var v = JSON.parse(localStorage.getItem('declan-auth')); return !!(v && v.refresh_token); } catch (e) { return false; } }
+  async function liveSession() { try { var r = await sb.auth.getSession(); return r.data && r.data.session; } catch (e) { return null; } }
   async function syncQueue() {
     if (syncing || !sb || !session || !queue.length) return;
+    if (!(await liveSession())) return;
     syncing = true;
     try {
       for (var i = 0; i < queue.length; i++) {
@@ -300,7 +306,8 @@
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
     if (!window.CONFIG || !window.CONFIG.SUPABASE_URL) { $app.innerHTML = '<h1>Not set up yet</h1><p class="muted">Tell Ethan the app isn’t connected.</p>'; return; }
     sb = window.supabase.createClient(window.CONFIG.SUPABASE_URL, window.CONFIG.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'declan-auth' } });
-    var s = await sb.auth.getSession(); session = s.data && s.data.session;
+    session = await liveSession();
+    if (!session && hasStoredLogin()) session = { offlineUntilSignal: true };
     renderBanner();
     if (!session) return go('login');
     go('home');
