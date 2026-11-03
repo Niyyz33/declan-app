@@ -315,6 +315,7 @@
       '<li>Made a mistake? In <b>Phones</b>, tap <b>Edit</b> or <b>Delete</b> — only until it’s shipped.</li>' +
       '<li>If the app closes halfway through a phone, it’s saved. Open the app and tap <b>Continue</b>.</li></ul></div>' +
       (tel ? '<div class="row"><a class="btnlink green" href="sms:' + tel + '">💬 Message Ethan</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div>' : '') +
+      '<a class="btnlink" href="ship-guide.html" style="margin-top:6px">📦 How to pack &amp; post your phones</a>' +
       '<div class="gap"></div><button class="secondary" id="back">Back</button><div class="sync">' + esc(versionText(VERSION)) + '</div>');
     $('back').onclick = function () { go('home'); };
   };
@@ -627,7 +628,7 @@
           : '<div class="muted" style="margin-top:6px">Received by Ethan ' + fmtDate(b.received_at) + '</div>';
         return '<div class="card"><div class="row between"><b>' + ph.length + ' phones</b><span class="pill ' + t[0] + ' fixed">' + t[1] + '</span></div>' + body + (b._pending ? '<div class="muted">waiting to send</div>' : '') + '</div>';
       }).join('') : '';
-      shell('<h1>Ship</h1>' + req + mine);
+      shell('<h1>Ship</h1><a class="btnlink" href="ship-guide.html" style="margin-bottom:14px">📦 How to pack &amp; post (with Bubbles)</a>' + req + mine);
       all('[data-p]').forEach(function (b) { b.onclick = function () { sel[b.getAttribute('data-p')] = !sel[b.getAttribute('data-p')]; render(); }; });
       if ($('few')) $('few').onclick = function () { window._few = !window._few; render(); };
       all('[data-posted]').forEach(function (b) { b.onclick = function () { if (!confirm('Have you posted the box?')) return; queue.push({ kind: 'posted', id: b.getAttribute('data-posted'), at: new Date().toISOString() }); setQueue(queue); syncQueue(); go('ship', undefined, true); }; });

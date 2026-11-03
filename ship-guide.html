@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#00091a">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<title>How to Pack and Post</title>
+<style>
+:root { --bg:#00091a; --bg2:#052453; --card:#0a1b3a; --card2:#0f2550; --line:#1b376a; --text:#f4f7fc; --muted:#9fb1cf; --blue:#2a6fd6; --blue2:#5aa0ff; --green:#25c24d; --green2:#16912c; --amber:#f5b942; --red:#ff5a5f; }
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html { overflow-x:hidden; scroll-behavior:smooth; }
+html, body { margin:0; width:100%; background:var(--bg); color:var(--text); font:17px/1.5 -apple-system, system-ui, "SF Pro Text", sans-serif; -webkit-text-size-adjust:100%; }
+body { background:radial-gradient(120% 40% at 50% -6%, var(--bg2) 0%, var(--bg) 70%), var(--bg); }
+main { max-width:560px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 60px); overflow-x:clip; }
+h1 { font-size:31px; line-height:1.1; letter-spacing:-.02em; margin:0 0 8px; text-wrap:balance; }
+h2 { font-size:25px; line-height:1.15; letter-spacing:-.01em; margin:0; text-wrap:balance; }
+h3 { font-size:18px; margin:0 0 4px; }
+p { margin:0 0 10px; }
+.top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.top a { color:var(--blue2); text-decoration:none; font-weight:700; padding:8px 0; }
+.hero { text-align:center; padding:6px 0 6px; }
+.hero svg { width:min(250px,70%); height:auto; }
+.hero .sub { color:var(--muted); font-size:18px; max-width:30ch; margin:0 auto 14px; }
+.seg { display:flex; background:#03102a; border:1px solid var(--line); border-radius:16px; padding:4px; gap:4px; margin:14px 0 8px; }
+.seg button { flex:1; background:none; border:0; color:var(--muted); font:inherit; font-weight:800; padding:12px 6px; border-radius:12px; line-height:1.2; cursor:pointer; }
+.seg button small { display:block; font-weight:600; font-size:13px; opacity:.85; }
+.seg button.on { background:linear-gradient(180deg,var(--blue2),var(--blue)); color:#fff; }
+.calc { background:linear-gradient(180deg,var(--card2),var(--card)); border:1px solid var(--line); border-radius:20px; padding:16px; margin:12px 0 26px; text-align:center; }
+.calc .row { display:flex; align-items:center; justify-content:center; gap:14px; margin:8px 0 12px; }
+.calc .row button { width:50px; height:50px; border-radius:14px; border:1px solid var(--line); background:var(--card2); color:#fff; font-size:26px; font-weight:700; cursor:pointer; }
+.calc .row b { font-size:40px; min-width:2ch; }
+.calc .need { font-size:18px; }
+.calc .need b { color:#8ff0ab; }
+.bundles { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; margin-top:12px; }
+.bundles span { background:#03102a; border:1px solid var(--line); border-radius:12px; padding:8px 12px; font-size:14px; font-weight:700; }
+.step { margin:0 0 30px; }
+.sh { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.num { flex:none; width:46px; height:46px; border-radius:50%; background:linear-gradient(180deg,var(--green),var(--green2)); display:grid; place-items:center; font-weight:900; font-size:22px; box-shadow:0 4px 14px rgba(37,194,77,.4); }
+.card { background:linear-gradient(180deg,var(--card2),var(--card)); border:1px solid var(--line); border-radius:20px; padding:14px; margin-bottom:12px; box-shadow:0 6px 20px rgba(0,0,0,.28); }
+.card svg.scene { width:100%; height:auto; display:block; border-radius:12px; background:#06183a; }
+.card p:last-child { margin-bottom:0; }
+.tip { background:#0b2a55; border:1px solid var(--blue); border-radius:16px; padding:12px 14px; font-size:15.5px; margin-bottom:12px; }
+.warn { background:#3a2a07; border:1px solid var(--amber); border-radius:16px; padding:12px 14px; font-size:15.5px; margin-bottom:12px; }
+.tip b, .warn b { color:#fff; }
+.gear { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.gear .item { background:#03102a; border:1px solid var(--line); border-radius:16px; padding:10px; text-align:center; }
+.gear .item svg, .gear .item img { width:100%; height:92px; object-fit:contain; display:block; margin-bottom:6px; }
+.gear .item img { background:#fff; border-radius:10px; }
+.gear .item b { display:block; font-size:15px; line-height:1.25; }
+.gear .item span { color:var(--muted); font-size:13px; }
+.photo { background:#fff; border-radius:14px; padding:6px; margin-bottom:10px; }
+.photo img { width:100%; display:block; border-radius:8px; }
+.ministep { display:flex; gap:12px; align-items:flex-start; }
+.card { position:relative; } .av { position:absolute; right:10px; top:8px; width:56px; } .av + .ministep { padding-right:62px; }
+.ministep .badge { flex:none; width:34px; height:34px; border-radius:50%; background:var(--blue); display:grid; place-items:center; font-weight:900; margin-top:2px; }
+.checks label { display:flex; gap:12px; align-items:flex-start; padding:11px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:16.5px; }
+.checks label:last-child { border-bottom:0; }
+.checks input { flex:none; width:26px; height:26px; accent-color:var(--green); margin-top:1px; }
+.cta { display:block; text-align:center; text-decoration:none; font-weight:800; font-size:18px; color:#fff; padding:17px; border-radius:16px; background:linear-gradient(180deg,var(--green),var(--green2)); box-shadow:0 6px 18px rgba(37,194,77,.3); }
+.only-small, .only-medium { display:none; } body.small .only-small, body.medium .only-medium { display:block; }
+body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
+.reveal { animation:up .35s ease-out both; } @keyframes up { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) { .reveal { animation:none; } html { scroll-behavior:auto; } }
+</style>
+</head>
+<body class="small">
+<main>
+  <div class="top"><a href="./?go=ship">‹ Back to the app</a><span style="color:var(--muted);font-size:14px">Cash for Phones Townsville</span></div>
+
+  <section class="hero">
+    <div id="heroChar"></div>
+    <h1>Pack it right.<br>Post it safe. 📦</h1>
+    <p class="sub">Meet <b>Bubbles</b>. Follow along and your phones will arrive in one piece, every time.</p>
+  </section>
+
+  <div class="seg" id="seg" role="tablist">
+    <button data-box="small" class="on">9 phones or fewer<small>Small box</small></button>
+    <button data-box="medium">10 phones or more<small>Medium box</small></button>
+  </div>
+
+  <div class="calc">
+    <b style="font-size:18px">How many phones are you sending?</b>
+    <div class="row"><button id="minus" aria-label="One fewer">−</button><b id="count">6</b><button id="plus" aria-label="One more">＋</button></div>
+    <div class="need" id="need"></div>
+    <div class="bundles" id="bundles"></div>
+  </div>
+
+  <!-- 1 -->
+  <section class="step">
+    <div class="sh"><div class="num">1</div><h2>Print the label</h2></div>
+    <div class="card">
+      <div id="sceneLabel"></div>
+      <p style="margin-top:12px">Ethan will send you the postage label. Print it on plain A4 paper.</p>
+      <p>Check the barcode is <b>dark and sharp</b>, and nothing is cut off at the edges.</p>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="step">
+    <div class="sh"><div class="num">2</div><h2>Grab your gear</h2></div>
+    <div class="card">
+      <div class="gear" id="gear"></div>
+      <div class="tip" style="margin:12px 0 0"><b>Bubble wrap sleeves are $1.30 each.</b> Each sleeve protects up to 3 phones. The counter above tells you how many to get.</div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="step" id="wrapSection">
+    <div class="sh"><div class="num">3</div><h2>Wrap the phones</h2></div>
+    <div class="tip"><b>The golden rule:</b> 3 phones is the most you can put in one sleeve. If you have more, finish one bundle, then start again with a fresh sleeve.</div>
+    <div id="wrapSteps"></div>
+    <div class="warn"><b>Got more than 3 phones?</b> Repeat steps A to E with a new sleeve. Put the <b>highest model</b> in each new sleeve first, just like before.</div>
+  </section>
+
+  <!-- 4 -->
+  <section class="step">
+    <div class="sh"><div class="num">4</div><h2>Pack the box</h2></div>
+    <div class="card">
+      <div id="boxPhoto"></div>
+      <div id="boxScene"></div>
+      <div class="only-small">
+        <p style="margin-top:12px"><b>Small box:</b> up to <b>9 phones</b> (that's 3 bundles). Lay the bundles flat, side by side, so the lid closes with no bulge.</p>
+      </div>
+      <div class="only-medium">
+        <p style="margin-top:12px"><b>Medium box:</b> for <b>10 phones or more</b>. Lay the bundles flat in neat layers, side by side.</p>
+      </div>
+      <p><b>Shake test:</b> close the lid and give the box a gentle shake. If anything moves or rattles, add a little scrunched paper or spare bubble wrap until it's snug.</p>
+    </div>
+    <div class="card">
+      <h3>Seal it up</h3>
+      <div class="ministep" style="margin-top:10px"><div class="badge">✍️</div><div><b>Sign the declaration.</b> The small "Sign here" box on the lid. The post office can't send the box without it.</div></div>
+      <div class="ministep" style="margin-top:12px"><div class="badge">🏷️</div><div><b>Stick the label on the top, flat.</b> No wrinkles or folds across the barcode. Use the dashed "postage paid label" area if it fits.</div></div>
+      <div class="ministep" style="margin-top:12px"><div class="badge">🧷</div><div><b>Tape every seam.</b> Run tape along the middle and both ends of the lid, and down the sides. Keep tape off the barcode.</div></div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="step">
+    <div class="sh"><div class="num">5</div><h2>Post it</h2></div>
+    <div class="card">
+      <div id="scenePost"></div>
+      <p style="margin-top:12px">Take the box to any <b>Post Office</b> and hand it over at the counter. Ask them to <b>scan it</b>, and keep the receipt.</p>
+      <p>Then open the app and tap <b>“I’ve posted it”</b> on the Ship screen, so Ethan knows it's on its way.</p>
+    </div>
+    <a class="cta" href="./?go=ship">Back to the app · Ship</a>
+  </section>
+
+  <section class="step">
+    <div class="sh"><div class="num" style="background:var(--blue);box-shadow:none">✓</div><h2>Before you seal the box</h2></div>
+    <div class="card checks" id="checks"></div>
+    <div id="doneChar" style="text-align:center"></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- Bubbles, the character ----------
+  // pose: where the two hands go. props: extra SVG drawn in front of the body (held objects).
+  var SKIN = '#f6cfa8', NAVY = '#0a1b3a', GREEN = '#1a9221', GREEN2 = '#25c24d';
+  function arm(side, hx, hy) {
+    var sx = side === 'l' ? 40 : 120, sy = 132, mx = (sx + hx) / 2 + (side === 'l' ? -10 : 10), my = (sy + hy) / 2 + 8;
+    return '<path d="M' + sx + ' ' + sy + ' Q' + mx + ' ' + my + ' ' + hx + ' ' + hy + '" stroke="' + GREEN + '" stroke-width="19" fill="none" stroke-linecap="round"/>' +
+           '<circle cx="' + hx + '" cy="' + hy + '" r="10" fill="' + SKIN + '"/>';
+  }
+  function bubbles(opt) {
+    opt = opt || {};
+    var L = opt.l || [46, 168], R = opt.r || [114, 168];
+    var wave = opt.wave ? '<path d="M' + (R[0] + 14) + ' ' + (R[1] - 10) + ' q8 -6 4 -16 M' + (R[0] + 22) + ' ' + (R[1] - 2) + ' q10 -4 8 -14" stroke="#9fb1cf" stroke-width="3" fill="none" stroke-linecap="round"/>' : '';
+    var mouth = opt.mouth === 'o' ? '<ellipse cx="80" cy="102" rx="6" ry="7" fill="#7a2d2d"/>' : '<path d="M62 96 Q80 116 98 96 Z" fill="#fff" stroke="#3a1f1f" stroke-width="3" stroke-linejoin="round"/>';
+    return '<svg viewBox="0 0 160 190" ' + (opt.cls ? 'class="' + opt.cls + '"' : '') + ' role="img" aria-label="Bubbles the packer">' +
+      '<path d="M26 190 C26 140 46 120 80 120 C114 120 134 140 134 190 Z" fill="' + GREEN + '"/>' +
+      '<path d="M62 122 Q80 140 98 122" stroke="#126e18" stroke-width="5" fill="none" stroke-linecap="round"/>' +
+      '<rect x="68" y="108" width="24" height="18" rx="8" fill="' + SKIN + '"/>' +
+      arm('l', L[0], L[1]) + arm('r', R[0], R[1]) +
+      '<circle cx="42" cy="84" r="8" fill="' + SKIN + '"/><circle cx="118" cy="84" r="8" fill="' + SKIN + '"/>' +
+      '<circle cx="80" cy="78" r="38" fill="' + SKIN + '"/>' +
+      '<path d="M41 72 C41 44 58 31 80 31 C102 31 119 44 119 72 Z" fill="' + NAVY + '"/>' +
+      '<path d="M40 70 Q80 56 120 70 L126 76 Q80 64 34 76 Z" fill="#06122a"/>' +
+      '<circle cx="80" cy="50" r="11" fill="' + GREEN2 + '"/><rect x="75" y="44" width="10" height="13" rx="2.5" fill="#fff"/><rect x="77" y="46" width="6" height="8" rx="1" fill="' + GREEN + '"/>' +
+      '<circle cx="66" cy="84" r="5.2" fill="#1a1a2e"/><circle cx="94" cy="84" r="5.2" fill="#1a1a2e"/><circle cx="67.8" cy="82" r="1.8" fill="#fff"/><circle cx="95.8" cy="82" r="1.8" fill="#fff"/>' +
+      '<path d="M58 74 Q66 69 74 73 M86 73 Q94 69 102 74" stroke="#5a3a24" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+      '<circle cx="55" cy="96" r="6" fill="#ff9aa2" opacity=".55"/><circle cx="105" cy="96" r="6" fill="#ff9aa2" opacity=".55"/>' + mouth + wave +
+      (opt.props || '') + '</svg>';
+  }
+
+  // ---------- little drawings ----------
+  var DEFS = '<defs><pattern id="bw" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="5" cy="5" r="3.6" fill="#bfe3ff" fill-opacity=".38" stroke="#9fd0ff" stroke-width=".8"/><circle cx="3.8" cy="3.8" r="1" fill="#fff" fill-opacity=".8"/></pattern>' +
+    '<linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe9b8"/><stop offset="1" stop-color="#e3b96b"/></linearGradient></defs>';
+  function phoneFlat(x, y, w, h, color, label) { // phone seen from the back, lying flat
+    var s = Math.min(w, h);
+    return '<g><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (s * .16) + '" fill="' + color + '" stroke="#0a1220" stroke-opacity=".55" stroke-width="2"/>' +
+      '<rect x="' + (x + w * .08) + '" y="' + (y + h * .06) + '" width="' + (w * .36) + '" height="' + (w * .36) + '" rx="' + (w * .08) + '" fill="#0a1220" fill-opacity=".35"/>' +
+      '<circle cx="' + (x + w * .19) + '" cy="' + (y + h * .06 + w * .11) + '" r="' + (w * .07) + '" fill="#101a2c"/><circle cx="' + (x + w * .33) + '" cy="' + (y + h * .06 + w * .11) + '" r="' + (w * .07) + '" fill="#101a2c"/><circle cx="' + (x + w * .26) + '" cy="' + (y + h * .06 + w * .27) + '" r="' + (w * .07) + '" fill="#101a2c"/>' +
+      (label ? '<text x="' + (x + w / 2) + '" y="' + (y + h * .62) + '" text-anchor="middle" font-size="' + (w * .3) + '" font-weight="900" fill="#fff" fill-opacity=".92">' + label + '</text>' : '') + '</g>';
+  }
+  function label(x, y, w, h) {
+    var bars = ''; for (var i = 0; i < 26; i++) bars += '<rect x="' + (x + 12 + i * ((w - 24) / 26)) + '" y="' + (y + h * .56) + '" width="' + (i % 3 === 0 ? 3.2 : 1.8) + '" height="' + (h * .3) + '" fill="#111"/>';
+    return '<g><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="5" fill="#fff"/><rect x="' + (x + 12) + '" y="' + (y + 12) + '" width="' + (w * .42) + '" height="7" rx="3" fill="#cfd6e4"/><rect x="' + (x + 12) + '" y="' + (y + 25) + '" width="' + (w * .6) + '" height="7" rx="3" fill="#cfd6e4"/><rect x="' + (x + 12) + '" y="' + (y + 38) + '" width="' + (w * .5) + '" height="7" rx="3" fill="#cfd6e4"/>' + bars + '</g>';
+  }
+  function sleeve(x, y, w, h) { // a bubble wrap sleeve, open end on the right
+    return '<g><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="8" fill="url(#bw)" stroke="#8fc6ff" stroke-width="2"/><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="8" fill="#9fd0ff" fill-opacity=".14"/></g>';
+  }
+  function cardboardBox(x, y, w, h, d, text) { // simple 3-D box
+    return '<g><path d="M' + x + ' ' + (y + d) + ' L' + (x + d) + ' ' + y + ' L' + (x + w + d) + ' ' + y + ' L' + (x + w) + ' ' + (y + d) + ' Z" fill="#d8ae78"/>' +
+      '<rect x="' + x + '" y="' + (y + d) + '" width="' + w + '" height="' + h + '" fill="#c4965c"/><path d="M' + (x + w) + ' ' + (y + d) + ' L' + (x + w + d) + ' ' + y + ' L' + (x + w + d) + ' ' + (y + h) + ' L' + (x + w) + ' ' + (y + d + h) + ' Z" fill="#a97c46"/>' +
+      '<rect x="' + (x + w * .42) + '" y="' + (y + d) + '" width="' + (w * .16) + '" height="' + (h * .3) + '" fill="#e9d3a8" fill-opacity=".8"/>' +
+      '<text x="' + (x + w / 2) + '" y="' + (y + d + h * .72) + '" text-anchor="middle" font-size="' + (h * .22) + '" font-weight="900" fill="#fff" fill-opacity=".9">' + text + '</text></g>';
+  }
+  function tape(x, y) { return '<g><circle cx="' + x + '" cy="' + y + '" r="20" fill="#e8d9a8" stroke="#bfae78" stroke-width="2"/><circle cx="' + x + '" cy="' + y + '" r="9" fill="#06183a"/></g>'; }
+
+  // ---------- scenes ----------
+  function scene(w, h, inner, vb) { return '<svg class="scene" viewBox="' + (vb || ('0 0 ' + w + ' ' + h)) + '" role="img">' + DEFS + inner + '</svg>'; }
+  var printer = '<g><rect x="150" y="128" width="130" height="58" rx="12" fill="#cfd8ea"/><rect x="164" y="112" width="102" height="26" rx="4" fill="#fff"/><rect x="166" y="158" width="98" height="9" rx="3" fill="#8d9ab4"/><circle cx="262" cy="143" r="4" fill="#25c24d"/></g>';
+
+  $('heroChar').innerHTML = bubbles({ wave: true, r: [138, 78], l: [38, 172] });
+  $('doneChar').innerHTML = '<div style="max-width:200px;margin:6px auto 0">' + bubbles({ l: [30, 150], r: [132, 100], props: '<path d="M140 92 q4 -16 12 -8 l-2 12 z" fill="' + SKIN + '"/>' }) + '</div><p style="font-weight:800;margin-top:6px">Nice work. That\'s a perfect parcel!</p>';
+  $('sceneLabel').innerHTML = scene(330, 210,
+    '<rect x="0" y="176" width="330" height="34" fill="#0c2347"/>' + printer + label(165, 76, 100, 74) +
+    '<g transform="translate(6,12) scale(.9)">' + bubbles({ l: [40, 150], r: [128, 126], props: label(98, 118, 60, 44).replace(/<rect x="[^"]*" y="[^"]*" width="[^"]*" height="7"[^>]*>/g, '') }) + '</g>' +
+    '<text x="215" y="206" font-size="13" fill="#9fb1cf" text-anchor="middle">print it out</text>');
+
+  // gear checklist (changes with the box)
+  function gearHTML(size) {
+    var boxItem = size === 'small'
+      ? '<div class="item"><img src="guide/box-small.jpg" alt="Small parcel box" loading="lazy"><b>Small box</b><span>220 × 160 × 70 mm · up to 9 phones</span></div>'
+      : '<div class="item"><svg viewBox="0 0 140 100">' + cardboardBox(24, 10, 80, 56, 24, 'MEDIUM') + '</svg><b>Medium box</b><span>for 10 phones or more</span></div>';
+    return boxItem +
+      '<div class="item"><svg viewBox="0 0 140 100">' + DEFS + sleeve(14, 22, 112, 58) + '<rect x="30" y="38" width="62" height="26" rx="5" fill="#243a66" fill-opacity=".7"/></svg><b>Bubble wrap sleeves</b><span>$1.30 each · 3 phones per sleeve</span></div>' +
+      '<div class="item"><svg viewBox="0 0 140 100">' + label(22, 14, 96, 70) + '</svg><b>Your printed label</b><span>from Ethan</span></div>' +
+      '<div class="item"><svg viewBox="0 0 140 100">' + tape(70, 50).replace('r="20"', 'r="32"').replace('r="9"', 'r="14"') + '</svg><b>Parcel tape</b><span>and a pen to sign</span></div>';
+  }
+
+  // ---------- the wrapping steps (cross-section views) ----------
+  var COL = { 1: '#1f4e9c', 2: '#9aa6b8', 3: '#e08aa8' };
+  function wrapLine(x1, x2, y) { // a strip of bubble wrap seen from the side
+    var out = '<rect x="' + x1 + '" y="' + (y - 3) + '" width="' + (x2 - x1) + '" height="6" rx="3" fill="#9fd0ff" fill-opacity=".55" stroke="#8fc6ff" stroke-width="1"/>';
+    for (var x = x1 + 4; x < x2 - 2; x += 8) out += '<circle cx="' + x + '" cy="' + (y - 5) + '" r="2.6" fill="#bfe3ff" fill-opacity=".6" stroke="#8fc6ff" stroke-width=".7"/>';
+    return out;
+  }
+  function ph(x, y, n, w) { w = w || 120; return '<g><rect x="' + x + '" y="' + y + '" width="' + w + '" height="13" rx="4" fill="' + COL[n] + '" stroke="#0a1220" stroke-opacity=".5"/><text x="' + (x + w / 2) + '" y="' + (y + 10.5) + '" text-anchor="middle" font-size="10" font-weight="900" fill="#fff">PHONE ' + n + '</text></g>'; }
+  function arrow(d, color) { return '<path d="' + d + '" stroke="' + (color || '#ffd27a') + '" stroke-width="3" fill="none" stroke-linecap="round" stroke-dasharray="1 6"/>'; }
+  function arrowHead(x, y, rot, color) { return '<path d="M-7 -7 L2 0 L-7 7" transform="translate(' + x + ',' + y + ') rotate(' + rot + ')" stroke="' + (color || '#ffd27a') + '" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'; }
+  var TABLE = '<rect x="0" y="136" width="330" height="22" fill="#0c2347"/><rect x="0" y="134" width="330" height="3" fill="#2a4a80"/>';
+  function lbl(x, y, t, a) { return '<text x="' + x + '" y="' + y + '" font-size="14" font-weight="800" fill="#ffd27a" text-anchor="' + (a || 'start') + '">' + t + '</text>'; }
+  var STEPS = [
+    { t: 'The highest model goes IN the sleeve', d: 'Slide your most valuable phone (the highest model) all the way into the bubble wrap sleeve. It gets the best protection.',
+      art: function () { return TABLE + wrapLine(30, 300, 130) + wrapLine(30, 300, 104) + '<path d="M34 104 q-10 13 0 26" stroke="#8fc6ff" stroke-width="5" fill="none" stroke-linecap="round"/>' + ph(44, 111, 1) + lbl(176, 100, 'open end →') + lbl(60, 156, '', 'start'); }, pose: { l: [40, 150], r: [128, 128] }, tag: 'Phone 1' },
+    { t: 'Phone 2 goes ON TOP, outside the sleeve', d: 'Lay the next phone on top of the sleeve. It sits outside, so there is a layer of bubble wrap between the two phones.',
+      art: function () { return TABLE + wrapLine(30, 300, 130) + wrapLine(30, 300, 104) + '<path d="M34 104 q-10 13 0 26" stroke="#8fc6ff" stroke-width="5" fill="none" stroke-linecap="round"/>' + ph(44, 111, 1) + ph(44, 85, 2) + arrow('M104 52 L104 78') + arrowHead(104, 80, 90) + lbl(116, 66, 'on top, not inside') + lbl(176, 100, ''); }, pose: { l: [44, 150], r: [128, 100] }, tag: 'Phone 2' },
+    { t: 'Fold the wrap over phone 2', d: 'Take the loose end of the bubble wrap and fold it back over phone 2, so it now has bubble wrap on top too.',
+      art: function () { return TABLE + wrapLine(30, 300, 130) + wrapLine(30, 190, 104) + '<path d="M34 104 q-10 13 0 26" stroke="#8fc6ff" stroke-width="5" fill="none" stroke-linecap="round"/>' + ph(44, 111, 1) + ph(44, 85, 2) + wrapLine(44, 190, 82) + '<path d="M190 104 Q222 104 222 90 Q222 60 192 78" stroke="#8fc6ff" stroke-width="5" fill="none" stroke-linecap="round"/>' + arrow('M262 104 Q282 64 232 66') + arrowHead(230, 66, 180) + lbl(246, 56, 'fold over', 'middle'); }, pose: { l: [44, 150], r: [124, 92] }, tag: 'Fold' },
+    { t: 'Phone 3 goes on top of the fold', d: 'Put your last phone on top of the folded wrap. Wrap, phone, wrap, phone. Nothing ever touches glass to glass.',
+      art: function () { return TABLE + wrapLine(30, 300, 130) + '<path d="M34 104 q-10 13 0 26" stroke="#8fc6ff" stroke-width="5" fill="none" stroke-linecap="round"/>' + wrapLine(30, 190, 104) + ph(44, 111, 1) + ph(44, 85, 2) + wrapLine(44, 190, 82) + '<path d="M190 104 Q222 104 222 90 Q222 60 192 78" stroke="#8fc6ff" stroke-width="5" fill="none" stroke-linecap="round"/>' + ph(44, 66, 3) + arrow('M104 30 L104 58') + arrowHead(104, 60, 90) + lbl(116, 44, 'on top of the fold'); }, pose: { l: [44, 150], r: [128, 70] }, tag: 'Phone 3' },
+    { t: 'Fold again and wrap it tight', d: 'Fold the rest of the bubble wrap over phone 3 and keep going, pulling it snug, until it is one tight bundle. Nothing should slide or wiggle.',
+      art: function () { return TABLE + '<rect x="34" y="52" width="164" height="82" rx="16" fill="url(#bw)" stroke="#8fc6ff" stroke-width="3"/><rect x="34" y="52" width="164" height="82" rx="16" fill="#9fd0ff" fill-opacity=".16"/>' + ph(54, 108, 1, 124) + ph(54, 88, 2, 124) + ph(54, 68, 3, 124) + '<path d="M214 70 l12 12 l26 -28" stroke="#25c24d" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' + lbl(228, 116, 'tight!', 'start'); }, pose: { l: [46, 150], r: [116, 120] }, tag: 'Done' }
+  ];
+  var letters = 'ABCDE';
+  $('wrapSteps').innerHTML = STEPS.map(function (s, i) {
+    var av = '<div class="av">' + bubbles({ l: s.pose.l, r: s.pose.r, mouth: i === 4 ? '' : 'o' }) + '</div>';
+    return '<div class="card reveal">' + av + '<div class="ministep"><div class="badge">' + letters[i] + '</div><div><h3>' + s.t + '</h3><p>' + s.d + '</p></div></div>' +
+      '<div style="margin-top:6px">' + scene(330, 160, s.art(), '14 48 300 112') + '</div></div>';
+  }).join('');
+
+  // ---------- box scene + post office ----------
+  $('boxScene').innerHTML = '<div id="boxArt"></div>';
+  function boxArt(size) {
+    $('boxPhoto').innerHTML = size === 'small' ? '<div class="photo"><img src="guide/box-small.jpg" alt="The small parcel box" loading="lazy"></div>' : '';
+    var open = size === 'small'
+      ? cardboardBox(50, 40, 150, 70, 36, 'SMALL')
+      : cardboardBox(40, 26, 170, 90, 40, 'MEDIUM');
+    var bundles = '';
+    var n = Math.min(count, size === 'small' ? 9 : 99), b = Math.ceil(n / 3);
+    for (var i = 0; i < Math.min(b, 4); i++) bundles += '<g transform="translate(' + (266 + (i % 2) * 52) + ',' + (34 + Math.floor(i / 2) * 50) + ')"><rect width="46" height="40" rx="9" fill="url(#bw)" stroke="#8fc6ff" stroke-width="2"/>' + phoneFlat(8, 6, 14, 28, COL[1]) + phoneFlat(26, 6, 14, 28, COL[3]) + '</g>';
+    $('boxArt').innerHTML = scene(372, 150, open + bundles + '<g transform="translate(250,70) scale(.5)">' + '</g>' + '<text x="266" y="24" font-size="13.5" font-weight="800" fill="#ffd27a">' + b + (b === 1 ? ' bundle' : ' bundles') + ' go in</text><g transform="translate(240,4) scale(0)"></g>');
+  }
+  $('scenePost').innerHTML = scene(330, 190,
+    '<rect x="0" y="162" width="330" height="28" fill="#0c2347"/>' +
+    '<g><rect x="168" y="54" width="146" height="108" rx="6" fill="#e9eef8"/><path d="M160 58 L241 22 L322 58 Z" fill="#c8102e"/><rect x="190" y="84" width="38" height="78" fill="#6b8fd6"/><rect x="246" y="84" width="46" height="34" fill="#b9d3ff"/><rect x="214" y="62" width="54" height="16" rx="3" fill="#c8102e"/><text x="241" y="74.5" font-size="11" font-weight="900" fill="#fff" text-anchor="middle">POST</text></g>' +
+    '<g transform="translate(4,18) scale(.95)">' + bubbles({ l: [34, 160], r: [118, 134], props: '<g transform="translate(62,128) rotate(-6)">' + '</g>' }) + '</g>' +
+    '<g transform="translate(104,120)"><rect width="60" height="40" rx="3" fill="#fff"/><rect x="0" y="0" width="60" height="9" fill="#d8ae78"/>' + label(5, 14, 50, 22) + '</g>');
+
+  // ---------- box + sleeve counter ----------
+  var size = 'small', count = 6;
+  function render() {
+    document.body.className = size;
+    all('#seg button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-box') === size); });
+    $('count').textContent = count;
+    var sleeves = Math.ceil(count / 3), parts = [], left = count;
+    for (var i = 0; i < sleeves; i++) { var n = Math.min(3, left); left -= n; parts.push(n); }
+    var tooBig = size === 'small' && count > 9, tooSmall = size === 'medium' && count < 10;
+    $('need').innerHTML = (tooBig ? '<span style="color:var(--amber)"><b>' + count + ' phones won\'t fit the small box.</b> Use the Medium box.</span><br>' : tooSmall ? '<span style="color:var(--amber)">Under 10 phones? The <b>Small box</b> is the one to use.</span><br>' : '') +
+      'You need <b>' + sleeves + ' bubble wrap ' + (sleeves === 1 ? 'sleeve' : 'sleeves') + '</b> <span style="color:var(--muted)">($' + (sleeves * 1.3).toFixed(2) + ')</span>';
+    $('bundles').innerHTML = parts.map(function (n, i) { return '<span>Sleeve ' + (i + 1) + ': ' + n + (n === 1 ? ' phone' : ' phones') + '</span>'; }).join('');
+    $('gear').innerHTML = gearHTML(size);
+    boxArt(size);
+  }
+  function all(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  all('#seg button').forEach(function (b) { b.onclick = function () { size = b.getAttribute('data-box'); if (size === 'small' && count > 9) count = 9; if (size === 'medium' && count < 10) count = 10; render(); }; });
+  $('minus').onclick = function () { count = Math.max(1, count - 1); size = count >= 10 ? 'medium' : 'small'; render(); };
+  $('plus').onclick = function () { count = Math.min(60, count + 1); size = count >= 10 ? 'medium' : 'small'; render(); };
+
+  // ---------- checklist (remembered on this phone) ----------
+  var CHECKS = ['The highest model is inside the sleeve', 'No more than 3 phones in any one sleeve', 'Wrapped tight, nothing slides', 'The box doesn\'t rattle when I shake it', 'I signed the declaration on the lid', 'The label is flat on the top with the barcode clear', 'Tape on every seam'];
+  var saved = {}; try { saved = JSON.parse(localStorage.getItem('guide_checks') || '{}'); } catch (e) { /* ignore */ }
+  $('checks').innerHTML = CHECKS.map(function (c, i) { return '<label><input type="checkbox" data-i="' + i + '"' + (saved[i] ? ' checked' : '') + '><span>' + c + '</span></label>'; }).join('');
+  all('#checks input').forEach(function (el) { el.onchange = function () { saved[el.getAttribute('data-i')] = el.checked; try { localStorage.setItem('guide_checks', JSON.stringify(saved)); } catch (e) { /* ignore */ } }; });
+
+  render();
+})();
+</script>
+</body>
+</html>
