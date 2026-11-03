@@ -697,7 +697,7 @@
 
   // ---------- statement (Ethan only) ----------
   var stmtK = null;
-  function ownerSettings() { var s = ownerData.settings || {}; return { flat_cents: +s.damaged_flat_cents || 0, pct: +s.damaged_pct || 0, cap_cents: s.damaged_cap_cents ? +s.damaged_cap_cents : null }; }
+  function ownerSettings() { var s = ownerData.settings || {}; return { flat_cents: +s.damaged_flat_cents || 0, pct: +s.damaged_pct || 0, cap_cents: s.damaged_cap_cents ? +s.damaged_cap_cents : null, bonus_after: +s.damaged_bonus_after || 0, bonus_cents: +s.damaged_bonus_cents || 0 }; }
   function valuationMap() { var m = {}; (ownerData.valuations || []).forEach(function (v) { m[v.phone_id] = v; }); return m; }
   function buildStatement(k) {
     return S.statement(k, { phones: allPhones(), batches: allBatches(), payments: payments, valuations: valuationMap(), ff: ownerData.ff, deds: catalogue.deds, bands: ownerData.bands, settings: ownerSettings() });
@@ -711,18 +711,25 @@
     L.push('', st.net > 0 ? 'Net: Ethan pays Declan ' + money(st.net) : st.net < 0 ? 'Net: Declan pays Ethan ' + money(-st.net) : 'Net: even');
     return L.join('\n');
   }
+  // "Damaged phones bought this month: 31 of 35 before the fee steps up" (this calendar month, Brisbane time).
+  function stepUpNote() {
+    var os = ownerSettings(); if (!os.bonus_after) return '';
+    var ords = S.monthOrdinals(allPhones()), nowKey = new Date(Date.now() + 10 * 3600000), month = nowKey.getUTCFullYear() + '-' + nowKey.getUTCMonth(), n = 0;
+    allPhones().forEach(function (p) { if (p.type === 'damaged' && ords[p.id]) { var d = new Date(new Date(p.bought_at).getTime() + 10 * 3600000); if (d.getUTCFullYear() + '-' + d.getUTCMonth() === month) n++; } });
+    return '<div class="tip">Damaged phones bought this month: <b>' + n + '</b>. ' + (n > os.bonus_after ? 'Past ' + os.bonus_after + ' — each one now pays ' + money(os.bonus_cents) + ' for the rest of the month.' : (os.bonus_after - n) + ' more until the fee steps up to ' + money(os.bonus_cents) + '.') + '</div>';
+  }
   VIEWS.ostatement = function () {
     if (stmtK === null) stmtK = S.currentPeriodIndex(Date.now());
     var st = buildStatement(stmtK), noData = !(ownerData.ff && ownerData.ff.length);
     var netHtml = st.net > 0 ? '<div class="big" style="color:#8ff0ab">You pay Declan ' + money(st.net) + '</div>' : st.net < 0 ? '<div class="big" style="color:#ffd27a">Declan pays you ' + money(-st.net) + '</div>' : '<div class="big">Even</div>';
     shell('<h1>Statement</h1><div class="row between" style="margin-bottom:12px"><button class="secondary small fixed" id="prevk">‹</button><b style="text-align:center">' + fmtPeriod(st.period) + '</b><button class="secondary small fixed" id="nextk">›</button></div>' +
-      (noData ? '<div class="tip">The price table hasn’t loaded yet. Open this once with signal.</div>' : '') +
+      (noData ? '<div class="tip">The price table hasn’t loaded yet. Open this once with signal.</div>' : '') + stepUpNote() +
       '<div class="card" style="text-align:center"><div class="muted">Net for this fortnight</div>' + netHtml + (st.missing ? '<div style="color:var(--amber);margin-top:6px">⚠ ' + st.missing + (st.missing === 1 ? ' phone needs' : ' phones need') + ' a price from you — see below</div>' : '') + '</div>' +
       '<h2>You owe Declan · damaged phones</h2>' + (st.damaged.length ? st.damaged.map(function (d) {
         return '<div class="card"><div class="row between"><b>' + d.lines.length + ' phones</b><span class="muted fixed">received ' + fmtDate(d.batch.received_at) + '</span></div>' + d.lines.map(function (l) {
           var ph = l.phone;
           return '<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="row between"><span>' + esc(ph.model) + (ph.storage_gb ? ' ' + storageText(ph.storage_gb) : '') + '</span><b class="fixed">fee ' + money(l.fee) + '</b></div>' +
-            '<div class="muted">Paid ' + money(ph.price_paid_cents) + (ownerSettings().pct ? ' · expected sale ' + (l.expected === null ? '<span style="color:var(--amber)">needs a price</span>' : money(l.expected) + (l.manual ? ' (you set it)' : '')) + (l.profit === null ? '' : ' · profit ' + money(l.profit)) : '') + '</div>' +
+            '<div class="muted">Paid ' + money(ph.price_paid_cents) + (l.ordinal ? ' · #' + l.ordinal + ' damaged phone that month' : '') + (ownerSettings().pct ? ' · expected sale ' + (l.expected === null ? '<span style="color:var(--amber)">needs a price</span>' : money(l.expected) + (l.manual ? ' (you set it)' : '')) + (l.profit === null ? '' : ' · profit ' + money(l.profit)) : '') + '</div>' +
             (ownerSettings().pct && (l.needsPrice || l.manual) ? priceInput('expected', ph.id, l.manual ? l.expected : null) : '') + '</div>';
         }).join('') +
           '<div class="row between" style="margin-top:10px"><span>Reimburse what he paid</span><b class="fixed">' + money(d.reimburse) + '</b></div><div class="row between"><span>Fees</span><b class="fixed">' + money(d.fees) + '</b></div>' +
@@ -754,7 +761,8 @@
   };
   VIEWS.orates = function () {
     var os = ownerSettings(), bands = (ownerData.bands || []).slice().sort(function (a, b) { return a.band_no - b.band_no; });
-    shell('<h1>Rates</h1><div class="card"><b>Damaged phones — fee to Declan</b><div class="muted">You pay back what he paid, plus this flat fee for each phone.</div><label>Flat fee per phone ($)</label><input id="rflat" type="number" inputmode="decimal" value="' + os.flat_cents / 100 + '"></div>' +
+    shell('<h1>Rates</h1><div class="card"><b>Damaged phones — fee to Declan</b><div class="muted">You pay back what he paid, plus a fee for each phone.</div><label>Fee per phone ($)</label><input id="rflat" type="number" inputmode="decimal" value="' + os.flat_cents / 100 + '">' +
+      '<div class="row"><div><label>After this many damaged phones in a month</label><input id="rafter" type="number" inputmode="numeric" value="' + (os.bonus_after || '') + '" placeholder="e.g. 35"></div><div><label>…the rest of the month pays ($)</label><input id="rbonus" type="number" inputmode="decimal" value="' + (os.bonus_cents ? os.bonus_cents / 100 : '') + '" placeholder="e.g. 35"></div></div><div class="hint">Leave both empty for one flat fee all month.</div></div>' +
       '<div class="card"><b>Mint phones — commission by spread</b><div class="muted">Spread = price-sheet value minus what Declan paid.</div>' + bands.map(function (b) {
         return '<div class="row" style="margin-top:10px"><div>' + (b.min_spread_cents == null ? '<label>Under the next band</label><input disabled value="from $0 (or less)">' : '<label>Spread from ($)</label><input type="number" inputmode="decimal" data-bmin="' + b.band_no + '" value="' + b.min_spread_cents / 100 + '">') + '</div><div><label>Commission ($)</label><input type="number" inputmode="decimal" data-bfee="' + b.band_no + '" value="' + b.fee_cents / 100 + '"></div></div>';
       }).join('') + '</div><div class="err" id="err"></div><button id="save">Save rates</button><div class="gap"></div><button class="secondary" id="back">Back</button>');
@@ -763,7 +771,9 @@
       if (!navigator.onLine) { $('err').textContent = 'You need signal to do that.'; return; }
       var flat = dollarsToCents($('rflat').value);
       if (flat === null) { $('err').textContent = 'Enter the flat fee.'; return; }
-      var r = await sb.from('owner_settings').upsert([{ key: 'damaged_flat_cents', value: String(flat) }, { key: 'damaged_pct', value: '0' }], { onConflict: 'key' });
+      var after = $('rafter').value === '' ? 0 : parseInt($('rafter').value, 10), bonus = $('rbonus').value === '' ? 0 : dollarsToCents($('rbonus').value);
+      if (isNaN(after) || bonus === null) { $('err').textContent = 'Check the step-up numbers.'; return; }
+      var r = await sb.from('owner_settings').upsert([{ key: 'damaged_flat_cents', value: String(flat) }, { key: 'damaged_pct', value: '0' }, { key: 'damaged_bonus_after', value: String(after) }, { key: 'damaged_bonus_cents', value: String(bonus) }], { onConflict: 'key' });
       if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; return; }
       var brows = bands.map(function (b) { var mi = document.querySelector('[data-bmin="' + b.band_no + '"]'), fe = document.querySelector('[data-bfee="' + b.band_no + '"]'); return { band_no: b.band_no, min_spread_cents: mi ? dollarsToCents(mi.value) : null, fee_cents: dollarsToCents(fe.value) }; });
       if (brows.some(function (b) { return b.fee_cents === null || (b.band_no !== 1 && b.min_spread_cents === null); })) { $('err').textContent = 'Fill in every band.'; return; }

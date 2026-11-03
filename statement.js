@@ -56,9 +56,20 @@
   // Price-sheet value (cents) of a phone with no faults, or null if not in the table.
   function sheetPrice(phone, ff) { var row = ffRow(ff, phone.model, phone.storage_gb); return row ? row.ff_price_cents : null; }
 
+  // Which number damaged phone this is within its Brisbane calendar month (1 = first bought that month).
+  function monthKey(iso) { var d = new Date(new Date(iso).getTime() + 10 * 3600000); return d.getUTCFullYear() + '-' + d.getUTCMonth(); }
+  function monthOrdinals(phones) {
+    var count = {}, ord = {};
+    phones.filter(function (p) { return p.type === 'damaged'; }).sort(function (a, b) { return new Date(a.bought_at) - new Date(b.bought_at); }).forEach(function (p) {
+      var k = monthKey(p.bought_at); count[k] = (count[k] || 0) + 1; ord[p.id] = count[k];
+    });
+    return ord;
+  }
   // Declan's fee on a damaged phone. expectedCents null => unknown, so only the flat part counts and needsPrice is set.
-  function damagedFee(expectedCents, paidCents, st) {
+  function damagedFee(expectedCents, paidCents, st, ordinal) {
     var flat = st.flat_cents || 0, pct = st.pct || 0;
+    // Step-up: once more than `bonus_after` damaged phones are bought in a month, the rest of that month pay `bonus_cents`.
+    if (st.bonus_after && st.bonus_cents && ordinal && ordinal > st.bonus_after) flat = st.bonus_cents;
     if (!pct) return { fee: flat, profit: null, needsPrice: false }; // a flat fee needs no price guess
     if (expectedCents === null || expectedCents === undefined) return { fee: flat, profit: null, needsPrice: true };
     var profit = expectedCents - paidCents, fee = flat + Math.round(pct / 100 * Math.max(profit, 0));
@@ -77,7 +88,7 @@
   // Build one statement. ctx: {phones, batches, payments, valuations:{phone_id:{expected_sale_cents,sheet_price_cents}}, ff, deds, bands, settings}
   function statement(k, ctx) {
     var p = period(k), val = ctx.valuations || {};
-    var mint = [], damaged = [];
+    var mint = [], damaged = [], ords = monthOrdinals(ctx.phones || []);
     (ctx.phones || []).forEach(function (ph) {
       if (ph.type === 'mint') {
         var t = new Date(ph.bought_at).getTime();
@@ -94,8 +105,8 @@
       var phones = (ctx.phones || []).filter(function (ph) { return ph.batch_id === b.id; });
       var lines = phones.map(function (ph) {
         var v = val[ph.id] || {}, usePct = !!(ctx.settings && ctx.settings.pct), exp = !usePct ? null : v.expected_sale_cents != null ? v.expected_sale_cents : expectedSale(ph, ctx.ff, ctx.deds);
-        var f = damagedFee(exp, ph.price_paid_cents, ctx.settings || {});
-        return { phone: ph, expected: exp, profit: f.profit, fee: f.fee, needsPrice: f.needsPrice, manual: v.expected_sale_cents != null };
+        var f = damagedFee(exp, ph.price_paid_cents, ctx.settings || {}, ords[ph.id]);
+        return { phone: ph, ordinal: ords[ph.id], expected: exp, profit: f.profit, fee: f.fee, needsPrice: f.needsPrice, manual: v.expected_sale_cents != null };
       });
       var pay = (ctx.payments || []).filter(function (x) { return x.batch_id === b.id; })[0] || {};
       var reimburse = lines.reduce(function (a, l) { return a + l.phone.price_paid_cents; }, 0), fees = lines.reduce(function (a, l) { return a + l.fee; }, 0);
@@ -108,6 +119,6 @@
     return { period: p, mint: mint, damaged: damaged, declanOwes: declanOwes, ethanOwes: ethanOwes, net: ethanOwes - declanOwes, missing: missing };
   }
 
-  var api = { period: period, currentPeriodIndex: currentPeriodIndex, expectedSale: expectedSale, sheetPrice: sheetPrice, damagedFee: damagedFee, mintCommission: mintCommission, statement: statement, chartDeductions: chartDeductions };
+  var api = { monthOrdinals: monthOrdinals, period: period, currentPeriodIndex: currentPeriodIndex, expectedSale: expectedSale, sheetPrice: sheetPrice, damagedFee: damagedFee, mintCommission: mintCommission, statement: statement, chartDeductions: chartDeductions };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Statement = api;
 })(typeof window !== 'undefined' ? window : this);

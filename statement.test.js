@@ -80,4 +80,21 @@ const flat = S.statement(7, Object.assign({}, ctx, { valuations: {}, settings: {
 assert.strictEqual(flat.damaged[0].fees, 6000, 'two phones x $30');
 assert.strictEqual(flat.damaged[0].remaining, 20000 + 6000 - 6000, 'reimburse + fees - already paid');
 assert.strictEqual(flat.damaged[0].lines.every((l) => !l.needsPrice && l.expected === null), true);
+// ---- step-up fee: $30 for the first 35 damaged phones bought in a month, $35 from the 36th on
+const step = { flat_cents: 3000, pct: 0, bonus_after: 35, bonus_cents: 3500 };
+assert.strictEqual(S.damagedFee(null, 1, step, 35).fee, 3000, 'the 35th is still $30');
+assert.strictEqual(S.damagedFee(null, 1, step, 36).fee, 3500, 'the 36th is $35');
+assert.strictEqual(S.damagedFee(null, 1, Object.assign({}, step, { bonus_after: 0 }), 99).fee, 3000, 'no step-up configured => flat');
+const mk = (id, iso, type) => ({ id, type: type || 'damaged', bought_at: iso, price_paid_cents: 10000, model: 'Phone A', checklist: { faults: [] } });
+const nov = []; for (let i = 1; i <= 38; i++) nov.push(mk('n' + i, new Date(AEST(2026, 11, 1 + (i % 28), 9, i)).toISOString()));
+const ords = S.monthOrdinals(nov.concat([mk('m1', new Date(AEST(2026, 11, 5, 9)).toISOString(), 'mint')]));
+assert.strictEqual(Object.keys(ords).length, 38, 'mint phones are not counted');
+assert.strictEqual(Math.max(...Object.values(ords)), 38);
+assert.strictEqual(Object.values(ords).filter((o) => o > 35).length, 3, 'three phones are past the 35th');
+// month boundary is Brisbane time: 1 Dec 00:30 Brisbane starts a NEW month even though it is still 30 Nov in UTC
+const edge = S.monthOrdinals([mk('a', new Date(AEST(2026, 11, 30, 23, 30)).toISOString()), mk('b', new Date(AEST(2026, 12, 1, 0, 30)).toISOString())]);
+assert.deepStrictEqual([edge.a, edge.b], [1, 1], 'new Brisbane month restarts the count');
+// phones are counted in the order bought, not the order of the list
+const shuffled = S.monthOrdinals([mk('late', new Date(AEST(2026, 11, 20, 9)).toISOString()), mk('early', new Date(AEST(2026, 11, 2, 9)).toISOString())]);
+assert.deepStrictEqual([shuffled.early, shuffled.late], [1, 2]);
 console.log('statement tests passed');
