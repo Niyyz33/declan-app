@@ -101,6 +101,50 @@
     lock: function () {
       return svg('0 0 132 220', body(4, 4, 124, 212, '#14161f') + '<rect x="40" y="88" width="52" height="42" rx="8" fill="#ffd27a"/><path d="M48 88 V74 a18 18 0 0 1 36 0 V88" stroke="#ffd27a" stroke-width="7" fill="none"/><text x="66" y="156" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">Activation Lock</text><text x="66" y="170" text-anchor="middle" font-size="9.5" fill="#9a9aa8">needs the Apple ID</text><circle cx="108" cy="40" r="16" fill="#ff5a5f"/><path d="M101 33 L115 47 M115 33 L101 47" stroke="#fff" stroke-width="4" stroke-linecap="round"/>');
     },
+    // ---- drawn copies of the iPhone set-up screens (generic, not Apple artwork) ----
+    su_wifi: function () {
+      return svg('0 0 132 220', body(4, 4, 124, 212, '#f2f2f7') + '<text x="66" y="46" text-anchor="middle" font-size="7.4" font-weight="800" fill="#111">Choose a Wi-Fi Network</text>' +
+        '<rect x="14" y="58" width="104" height="22" rx="6" fill="#fff"/><text x="22" y="72" font-size="9" fill="#111">Cafe-WiFi</text>' +
+        '<rect x="14" y="86" width="104" height="22" rx="6" fill="#fff"/><text x="22" y="100" font-size="9" fill="#111">Your iPhone</text><path d="M100 98 q6 -6 12 0 M103 101 q3 -3 6 0" stroke="#111" stroke-width="1.6" fill="none"/>' +
+        '<rect x="11" y="83" width="110" height="28" rx="8" fill="none" stroke="#25c24d" stroke-width="3" stroke-dasharray="5 3"/>' +
+        '<rect x="14" y="114" width="104" height="22" rx="6" fill="#fff"/><text x="22" y="128" font-size="9" fill="#111">Other…</text>' +
+        '<text x="66" y="156" text-anchor="middle" font-size="9" font-weight="800" fill="#16912c">Tap your hotspot</text><text x="66" y="169" text-anchor="middle" font-size="8" fill="#555">then type its password</text>');
+    },
+    su_faceid: function () {
+      return svg('0 0 132 220', body(4, 4, 124, 212, '#f2f2f7') + '<g transform="translate(40,40) scale(.65)" stroke="#2a6fd6" stroke-width="5" fill="none" stroke-linecap="round"><path d="M14 28 V18 a4 4 0 0 1 4 -4 H28 M52 14 H62 a4 4 0 0 1 4 4 V28 M66 52 V62 a4 4 0 0 1 -4 4 H52 M28 66 H18 a4 4 0 0 1 -4 -4 V52"/><path d="M30 32 V38 M50 32 V38 M40 34 V44 H36 M31 52 q9 7 18 0"/></g>' +
+        '<text x="66" y="106" text-anchor="middle" font-size="10" font-weight="800" fill="#111">Face ID</text><rect x="22" y="118" width="88" height="22" rx="11" fill="#2a6fd6"/><text x="66" y="133" text-anchor="middle" font-size="9" font-weight="800" fill="#fff">Continue</text>' +
+        '<text x="66" y="168" text-anchor="middle" font-size="9" font-weight="800" fill="#2a6fd6">Set Up Later</text><rect x="26" y="155" width="80" height="19" rx="9" fill="none" stroke="#25c24d" stroke-width="3" stroke-dasharray="5 3"/>');
+    },
+    su_passcode: function () {
+      return svg('0 0 132 220', body(4, 4, 124, 212, '#f2f2f7') + '<text x="66" y="44" text-anchor="middle" font-size="9.5" font-weight="800" fill="#111">Create a Passcode</text>' +
+        '<g fill="none" stroke="#999" stroke-width="1.6"><circle cx="34" cy="64" r="5"/><circle cx="50" cy="64" r="5"/><circle cx="66" cy="64" r="5"/><circle cx="82" cy="64" r="5"/><circle cx="98" cy="64" r="5"/><circle cx="114" cy="64" r="0"/></g>' +
+        '<text x="66" y="88" text-anchor="middle" font-size="8.5" font-weight="800" fill="#2a6fd6">Passcode Options</text>' +
+        '<rect x="12" y="104" width="108" height="78" rx="10" fill="#fff" stroke="#ccc"/><text x="19" y="124" font-size="6.6" fill="#111">Custom Alphanumeric Code</text><line x1="12" y1="132" x2="120" y2="132" stroke="#ddd"/><text x="19" y="148" font-size="6.6" fill="#111">Custom Numeric Code</text><line x1="12" y1="156" x2="120" y2="156" stroke="#ddd"/><text x="19" y="172" font-size="7.8" font-weight="800" fill="#c2252b">Don’t Use Passcode</text>' +
+        '<rect x="14" y="159" width="104" height="19" rx="6" fill="none" stroke="#25c24d" stroke-width="3" stroke-dasharray="5 3"/>');
+    },
+    su_appleid: function () {
+      return svg('0 0 132 220', body(4, 4, 124, 212, '#f2f2f7') + '<text x="66" y="44" text-anchor="middle" font-size="9.5" font-weight="800" fill="#111">Apple Account</text>' +
+        '<rect x="14" y="54" width="104" height="18" rx="5" fill="#fff"/><text x="20" y="66" font-size="8" fill="#aaa">Apple ID</text><rect x="14" y="76" width="104" height="18" rx="5" fill="#fff"/><text x="20" y="88" font-size="8" fill="#aaa">Password</text>' +
+        '<text x="66" y="108" text-anchor="middle" font-size="7" font-weight="800" fill="#2a6fd6">Forgot password or</text><text x="66" y="118" text-anchor="middle" font-size="7" font-weight="800" fill="#2a6fd6">don’t have an Apple ID?</text><rect x="12" y="99" width="108" height="24" rx="8" fill="none" stroke="#25c24d" stroke-width="3" stroke-dasharray="5 3"/>' +
+        '<rect x="12" y="138" width="108" height="56" rx="10" fill="#fff" stroke="#ccc"/><text x="66" y="156" text-anchor="middle" font-size="7" font-weight="800" fill="#111">Set Up Later in Settings</text><line x1="12" y1="164" x2="120" y2="164" stroke="#ddd"/><text x="66" y="182" text-anchor="middle" font-size="7" fill="#111">Use Apple ID Later</text>' +
+        '<rect x="14" y="141" width="104" height="19" rx="6" fill="none" stroke="#25c24d" stroke-width="3" stroke-dasharray="5 3"/>');
+    },
+    hotspot: function () {
+      return svg('0 0 330 170', '<rect x="0" y="134" width="330" height="36" fill="#0c2347"/>' +
+        '<g transform="translate(40,26)"><rect width="74" height="104" rx="14" fill="#1f4e9c" stroke="#8fc6ff" stroke-width="3"/><rect x="7" y="9" width="60" height="86" rx="8" fill="#0b2a55"/><path d="M22 40 q15 -17 30 0 M28 48 q9 -10 18 0" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="37" cy="58" r="3" fill="#fff"/></g>' +
+        '<g transform="translate(216,26)"><rect width="74" height="104" rx="14" fill="#0c1424" stroke="#4a5d86" stroke-width="3"/><rect x="7" y="9" width="60" height="86" rx="8" fill="#f2f2f7"/><text x="37" y="50" text-anchor="middle" font-size="12" font-style="italic" fill="#111" font-family="Georgia,serif">hello</text></g>' +
+        '<path d="M126 70 q40 -30 78 0 M136 82 q30 -22 58 0 M146 94 q20 -14 38 0" stroke="#25c24d" stroke-width="5" fill="none" stroke-linecap="round" stroke-dasharray="1 9"/>' +
+        '<text x="77" y="160" text-anchor="middle" font-size="12" font-weight="800" fill="#ffd27a">Your phone</text><text x="253" y="160" text-anchor="middle" font-size="12" font-weight="800" fill="#ffd27a">Seller’s phone</text>');
+    },
+    about: function () {
+      return svg('0 0 330 196', '<rect x="14" y="10" width="302" height="176" rx="18" fill="#1c1c1e"/><text x="165" y="36" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">About</text>' +
+        '<rect x="28" y="48" width="274" height="126" rx="12" fill="#2c2c2e"/>' +
+        '<text x="42" y="74" font-size="13.5" fill="#fff">Model Name</text><text x="288" y="74" text-anchor="end" font-size="13.5" fill="#9a9aa0">iPhone 15 Pro</text><line x1="42" y1="84" x2="288" y2="84" stroke="#3a3a3c"/>' +
+        '<text x="42" y="106" font-size="13.5" fill="#fff">Capacity</text><text x="288" y="106" text-anchor="end" font-size="13.5" fill="#9a9aa0">256 GB</text><line x1="42" y1="116" x2="288" y2="116" stroke="#3a3a3c"/>' +
+        '<text x="42" y="138" font-size="13.5" fill="#fff">Carrier Lock</text><text x="288" y="138" text-anchor="end" font-size="12.5" fill="#9a9aa0">No SIM restrictions</text><line x1="42" y1="148" x2="288" y2="148" stroke="#3a3a3c"/>' +
+        '<text x="42" y="167" font-size="13" fill="#fff">Parts and Service History</text>' +
+        '<rect x="22" y="56" width="286" height="58" rx="12" fill="none" stroke="#ffd27a" stroke-width="3" stroke-dasharray="5 5"/>');
+    },
     tick: function () { return svg('0 0 60 60', '<circle cx="30" cy="30" r="28" fill="#25c24d"/><path d="M17 31 l9 9 l18 -20" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>', 'icon'); },
     cross: function () { return svg('0 0 60 60', '<circle cx="30" cy="30" r="28" fill="#ff5a5f"/><path d="M19 19 L41 41 M41 19 L19 41" stroke="#fff" stroke-width="6" stroke-linecap="round"/>', 'icon'); },
     faceid: function () { return svg('0 0 80 80', '<g stroke="#8fc6ff" stroke-width="4" fill="none" stroke-linecap="round"><path d="M14 28 V18 a4 4 0 0 1 4 -4 H28 M52 14 H62 a4 4 0 0 1 4 4 V28 M66 52 V62 a4 4 0 0 1 -4 4 H52 M28 66 H18 a4 4 0 0 1 -4 -4 V52"/><path d="M30 32 V38 M50 32 V38 M40 34 V44 H36 M31 52 q9 7 18 0"/></g>', 'icon'); },
