@@ -1,6 +1,8 @@
--- Run this AFTER you've created the two logins in Authentication -> Users.
--- Replace the two emails with the ones you used.
+-- Marks who is who. Run once after the two logins exist.
 insert into partners (id, name, role)
-select id, 'Declan', 'partner' from auth.users where email = 'DECLANS-EMAIL-HERE';
+select id, 'Declan', 'partner' from auth.users where email = 'harryjohnson11568@gmail.com';
 insert into partners (id, name, role)
-select id, 'Ethan', 'owner' from auth.users where email = 'YOUR-EMAIL-HERE';
+select id, 'Ethan', 'owner' from auth.users where email = 'ethan.lancuba@gmail.com';
+
+-- Shows both rows so you can check it worked.
+select name, role from partners order by role;
