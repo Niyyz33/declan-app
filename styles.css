@@ -128,5 +128,5 @@ body.kb #tabs, body.kb .actionbar { display:none; }
 .big { font-size:30px; font-weight:800; letter-spacing:-.01em; margin:4px 0; }
 
 /* Tapping + / − quickly must never zoom the page: taps only, no double-tap zoom, no text-selection pop-ups. */
-html, body, button, a, input, select, textarea, label, .chip, .tab, .card { touch-action: manipulation; }
+* { touch-action: manipulation; }
 button, a, .chip, .tab, .stepper, .seg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }

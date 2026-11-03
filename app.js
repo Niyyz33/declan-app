@@ -1,5 +1,22 @@
 (function () {
   'use strict';
+  // No zoom, ever: block double-tap and pinch zoom. Cancelling a double-tap would also swallow the second tap's click,
+  // so for buttons/links/chips we send that click ourselves — fast taps on + and − all still count.
+  (function () {
+    var last = 0, sx = 0, sy = 0;
+    document.addEventListener('touchstart', function (e) { var t = e.touches[0]; if (t) { sx = t.clientX; sy = t.clientY; } }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      var now = Date.now(), t = e.changedTouches[0], moved = t && (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10);
+      var isField = e.target && e.target.closest && e.target.closest('input, textarea, select');
+      if (!moved && !isField && now - last <= 400 && e.touches.length === 0) {
+        e.preventDefault();
+        var hit = e.target && e.target.closest ? e.target.closest('button, a, label, .chip, .tab') : null;
+        if (hit && !hit.disabled) hit.click();
+      }
+      last = now;
+    }, { passive: false });
+    ['gesturestart', 'gesturechange'].forEach(function (g) { document.addEventListener(g, function (e) { e.preventDefault(); }); });
+  })();
   var D = window.Deductions;
   var $app = document.getElementById('app');
   var $banner = document.getElementById('banner');

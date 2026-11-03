@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#00091a">
@@ -13,7 +13,7 @@
 <style>
 :root { --bg:#00091a; --bg2:#052453; --card:#0a1b3a; --card2:#0f2550; --line:#1b376a; --text:#f4f7fc; --muted:#9fb1cf; --blue:#2a6fd6; --blue2:#5aa0ff; --green:#25c24d; --green2:#16912c; --amber:#f5b942; --red:#ff5a5f; }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html, body, button, a, input, label { touch-action: manipulation; }
+* { touch-action: manipulation; }
 button, a { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
 html { overflow-x:hidden; scroll-behavior:smooth; }
 html, body { margin:0; width:100%; background:var(--bg); color:var(--text); font:17px/1.5 -apple-system, system-ui, "SF Pro Text", sans-serif; -webkit-text-size-adjust:100%; }
@@ -162,6 +162,23 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
 <script>
 (function () {
   'use strict';
+  // No zoom, ever: block double-tap and pinch zoom. Cancelling a double-tap would also swallow the second tap's click,
+  // so for buttons/links/chips we send that click ourselves — fast taps on + and − all still count.
+  (function () {
+    var last = 0, sx = 0, sy = 0;
+    document.addEventListener('touchstart', function (e) { var t = e.touches[0]; if (t) { sx = t.clientX; sy = t.clientY; } }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      var now = Date.now(), t = e.changedTouches[0], moved = t && (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10);
+      var isField = e.target && e.target.closest && e.target.closest('input, textarea, select');
+      if (!moved && !isField && now - last <= 400 && e.touches.length === 0) {
+        e.preventDefault();
+        var hit = e.target && e.target.closest ? e.target.closest('button, a, label, .chip, .tab') : null;
+        if (hit && !hit.disabled) hit.click();
+      }
+      last = now;
+    }, { passive: false });
+    ['gesturestart', 'gesturechange'].forEach(function (g) { document.addEventListener(g, function (e) { e.preventDefault(); }); });
+  })();
   var $ = function (id) { return document.getElementById(id); };
 
   // ---------- Bubbles, the character ----------
