@@ -35,6 +35,13 @@
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
   function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync'].forEach(function (k) { save(k, null); }); profile = { name: '', role: '' }; serverPhones = []; serverBatches = []; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
+  function versionText(v) {
+    var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
+    if (!m) return 'Test version';
+    var d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+    return 'App updated ' + d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+  }
   function isOwner() { return profile.role === 'owner'; }
   function fmtWhen(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function quoteText(min, max) { return min === max ? String(max / 100) : (min / 100) + '-' + (max / 100); }
@@ -242,7 +249,7 @@
       (ready ? '<div style="height:12px"></div><button class="' + (ready >= MIN_SHIP ? '' : 'secondary') + '" id="ship">Ship a batch</button>' : '') + '</div>' +
       (tel ? '<h2>Need Ethan?</h2><div class="row"><a class="btnlink green" href="sms:' + tel + '">💬 Message Ethan</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div>' : '') +
       '<div class="row" style="margin-top:18px"><button class="link" id="help">Rules &amp; help</button><button class="link" id="out" style="text-align:right">Log out</button></div>' +
-      '<div class="sync">' + (lastSync ? 'Last updated ' + fmtDate(lastSync) + ' · ' : '') + 'v' + esc(VERSION) + '</div>');
+      '<div class="sync">' + (lastSync ? 'Synced ' + fmtDate(lastSync) + ' · ' : '') + esc(versionText(VERSION)) + '</div>');
     if ($('nextm')) $('nextm').onclick = function () { go('meetups'); };
     renderPushCard();
     $('log').onclick = function () { go('log'); }; if ($('ship')) $('ship').onclick = function () { go('ship'); };
@@ -273,7 +280,7 @@
       '<li>Made a mistake? In <b>Phones</b>, tap <b>Edit</b> or <b>Delete</b> — only until it’s shipped.</li>' +
       '<li>If the app closes halfway through a phone, it’s saved. Open the app and tap <b>Continue</b>.</li></ul></div>' +
       (tel ? '<div class="row"><a class="btnlink green" href="sms:' + tel + '">💬 Message Ethan</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div>' : '') +
-      '<div class="gap"></div><button class="secondary" id="back">Back</button><div class="sync">Version ' + esc(VERSION) + '</div>');
+      '<div class="gap"></div><button class="secondary" id="back">Back</button><div class="sync">' + esc(versionText(VERSION)) + '</div>');
     $('back').onclick = function () { go('home'); };
   };
 
@@ -710,7 +717,7 @@
   // owner side: book Declan's meetups
   VIEWS.omeetups = function () {
     shell('<h1>Declan’s meetups</h1><button id="book">＋ Book a meetup</button>' + meetupSections() +
-      '<div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · v' + esc(VERSION) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
+      '<div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { go('obook'); };
     $('out').onclick = async function () { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; current = ''; clearCaches(); go('login'); };
     bindMeetupActions();
