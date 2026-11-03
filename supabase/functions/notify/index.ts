@@ -28,6 +28,9 @@ Deno.serve(async (req: Request) => {
     return sent;
   }
 
+  async function ownerIds() { const { data } = await db.from('partners').select('id').eq('role', 'owner'); return (data ?? []).map((o: { id: string }) => o.id); }
+  async function sendOwners(payload: Record<string, string>) { let n = 0; for (const id of await ownerIds()) n += await send(id, payload); return n; }
+
   // Manual test: ?test=1 sends a test notification to every subscribed phone.
   if (url.searchParams.get('test')) {
     const n = await send(null, { title: 'Cash for Phones', body: 'Test notification — alerts are working ✓', url: './?go=meetups', tag: 'test' });
@@ -46,8 +49,28 @@ Deno.serve(async (req: Request) => {
   const { data: soon } = await db.from('partner_meetups').select('*').eq('status', 'booked').is('reminded_at', null).gt('starts_at', new Date(now).toISOString()).lte('starts_at', new Date(now + 3600000).toISOString());
   for (const m of soon ?? []) {
     const mins = Math.max(1, Math.round((new Date(m.starts_at).getTime() - now) / 60000));
-    sentSoon += await send(m.partner_id, { title: mins >= 55 ? 'Meetup in 1 hour' : `Meetup in ${mins} minutes`, body: `${m.model} with ${m.seller_name}${m.location ? ' — ' + m.location : ''}`, url: './?go=meetups', tag: 'soon-' + m.id });
+    const title = mins >= 55 ? 'Meetup in 1 hour' : `Meetup in ${mins} minutes`, body = `${m.model} with ${m.seller_name}${m.location ? ' — ' + m.location : ''}`;
+    sentSoon += await send(m.partner_id, { title, body, url: './?go=meetups', tag: 'soon-' + m.id });
+    await sendOwners({ title: 'Declan: ' + title.toLowerCase(), body, url: './?go=meetups', tag: 'osoon-' + m.id });
     await db.from('partner_meetups').update({ reminded_at: new Date().toISOString() }).eq('id', m.id);
   }
-  return Response.json({ newBookings: sentNew, oneHour: sentSoon });
+  // 3. shipping: Declan asked for a label -> tell Ethan; Ethan sent the label -> tell Declan; Declan posted it -> tell Ethan
+  let ship = 0;
+  const count = async (batchId: string) => (await db.from('partner_phones').select('id', { count: 'exact', head: true }).eq('batch_id', batchId)).count ?? 0;
+  const { data: asked } = await db.from('partner_batches').select('*').is('label_sent_at', null).is('notified_requested_at', null);
+  for (const b of asked ?? []) {
+    ship += await sendOwners({ title: 'Declan needs a label', body: `${await count(b.id)} phones are ready to ship`, url: './?go=ship', tag: 'req-' + b.id });
+    await db.from('partner_batches').update({ notified_requested_at: new Date().toISOString() }).eq('id', b.id);
+  }
+  const { data: labelled } = await db.from('partner_batches').select('*').not('label_sent_at', 'is', null).is('notified_label_at', null);
+  for (const b of labelled ?? []) {
+    ship += await send(b.partner_id, { title: 'Your label is ready', body: 'Print it, pack the box and post it, then tap “I’ve posted it”.', url: './?go=ship', tag: 'label-' + b.id });
+    await db.from('partner_batches').update({ notified_label_at: new Date().toISOString() }).eq('id', b.id);
+  }
+  const { data: posted } = await db.from('partner_batches').select('*').not('posted_at', 'is', null).is('notified_posted_at', null);
+  for (const b of posted ?? []) {
+    ship += await sendOwners({ title: 'Declan posted a batch', body: `${await count(b.id)} phones · tracking ${b.tracking_number ?? ''}`, url: './?go=ship', tag: 'posted-' + b.id });
+    await db.from('partner_batches').update({ notified_posted_at: new Date().toISOString() }).eq('id', b.id);
+  }
+  return Response.json({ newBookings: sentNew, oneHour: sentSoon, shipping: ship });
 });

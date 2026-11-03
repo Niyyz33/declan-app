@@ -14,6 +14,7 @@
   var queue = load('queue', []);
   var profile = load('profile', { name: '', role: '' });
   var meetups = load('meetups', []);
+  var payments = load('payments', []);
   var partnersList = load('partners', []);
   var settings = load('settings', {});
   var lastSync = load('lastsync', null);
@@ -34,7 +35,7 @@
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
-  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync'].forEach(function (k) { save(k, null); }); profile = { name: '', role: '' }; serverPhones = []; serverBatches = []; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments'].forEach(function (k) { save(k, null); }); profile = { name: '', role: '' }; serverPhones = []; serverBatches = []; payments = []; meetups = []; settings = {}; partnersList = []; lastSync = null; }
   // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
   function versionText(v) {
     var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
@@ -92,10 +93,15 @@
         } else if (item.kind === 'batch') {
           error = (await sb.from('partner_batches').upsert(item.batch, { onConflict: 'id' })).error;
           if (!error) {
-            var r = await sb.from('partner_phones').update({ status: 'shipped', batch_id: item.batch.id }).in('id', item.phoneIds).select('id');
+            var r = await sb.from('partner_phones').update({ batch_id: item.batch.id }).in('id', item.phoneIds).select('id');
             error = r.error;
             if (!error && (r.data || []).length < item.phoneIds.length) error = { message: 'Some phones in this shipment hadn’t saved yet. Tell Ethan.' };
           }
+        } else if (item.kind === 'posted') {
+          var p1 = await sb.from('partner_batches').update({ posted_at: item.at }).eq('id', item.id).select('id');
+          error = p1.error;
+          if (!error && !(p1.data || []).length) error = { message: 'That shipment couldn’t be updated. Tell Ethan.' };
+          if (!error) error = (await sb.from('partner_phones').update({ status: 'shipped' }).eq('batch_id', item.id)).error;
         } else if (item.kind === 'edit') {
           var e1 = await sb.from('partner_phones').update(item.patch).eq('id', item.id).select('id');
           error = e1.error;
@@ -125,9 +131,10 @@
       var b = await sb.from('partner_batches').select('*').order('shipped_at', { ascending: false }).limit(100);
       if (!r.error) { serverPhones = r.data; save('phones', serverPhones); lastSync = new Date().toISOString(); save('lastsync', lastSync); }
       if (b && !b.error) { serverBatches = b.data; save('batches', serverBatches); }
+      if (isOwner()) { var pm = await sb.from('batch_payments').select('*'); if (pm && !pm.error) { payments = pm.data; save('payments', payments); } }
       var mt = await sb.from('partner_meetups').select('*').order('starts_at', { ascending: true }).limit(400);
       if (mt && !mt.error) { meetups = mt.data; save('meetups', meetups); }
-      if (['home', 'phones', 'ship', 'meetups', 'omeetups'].indexOf(current) > -1) go(current, undefined, true);
+      if (['home', 'phones', 'ship', 'oship', 'meetups', 'omeetups'].indexOf(current) > -1) go(current, undefined, true);
     } catch (e) { /* offline */ }
   }
   async function loadCatalogue() {
@@ -152,17 +159,19 @@
   }
   // Everything Declan has, with unsent changes applied on top so the screen is always right.
   function allPhones() {
-    var edits = {}, deleted = {}, shipped = {}, ids = {}, out = [];
+    var edits = {}, deleted = {}, requested = {}, posted = {}, ids = {}, out = [];
     queue.forEach(function (i) {
       if (i.kind === 'edit') edits[i.id] = Object.assign(edits[i.id] || {}, i.patch);
       if (i.kind === 'delete') deleted[i.id] = 1;
-      if (i.kind === 'batch') i.phoneIds.forEach(function (id) { shipped[id] = i.batch.id; });
+      if (i.kind === 'batch') i.phoneIds.forEach(function (id) { requested[id] = i.batch.id; });
+      if (i.kind === 'posted') posted[i.id] = 1;
     });
     queue.forEach(function (i) { if (i.kind === 'phone') { ids[i.row.id] = 1; out.push(Object.assign({ _pending: true, _failed: !!i.failed }, i.row)); } });
     serverPhones.forEach(function (p) { if (!ids[p.id]) out.push(Object.assign({}, p)); });
     out = out.filter(function (p) { return !deleted[p.id]; }).map(function (p) {
       if (edits[p.id]) Object.assign(p, edits[p.id], { _pending: true });
-      if (shipped[p.id]) { p.status = 'shipped'; p.batch_id = shipped[p.id]; }
+      if (requested[p.id]) p.batch_id = requested[p.id];
+      if (p.batch_id && posted[p.batch_id]) p.status = 'shipped';
       return p;
     });
     return out.sort(function (a, b) { return new Date(b.bought_at) - new Date(a.bought_at); });
@@ -173,7 +182,17 @@
     queue.forEach(function (i) { if (i.kind === 'meetup') patches[i.id] = Object.assign(patches[i.id] || {}, i.patch); });
     return meetups.map(function (m) { return patches[m.id] ? Object.assign({}, m, patches[m.id], { _pending: true }) : m; });
   }
-  function readyToShip() { return allPhones().filter(function (p) { return p.type === 'damaged' && p.status === 'bought' && !p._failed; }); }
+  function readyToShip() { return allPhones().filter(function (p) { return p.type === 'damaged' && p.status === 'bought' && !p.batch_id && !p._failed; }); }
+  // Where a shipment is up to: waiting (for Ethan's label) -> label (ready to post) -> posted -> received.
+  function allBatches() {
+    var posted = {};
+    queue.forEach(function (i) { if (i.kind === 'posted') posted[i.id] = i.at; });
+    var out = serverBatches.map(function (b) { return posted[b.id] && !b.posted_at ? Object.assign({}, b, { posted_at: posted[b.id], _pending: true }) : b; });
+    queue.forEach(function (i) { if (i.kind === 'batch' && !out.some(function (b) { return b.id === i.batch.id; })) out.unshift(Object.assign({ _pending: true, created_at: i.batch.shipped_at }, i.batch)); });
+    return out.sort(function (a, b) { return new Date(b.created_at || b.shipped_at) - new Date(a.created_at || a.shipped_at); });
+  }
+  function batchStage(b) { return b.received_at ? 'received' : b.posted_at ? 'posted' : b.label_sent_at ? 'label' : 'waiting'; }
+  var STAGE_TEXT = { waiting: ['bought', '⏳ Waiting for label'], label: ['shipped', '🏷️ Label ready'], posted: ['shipped', '📦 On its way'], received: ['received', '✓ Received'] };
   function batchTracking(id) { var b = serverBatches.filter(function (x) { return x.id === id; })[0]; if (b) return b.tracking_number; var q = queue.filter(function (i) { return i.kind === 'batch' && i.batch.id === id; })[0]; return q ? q.batch.tracking_number : ''; }
 
   // ---------- routing ----------
@@ -182,14 +201,19 @@
   var VIEWS = {};
   function go(view, arg, keepScroll) {
     if (pendingReload && view === 'home') { location.reload(); return; }
-    if (isOwner() && (view === 'home' || view === 'log' || view === 'ship')) view = 'omeetups';
+    if (isOwner() && (view === 'home' || view === 'log')) view = 'omeetups';
+    if (isOwner() && view === 'ship') view = 'oship';
+    if (!isOwner() && view === 'oship') view = 'ship';
     current = view;
     if (!keepScroll) window.scrollTo(0, 0);
     var scroll = window.scrollY;
     $app.className = (view === 'log' || view === 'login') ? 'nobar' : '';
     noAnim = !!keepScroll;
     $actions.innerHTML = '';
+    var typed = {};
+    if (keepScroll) all('[data-trk],[data-pship],[data-parr]').forEach(function (el) { if (el.value) typed[el.outerHTML.match(/data-(trk|pship|parr)="[^"]*"/)[0]] = el.value; });
     VIEWS[view](arg);
+    all('[data-trk],[data-pship],[data-parr]').forEach(function (el) { var k = el.outerHTML.match(/data-(trk|pship|parr)="[^"]*"/)[0]; if (typed[k] !== undefined) el.value = typed[k]; });
     if (keepScroll) window.scrollTo(0, scroll);
     renderTabs();
   }
@@ -202,11 +226,15 @@
     var active = current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
     var ready = readyToShip().length;
     function tab(id, label, icon, extra) { return '<button class="tab ' + id + (active === id ? ' on' : '') + '" data-tab="' + id + '">' + icon + (extra || '') + '<span>' + label + '</span></button>'; }
-    if (isOwner()) { $tabs.innerHTML = tab('omeetups', 'Meetups', ICON.cal) + tab('obook', 'Book', ICON.plus) + tab('phones', 'Phones', ICON.list); }
+    if (isOwner()) {
+      var waiting = allBatches().filter(function (b) { return batchStage(b) === 'waiting'; }).length;
+      $tabs.innerHTML = tab('omeetups', 'Meetups', ICON.cal) + tab('obook', 'Book', ICON.plus) + tab('oship', 'Shipments', ICON.box, waiting ? '<span class="dot">' + waiting + '</span>' : '') + tab('phones', 'Phones', ICON.list);
+    }
     else {
+      var labelsReady = allBatches().filter(function (b) { return batchStage(b) === 'label'; }).length;
       var due = allMeetups().filter(function (m) { return m.status === 'booked' && new Date(m.starts_at) < new Date(); }).length;
       $tabs.innerHTML = tab('home', 'Home', ICON.home) + tab('meetups', 'Meetups', ICON.cal, due ? '<span class="dot">' + due + '</span>' : '') + tab('log', 'Log', ICON.plus) + tab('phones', 'Phones', ICON.list) +
-        tab('ship', 'Ship', ICON.box, ready >= MIN_SHIP ? '<span class="dot">' + ready + '</span>' : '');
+        tab('ship', 'Ship', ICON.box, labelsReady ? '<span class="dot">' + labelsReady + '</span>' : ready >= MIN_SHIP ? '<span class="dot">' + ready + '</span>' : '');
     }
     all('[data-tab]').forEach(function (b) { b.onclick = function () { go(b.getAttribute('data-tab')); }; });
   }
@@ -246,7 +274,7 @@
       '<h2>Ready to ship</h2><div class="card"><div class="row between"><b>' + ready + ' damaged ' + (ready === 1 ? 'phone' : 'phones') + '</b><span class="muted fixed">' + (ready >= MIN_SHIP ? 'Ready to ship!' : (MIN_SHIP - ready) + ' more to go') + '</span></div>' +
       '<div class="bar"><i style="width:' + Math.min(100, Math.round(ready / MIN_SHIP * 100)) + '%"></i></div>' +
       '<div class="muted">Ship when you have ' + MIN_SHIP + ' or more. Mint phones you keep.</div>' +
-      (ready ? '<div style="height:12px"></div><button class="' + (ready >= MIN_SHIP ? '' : 'secondary') + '" id="ship">Ship a batch</button>' : '') + '</div>' +
+      (ready ? '<div style="height:12px"></div><button class="' + (ready >= MIN_SHIP ? '' : 'secondary') + '" id="ship">Get a shipping label</button>' : '') + '</div>' +
       (tel ? '<h2>Need Ethan?</h2><div class="row"><a class="btnlink green" href="sms:' + tel + '">💬 Message Ethan</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div>' : '') +
       '<div class="row" style="margin-top:18px"><button class="link" id="help">Rules &amp; help</button><button class="link" id="out" style="text-align:right">Log out</button></div>' +
       '<div class="sync">' + (lastSync ? 'Synced ' + fmtDate(lastSync) + ' · ' : '') + esc(versionText(VERSION)) + '</div>');
@@ -270,11 +298,11 @@
     shell('<h1>Rules &amp; help</h1>' +
       '<div class="card"><b>The rules</b><ul class="rules">' +
       '<li>Log each phone <b>after</b> you’ve bought it — not during the sale.</li>' +
-      '<li>Price paid can’t be more than <b>the quote minus the deductions</b>. The app blocks it.</li>' +
+      '<li>Price paid should stay within <b>the quote minus the deductions</b>. If it goes over, the app still saves it but flags it for Ethan.</li>' +
       '<li>Battery under 85%: $50 off (iPhone 14 and below) or $70 off (15 and above). Always taken under 80%.</li>' +
       '<li>Smashed camera lens: $20 each. If the camera itself is exposed: $50 each.</li>' +
       '<li>A scratched or replaced screen counts as a broken screen.</li>' +
-      '<li>Damaged phones: ship when you have ' + MIN_SHIP + ' or more (or Ethan says it’s OK to ship fewer).</li>' +
+      '<li>Damaged phones: when you have ' + MIN_SHIP + ' or more (or Ethan says it’s OK to ship fewer), tap <b>Ship › Ask Ethan for a label</b>. He sends you the label — print it, pack the box and post it, then tap <b>I’ve posted it</b>.</li>' +
       '<li>Mint phones you keep.</li></ul></div>' +
       '<div class="card"><b>Using the app</b><ul class="rules"><li>No signal? Keep logging. Phones are saved on your phone and send by themselves.</li>' +
       '<li>Made a mistake? In <b>Phones</b>, tap <b>Edit</b> or <b>Delete</b> — only until it’s shipped.</li>' +
@@ -296,7 +324,8 @@
   };
   function describe(i) {
     if (i.kind === 'phone') return i.row.model + (i.row.storage_gb ? ' ' + storageText(i.row.storage_gb) : '') + ' — paid ' + money(i.row.price_paid_cents);
-    if (i.kind === 'batch') return 'Shipment ' + i.batch.tracking_number + ' (' + i.phoneIds.length + ' phones)';
+    if (i.kind === 'batch') return 'Label request for ' + i.phoneIds.length + ' phones';
+    if (i.kind === 'posted') return 'Marking a shipment as posted';
     if (i.kind === 'edit') return 'A change to a saved phone';
     if (i.kind === 'meetup') return 'Your answer for a meetup';
     return 'Deleting a phone';
@@ -429,6 +458,7 @@
     var override = draft.dedTotal !== '' ? dollarsToCents(draft.dedTotal) : null;
     return { lines: lines, sum: sum, total: override === null ? sum : override, overridden: override !== null };
   }
+  function overLimit(p) { return typeof p.quoted_max_cents === 'number' && p.price_paid_cents > Math.max(0, p.quoted_max_cents - (p.total_deductions_cents || 0)); }
   // The most Declan may pay: the top of the quote minus the deductions. Never below $0.
   function maxPay(q, total) { return q ? Math.max(0, q.max - total) : null; }
   function renderSummary() {
@@ -467,7 +497,7 @@
     var hint = $('quotehint'); if (hint) hint.textContent = q ? (q.min === q.max ? 'Quote: ' + money(q.max) : 'Quote: ' + money(q.min) + ' to ' + money(q.max)) : 'Type it like 230-260, or just one price like 250.';
     var cap = maxPay(q, t.total), paid = dollarsToCents(draft.paid);
     var warn = $('capwarn');
-    if (warn) warn.innerHTML = (cap !== null && paid !== null && paid > cap) ? '<div class="err">You can’t pay more than ' + money(cap) + ' (the top of the quote minus deductions).</div>' : '';
+    if (warn) warn.innerHTML = (cap !== null && paid !== null && paid > cap) ? '<div class="err">This is ' + money(paid - cap) + ' over the limit (' + money(cap) + ' = top of the quote minus deductions). You can still save it — Ethan will see it flagged.</div>' : '';
   }
 
   var saving = false;
@@ -478,7 +508,6 @@
     if (!draft.model) err = 'Choose the model.';
     else if (!q) err = 'Enter the quote for this phone, like 230-260.';
     else if (paid === null) err = 'Enter the price paid.';
-    else if (paid > cap) err = 'You can’t pay more than ' + money(cap) + ' (the top of the quote minus deductions).';
     else if (draft.battery !== '' && (isNaN(parseInt(draft.battery, 10)) || parseInt(draft.battery, 10) > 100)) err = 'Battery % should be 1–100.';
     if (err) { if (draft.mode === 'steps' && draft.step !== STEPS.length - 1) { draft.step = STEPS.length - 1; persistDraft(); go('log'); } if ($('err')) $('err').textContent = err; else alert(err); return; }
     saving = true;
@@ -513,6 +542,7 @@
   var phoneFilter = 'all', phoneSearch = '';
   function statusLabel(p) {
     if (p.type === 'mint' && p.status === 'bought') return ['kept', 'With you'];
+    if (p.batch_id && p.status === 'bought') { var b = allBatches().filter(function (x) { return x.id === p.batch_id; })[0]; if (b) return STAGE_TEXT[batchStage(b)]; }
     return { bought: ['bought', 'Bought'], shipped: ['shipped', '📦 Shipped'], received: ['received', '✓ Received'] }[p.status] || ['bought', p.status];
   }
   VIEWS.phones = function () {
@@ -526,14 +556,14 @@
       var s = phoneSearch.toLowerCase();
       return !s || (p.model + ' ' + (p.colour || '') + ' ' + (p.notes || '')).toLowerCase().indexOf(s) > -1;
     });
-    shell('<h1>My phones</h1><input id="search" type="search" placeholder="Search model or colour" value="' + esc(phoneSearch) + '" style="margin-bottom:10px">' +
+    shell('<h1>' + (isOwner() ? 'Declan’s phones' : 'My phones') + '</h1><input id="search" type="search" placeholder="Search model or colour" value="' + esc(phoneSearch) + '" style="margin-bottom:10px">' +
       '<div class="chips" style="margin-bottom:14px">' + filters.map(function (f) { return '<button type="button" class="chip' + (phoneFilter === f[0] ? ' on' : '') + '" data-filter="' + f[0] + '">' + f[1] + '</button>'; }).join('') + '</div>' +
       (shown.length ? shown.map(function (p) {
         var st = statusLabel(p), canEdit = !isOwner() && p.status === 'bought' && !p._failed, track = p.batch_id ? batchTracking(p.batch_id) : '';
         return '<div class="card phonecard"><div class="top"><div><div class="name">' + esc(p.model) + (p.storage_gb ? ' ' + storageText(p.storage_gb) : '') + '</div><div class="meta">' + esc(p.colour || '') + (p.colour ? ' · ' : '') + fmtDate(p.bought_at) + '</div></div><span class="pill ' + p.type + '">' + p.type + '</span></div>' +
           '<div class="money"><span>Paid ' + money(p.price_paid_cents) + '</span><span class="muted">Quote ' + money(p.quoted_min_cents) + (p.quoted_max_cents !== p.quoted_min_cents ? '–' + money(p.quoted_max_cents) : '') + '</span></div>' +
           (p.total_deductions_cents ? '<div class="muted">Deductions ' + money(p.total_deductions_cents) + '</div>' : '') +
-          '<div style="margin-top:10px"><span class="pill ' + st[0] + '">' + st[1] + '</span>' + (p._failed ? ' <span class="err">couldn’t send</span>' : p._pending ? ' <span class="muted">waiting to send</span>' : '') + (track ? ' <span class="muted">· Tracking ' + esc(track) + '</span>' : '') + '</div>' +
+          '<div style="margin-top:10px"><span class="pill ' + st[0] + '">' + st[1] + '</span>' + (overLimit(p) ? ' <span class="pill damaged">⚠ Over limit</span>' : '') + (p._failed ? ' <span class="err">couldn’t send</span>' : p._pending ? ' <span class="muted">waiting to send</span>' : '') + (track ? ' <span class="muted">· Tracking ' + esc(track) + '</span>' : '') + '</div>' +
           (canEdit ? '<div class="acts"><button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button></div>' : '') + '</div>';
       }).join('') : '<div class="empty">' + (phones.length ? 'Nothing matches that.' : 'No phones yet. Log your first one!') + '</div>'));
     $('search').oninput = function () { phoneSearch = this.value; var pos = this.selectionStart; go('phones', undefined, true); var s = $('search'); s.focus(); s.setSelectionRange(pos, pos); };
@@ -560,8 +590,6 @@
       var q = parseQuote($('eq').value), paid = dollarsToCents($('ep').value);
       if (!q) { $('err').textContent = 'Enter the quote, like 230-260.'; return; }
       if (paid === null) { $('err').textContent = 'Enter the price paid.'; return; }
-      var cap = maxPay(q, p.total_deductions_cents || 0);
-      if (paid > cap) { $('err').textContent = 'You can’t pay more than ' + money(cap) + ' (the top of the quote minus deductions).'; return; }
       var patch = { quoted_min_cents: q.min, quoted_max_cents: q.max, price_paid_cents: paid, notes: $('en').value.trim() || null };
       var qi = queue.filter(function (i) { return i.kind === 'phone' && i.row.id === id; })[0];
       if (qi) { Object.assign(qi.row, patch); delete qi.failed; setQueue(queue); }
@@ -570,41 +598,94 @@
     };
   };
 
-  // ---------- ship a batch ----------
+  // ---------- shipping ----------
+  // Declan asks for a label once he has enough damaged phones; Ethan sends it; Declan prints, packs and posts;
+  // Ethan marks it received. Each side sees where the shipment is up to.
+  function batchPhones(id) { return allPhones().filter(function (p) { return p.batch_id === id; }); }
   VIEWS.ship = function () {
-    var ready = readyToShip();
-    var sel = {}; ready.forEach(function (p) { sel[p.id] = true; });
-    var history = serverBatches.slice();
-    queue.forEach(function (i) { if (i.kind === 'batch' && !history.some(function (b) { return b.id === i.batch.id; })) history.unshift(Object.assign({ _pending: true }, i.batch)); });
+    var ready = readyToShip(), sel = {}; ready.forEach(function (p) { sel[p.id] = true; });
+    var batches = allBatches();
     function render() {
       var n = Object.keys(sel).filter(function (k) { return sel[k]; }).length;
-      shell('<h1>Ship a batch</h1>' + (ready.length ? '<div class="card"><div class="row between"><b>Damaged phones ready</b><span class="muted fixed">' + n + ' selected</span></div>' + ready.map(function (p) {
+      var req = ready.length ? '<h2>Ready to ship</h2><div class="card"><div class="row between"><b>Damaged phones</b><span class="muted fixed">' + n + ' selected</span></div>' + ready.map(function (p) {
         return '<div style="margin-top:8px"><button type="button" class="chip' + (sel[p.id] ? ' on good' : '') + '" style="width:100%;border-radius:14px" data-p="' + p.id + '">' + esc(p.model) + (p.storage_gb ? ' ' + storageText(p.storage_gb) : '') + '<small>' + esc(p.colour || '') + ' · paid ' + money(p.price_paid_cents) + '</small></button></div>';
-      }).join('') + '</div>' +
-        '<div class="card"><div class="bar"><i style="width:' + Math.min(100, Math.round(n / MIN_SHIP * 100)) + '%"></i></div><div class="muted">Ship when you have ' + MIN_SHIP + ' or more.</div>' +
-        (n > 0 && n < MIN_SHIP ? '<div style="margin-top:10px"><button type="button" class="chip' + (window._few ? ' on' : '') + '" id="few">Ethan said it’s OK to ship fewer than ' + MIN_SHIP + '</button></div>' : '') +
-        '<label>Tracking number</label><input id="trk" autocapitalize="characters" autocomplete="off"></div>' +
-        '<button id="go" ' + (n === 0 ? 'disabled' : '') + '>Mark as shipped</button><div class="err" id="err"></div>' : '<div class="empty">No damaged phones waiting to ship.</div>') +
-        (history.length ? '<h2>Past shipments</h2>' + history.map(function (b) {
-          var count = serverPhones.filter(function (p) { return p.batch_id === b.id; }).length || (b.phoneIds ? b.phoneIds.length : 0);
-          return '<div class="card flat"><div class="row between"><b>' + esc(b.tracking_number) + '</b><span class="muted fixed">' + new Date(b.shipped_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + '</span></div>' +
-            '<div class="muted">' + (count ? count + ' phones · ' : '') + (b._pending ? 'waiting to send' : b.received_at ? '✓ Received by Ethan' : b.label_sent_at ? 'Label sent' : 'On its way') + '</div></div>';
-        }).join('') : ''));
-      var trk = $('trk'); if (trk && window._trk) trk.value = window._trk;
-      if (trk) trk.oninput = function () { window._trk = this.value; };
+      }).join('') + '</div><div class="card"><div class="bar"><i style="width:' + Math.min(100, Math.round(n / MIN_SHIP * 100)) + '%"></i></div><div class="muted">Ask for a label when you have ' + MIN_SHIP + ' or more. Ethan will send it to you.</div>' +
+        (n > 0 && n < MIN_SHIP ? '<div style="margin-top:10px"><button type="button" class="chip' + (window._few ? ' on' : '') + '" id="few">Ethan said it’s OK to ship fewer than ' + MIN_SHIP + '</button></div>' : '') + '</div>' +
+        '<button id="go" ' + (n === 0 ? 'disabled' : '') + '>Ask Ethan for a label</button><div class="err" id="err"></div>' : '<div class="empty">No damaged phones waiting to ship.</div>';
+      var mine = batches.length ? '<h2>Your shipments</h2>' + batches.map(function (b) {
+        var st = batchStage(b), ph = batchPhones(b.id), t = STAGE_TEXT[st];
+        var body = st === 'waiting' ? '<div class="muted">Ethan has been told. You’ll get a notification when your label is ready.</div>'
+          : st === 'label' ? '<div style="margin-top:8px"><b>Tracking ' + esc(b.tracking_number || '') + '</b></div><div class="muted">Print the label, pack the box and post it. Then tap the button.</div><div class="gap"></div><button data-posted="' + b.id + '">I’ve posted it</button>'
+          : st === 'posted' ? '<div class="muted" style="margin-top:6px">Tracking ' + esc(b.tracking_number || '') + ' · posted ' + fmtDate(b.posted_at) + '</div>'
+          : '<div class="muted" style="margin-top:6px">Received by Ethan ' + fmtDate(b.received_at) + '</div>';
+        return '<div class="card"><div class="row between"><b>' + ph.length + ' phones</b><span class="pill ' + t[0] + ' fixed">' + t[1] + '</span></div>' + body + (b._pending ? '<div class="muted">waiting to send</div>' : '') + '</div>';
+      }).join('') : '';
+      shell('<h1>Ship</h1>' + req + mine);
       all('[data-p]').forEach(function (b) { b.onclick = function () { sel[b.getAttribute('data-p')] = !sel[b.getAttribute('data-p')]; render(); }; });
       if ($('few')) $('few').onclick = function () { window._few = !window._few; render(); };
+      all('[data-posted]').forEach(function (b) { b.onclick = function () { if (!confirm('Have you posted the box?')) return; queue.push({ kind: 'posted', id: b.getAttribute('data-posted'), at: new Date().toISOString() }); setQueue(queue); syncQueue(); go('ship', undefined, true); }; });
       if ($('go')) $('go').onclick = function () {
-        var ids = Object.keys(sel).filter(function (k) { return sel[k]; }), t = $('trk').value.trim();
+        var ids = Object.keys(sel).filter(function (k) { return sel[k]; });
         if (!ids.length) return;
-        if (ids.length < MIN_SHIP && !window._few) { $('err').textContent = 'You need ' + MIN_SHIP + ' phones to ship, or tick that Ethan said it’s OK.'; return; }
-        if (!t) { $('err').textContent = 'Enter the tracking number.'; return; }
+        if (ids.length < MIN_SHIP && !window._few) { $('err').textContent = 'You need ' + MIN_SHIP + ' phones, or tick that Ethan said it’s OK.'; return; }
         $('go').disabled = true;
-        queue.push({ kind: 'batch', batch: { id: uuid(), tracking_number: t, shipped_at: new Date().toISOString() }, phoneIds: ids }); setQueue(queue);
-        window._few = false; window._trk = ''; syncQueue(); go('phones');
+        queue.push({ kind: 'batch', batch: { id: uuid(), tracking_number: null, shipped_at: new Date().toISOString() }, phoneIds: ids }); setQueue(queue);
+        window._few = false; syncQueue(); go('ship');
       };
     }
     render();
+  };
+
+  // Ethan's side: send labels, mark received, note what he's paid.
+  function paymentFor(id) { return payments.filter(function (p) { return p.batch_id === id; })[0] || {}; }
+  VIEWS.oship = function () {
+    var batches = allBatches();
+    shell('<h1>Shipments</h1><div id="pushcard"></div>' + (batches.length ? batches.map(function (b) {
+      var st = batchStage(b), ph = batchPhones(b.id), t = STAGE_TEXT[st], pay = paymentFor(b.id), total = ph.reduce(function (a, p) { return a + (p.price_paid_cents || 0); }, 0);
+      var action = st === 'waiting' ? '<label>Tracking number from your label</label><input data-trk="' + b.id + '" autocapitalize="characters" autocomplete="off" placeholder="e.g. 34ABC123456"><div class="gap"></div><button data-label="' + b.id + '">Label sent to Declan</button>'
+        : st !== 'received' ? '<div class="muted" style="margin-top:6px">Tracking ' + esc(b.tracking_number || '') + (st === 'posted' ? ' · posted ' + fmtDate(b.posted_at) : ' · waiting for Declan to post') + '</div><div class="gap"></div><button data-recv="' + b.id + '">Mark received</button>'
+        : '<div class="muted" style="margin-top:6px">Tracking ' + esc(b.tracking_number || '') + ' · received ' + fmtDate(b.received_at) + '</div>';
+      return '<div class="card"><div class="row between"><b>' + ph.length + ' phones · ' + money(total) + ' paid by Declan</b><span class="pill ' + t[0] + ' fixed">' + t[1] + '</span></div>' +
+        '<div class="muted" style="margin:6px 0">' + ph.map(function (p) { return esc(p.model) + (p.storage_gb ? ' ' + storageText(p.storage_gb) : ''); }).join(' · ') + '</div>' + action +
+        '<h2 style="margin-top:18px">What you’ve paid</h2><div class="row"><div><label>On shipping ($)</label><input type="number" inputmode="decimal" data-pship="' + b.id + '" value="' + (pay.paid_on_ship_cents != null ? pay.paid_on_ship_cents / 100 : '') + '"></div>' +
+        '<div><label>On arrival ($)</label><input type="number" inputmode="decimal" data-parr="' + b.id + '" value="' + (pay.paid_on_arrival_cents != null ? pay.paid_on_arrival_cents / 100 : '') + '"></div></div><div class="gap"></div><button class="secondary" data-savepay="' + b.id + '">Save payments</button><div class="err" data-err="' + b.id + '"></div></div>';
+    }).join('') : '<div class="empty">No shipments yet. When Declan asks for a label it shows up here.</div>'));
+    function fail(id, msg) { var e = document.querySelector('[data-err="' + id + '"]'); if (e) e.textContent = msg; }
+    all('[data-label]').forEach(function (btn) {
+      btn.onclick = async function () {
+        var id = btn.getAttribute('data-label'), trk = document.querySelector('[data-trk="' + id + '"]').value.trim();
+        if (!trk) { fail(id, 'Enter the tracking number first.'); return; }
+        if (!navigator.onLine) { fail(id, 'You need signal to do that.'); return; }
+        btn.disabled = true;
+        var r = await sb.from('partner_batches').update({ tracking_number: trk, label_sent_at: new Date().toISOString() }).eq('id', id).select('id');
+        if (r.error || !(r.data || []).length) { fail(id, 'Couldn’t save: ' + (r.error ? r.error.message : 'not allowed')); btn.disabled = false; return; }
+        await refreshPhones(); go('oship', undefined, true);
+      };
+    });
+    all('[data-recv]').forEach(function (btn) {
+      btn.onclick = async function () {
+        var id = btn.getAttribute('data-recv');
+        if (!confirm('Mark this shipment as received?')) return;
+        if (!navigator.onLine) { fail(id, 'You need signal to do that.'); return; }
+        btn.disabled = true;
+        var r = await sb.from('partner_batches').update({ received_at: new Date().toISOString() }).eq('id', id).select('id');
+        if (r.error) { fail(id, 'Couldn’t save: ' + r.error.message); btn.disabled = false; return; }
+        var r2 = await sb.from('partner_phones').update({ status: 'received' }).eq('batch_id', id);
+        if (r2.error) { fail(id, 'Marked received, but the phones didn’t update: ' + r2.error.message); }
+        await refreshPhones(); go('oship', undefined, true);
+      };
+    });
+    all('[data-savepay]').forEach(function (btn) {
+      btn.onclick = async function () {
+        var id = btn.getAttribute('data-savepay'), a = dollarsToCents(document.querySelector('[data-pship="' + id + '"]').value), c = dollarsToCents(document.querySelector('[data-parr="' + id + '"]').value), old = paymentFor(id), now = new Date().toISOString();
+        if (!navigator.onLine) { fail(id, 'You need signal to do that.'); return; }
+        var row = { batch_id: id, paid_on_ship_cents: a, paid_on_ship_at: a === null ? null : (old.paid_on_ship_cents === a && old.paid_on_ship_at ? old.paid_on_ship_at : now), paid_on_arrival_cents: c, paid_on_arrival_at: c === null ? null : (old.paid_on_arrival_cents === c && old.paid_on_arrival_at ? old.paid_on_arrival_at : now) };
+        var r = await sb.from('batch_payments').upsert(row, { onConflict: 'batch_id' });
+        if (r.error) { fail(id, 'Couldn’t save: ' + r.error.message); return; }
+        fail(id, ''); btn.textContent = 'Saved ✓'; await refreshPhones();
+        renderPushCard();
+  };
+    });
   };
 
   // ---------- push notifications (meetup booked / one hour to go) ----------
@@ -624,13 +705,14 @@
   }
   async function renderPushCard() {
     var el = $('pushcard');
-    if (!el || isOwner() || !(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY)) return;
-    if (!pushSupported() || !isStandalone()) { el.innerHTML = '<div class="tip"><b>Want an alert an hour before each meetup?</b> Add the app to your Home Screen first (Share ⬆︎ → Add to Home Screen), open it from the icon, then turn alerts on here.</div>'; return; }
+    if (!el || !(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY)) return;
+    var what = isOwner() ? 'when Declan asks for a label or posts a batch, and an hour before each meetup' : 'the moment Ethan books a meetup, and another one an hour before';
+    if (!pushSupported() || !isStandalone()) { el.innerHTML = '<div class="tip"><b>Want alerts?</b> Add the app to your Home Screen first (Share ⬆︎ → Add to Home Screen), open it from the icon, then turn alerts on here.</div>'; return; }
     if (Notification.permission === 'denied') { el.innerHTML = '<div class="tip">Alerts are blocked. Turn them on in <b>Settings › Notifications › Cash for Phones</b>.</div>'; return; }
     var on = false;
     try { var reg = await navigator.serviceWorker.ready; on = Notification.permission === 'granted' && !!(await reg.pushManager.getSubscription()); } catch (e) { /* ignore */ }
-    if (on) { el.innerHTML = '<div class="muted" style="margin:0 2px 12px">🔔 Meetup alerts are on — you’ll get one when Ethan books and one an hour before.</div>'; return; }
-    el.innerHTML = '<div class="card"><b>🔔 Meetup alerts</b><div class="muted">Get a notification the moment Ethan books a meetup, and another one hour before.</div><div class="gap"></div><button id="pushon">Turn on alerts</button><div class="err" id="pusherr"></div></div>';
+    if (on) { el.innerHTML = '<div class="muted" style="margin:0 2px 12px">🔔 Alerts are on — you’ll get one ' + what + '.</div>'; return; }
+    el.innerHTML = '<div class="card"><b>🔔 Alerts</b><div class="muted">Get a notification ' + what + '.</div><div class="gap"></div><button id="pushon">Turn on alerts</button><div class="err" id="pusherr"></div></div>';
     $('pushon').onclick = async function () {
       $('pusherr').textContent = '';
       try {
@@ -716,9 +798,10 @@
 
   // owner side: book Declan's meetups
   VIEWS.omeetups = function () {
-    shell('<h1>Declan’s meetups</h1><button id="book">＋ Book a meetup</button>' + meetupSections() +
+    shell('<h1>Declan’s meetups</h1><div id="pushcard"></div><button id="book">＋ Book a meetup</button>' + meetupSections() +
       '<div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { go('obook'); };
+    renderPushCard();
     $('out').onclick = async function () { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; current = ''; clearCaches(); go('login'); };
     bindMeetupActions();
   };
@@ -775,6 +858,7 @@
     go(isOwner() ? 'omeetups' : 'home');
     var deep = new URLSearchParams(location.search).get('go');
     if (deep === 'meetups' && !isOwner()) go('meetups');
+    if (deep === 'ship') go(isOwner() ? 'oship' : 'ship');
     if (deep) history.replaceState(null, '', location.pathname);
     loadCatalogue(); loadProfile(); refreshPhones(); syncQueue(); ensurePush();
     window.addEventListener('online', function () { loadCatalogue(); loadProfile(); syncQueue(); renderBanner(); });
