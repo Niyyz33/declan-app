@@ -105,7 +105,7 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
     <div class="sh"><div class="num">2</div><h2>Grab your gear</h2></div>
     <div class="card">
       <div class="gear" id="gear"></div>
-      <div class="tip" style="margin:12px 0 0"><b>Buy your bubble wrap sleeves at the Post Office. They're $1.30 each.</b> Each sleeve protects up to 3 phones. The counter above tells you how many to get. You don't need your own tape or pen. The Post Office does the taping and gives you a pen to sign.</div>
+      <div class="tip" style="margin:12px 0 0"><b>Buy your box and your bubble wrap sleeves at the Post Office. The sleeves are $1.30 each.</b> Each sleeve protects up to 3 phones. The counter above tells you how many to get. You don't need your own tape or pen. The Post Office does the taping and gives you a pen to sign.</div>
     </div>
   </section>
 
@@ -230,8 +230,8 @@ body.small .gear .only-small, body.medium .gear .only-medium { display:block; }
   // gear checklist (changes with the box)
   function gearHTML(size) {
     var boxItem = size === 'small'
-      ? '<div class="item"><img src="guide/box-small.jpg" alt="Small parcel box" loading="lazy"><b>Small box</b><span>220 × 160 × 70 mm · up to 9 phones</span></div>'
-      : '<div class="item"><svg viewBox="0 0 140 100">' + cardboardBox(24, 10, 80, 56, 24, 'MEDIUM') + '</svg><b>Medium box</b><span>for 10 phones or more</span></div>';
+      ? '<div class="item"><img src="guide/box-small.jpg" alt="Small parcel box" loading="lazy"><b>Small box</b><span>220 × 160 × 70 mm · up to 9 phones · buy it at the Post Office</span></div>'
+      : '<div class="item"><svg viewBox="0 0 140 100">' + cardboardBox(24, 10, 80, 56, 24, 'MEDIUM') + '</svg><b>Medium box</b><span>for 10 phones or more · buy it at the Post Office</span></div>';
     return boxItem +
       '<div class="item"><svg viewBox="0 0 140 100">' + DEFS + sleeve(14, 22, 112, 58) + '<rect x="30" y="38" width="62" height="26" rx="5" fill="#243a66" fill-opacity=".7"/></svg><b>Bubble wrap sleeves</b><span>$1.30 each · buy them at the Post Office</span></div>' +
       '<div class="item"><svg viewBox="0 0 140 100">' + label(22, 14, 96, 70) + '</svg><b>Your printed label</b><span>from Ethan</span></div>' +
