@@ -246,10 +246,10 @@
   var noAnim = false;
   function shell(html) { $app.innerHTML = '<div class="view"' + (noAnim ? ' style="animation:none"' : '') + '>' + html + '</div>'; }
   function renderTabs() {
-    var hide = !session || current === 'login' || current === 'log' || current === 'edit' || current === 'sold' || !current;
+    var hide = !session || current === 'login' || current === 'log' || current === 'edit' || current === 'sold' || current === 'fbdesc' || !current;
     $tabs.hidden = hide;
     if (hide) return;
-    var active = current === 'sold' ? 'phones' : current === 'orates' ? 'ostatement' : current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
+    var active = current === 'sold' || current === 'fbdesc' ? 'phones' : current === 'orates' ? 'ostatement' : current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
     var ready = readyToShip().length;
     function tab(id, label, icon, extra) { return '<button class="tab ' + id + (active === id ? ' on' : '') + '" data-tab="' + id + '">' + icon + (extra || '') + '<span>' + label + '</span></button>'; }
     if (isOwner()) {
@@ -593,13 +593,14 @@
           (p.total_deductions_cents ? '<div class="muted">Deductions ' + money(p.total_deductions_cents) + '</div>' : '') +
           '<div style="margin-top:10px"><span class="pill ' + st[0] + '">' + st[1] + '</span>' + (overLimit(p) ? ' <span class="pill damaged">⚠ Over limit</span>' : '') + (p._failed ? ' <span class="err">couldn’t send</span>' : p._pending ? ' <span class="muted">waiting to send</span>' : '') + (track ? ' <span class="muted">· Tracking ' + esc(track) + '</span>' : '') + '</div>' +
           (p.type === 'mint' && p.sold_price_cents != null ? '<div style="margin-top:8px"><b>Sold for ' + money(p.sold_price_cents) + '</b> <span class="muted">· ' + (p.sold_price_cents - p.price_paid_cents >= 0 ? '+' : '') + money(p.sold_price_cents - p.price_paid_cents) + ' on what you paid</span></div>' : '') +
-          (!isOwner() && p.type === 'mint' && !p._failed ? '<div class="acts"><button class="small" data-sold="' + p.id + '">' + (p.sold_price_cents != null ? 'Change sale price' : '💰 Mark sold') + '</button>' + (canEdit && p.sold_price_cents == null ? '<button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button>' : '') + '</div>'
+          (!isOwner() && p.type === 'mint' && !p._failed ? '<div class="acts"><button class="small" data-sold="' + p.id + '">' + (p.sold_price_cents != null ? 'Change sale price' : '💰 Mark sold') + '</button>' + (p.sold_price_cents == null ? '<button class="secondary small" data-fb="' + p.id + '">📋 Facebook description</button>' : '') + (canEdit && p.sold_price_cents == null ? '<button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button>' : '') + '</div>'
             : canEdit ? '<div class="acts"><button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button></div>' : '') + '</div>';
       }).join('') : '<div class="empty">' + (phones.length ? 'Nothing matches that.' : 'No phones yet. Log your first one!') + '</div>'));
     $('search').oninput = function () { phoneSearch = this.value; var pos = this.selectionStart; go('phones', undefined, true); var s = $('search'); s.focus(); s.setSelectionRange(pos, pos); };
     all('[data-filter]').forEach(function (b) { b.onclick = function () { phoneFilter = b.getAttribute('data-filter'); go('phones', undefined, true); }; });
     all('[data-edit]').forEach(function (b) { b.onclick = function () { go('edit', b.getAttribute('data-edit')); }; });
     all('[data-sold]').forEach(function (b) { b.onclick = function () { go('sold', b.getAttribute('data-sold')); }; });
+    all('[data-fb]').forEach(function (b) { b.onclick = function () { go('fbdesc', b.getAttribute('data-fb')); }; });
     all('[data-del]').forEach(function (b) { b.onclick = function () { deletePhone(b.getAttribute('data-del')); }; });
   };
   function deletePhone(id) {
@@ -624,6 +625,53 @@
     }
     $('save').onclick = function () { var c = dollarsToCents($('sp').value); if (c === null || c < 0) { $('err').textContent = 'Enter what it sold for.'; return; } put(c, p.sold_at || new Date().toISOString()); };
     if ($('unsell')) $('unsell').onclick = function () { put(null, null); };
+  };
+  // Facebook Marketplace description, same wording rules as Ethan's first app (no bullet points, never states something he hasn't confirmed)
+  function fbNaturalJoin(a) { return a.length < 2 ? (a[0] || '') : a.length === 2 ? a[0] + ' and ' + a[1] : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+  function fbListing(inp) {
+    var title = inp.model + (inp.storage ? ' - ' + inp.storage : '');
+    var lines = [title + (inp.grade ? ', in ' + inp.grade.toLowerCase() + ' condition.' : '.'), ''];
+    var faults = inp.faults.filter(function (f) { return inp.battery == null || !/battery/i.test(f); });
+    function faultLine(f) { return /face id/i.test(f) && /(not work|doesn.t work|broken)/i.test(f) ? 'Face ID does not work (but password works perfectly fine!)' : f; }
+    if (!faults.length) lines.push('All features are working perfectly 😊');
+    else { faults.forEach(function (f) { lines.push(faultLine(f)); }); inp.working.forEach(function (w) { lines.push(w); }); }
+    if (inp.battery != null && inp.battery >= 80) lines.push('Battery health is at ' + inp.battery + '%.');
+    if (inp.noCracks) lines.push('No cracks or major damage.');
+    if (inp.accessories.length) lines.push('Comes with ' + fbNaturalJoin(inp.accessories) + '.');
+    lines.push('', 'Has been factory reset and ready for the next user.', 'Happy for you to check everything out for yourself before you buy 👌', '', 'Feel free to message with any questions.');
+    if (inp.pickup) lines.push('Pickup ' + inp.pickup + '.');
+    return { title: title, description: lines.join('\n') };
+  }
+  var fbState = {};
+  VIEWS.fbdesc = function (id) {
+    var p = allPhones().filter(function (x) { return x.id === id; })[0];
+    if (!p) return go('phones');
+    var st = fbState[id] || (fbState[id] = { grade: '', noCracks: false, accessories: '', working: '' });
+    var pickup = ''; try { pickup = localStorage.getItem('fb_pickup') || ''; } catch (e) { /* fine without it */ }
+    var faults = p.issues || [], grades = ['', 'Mint', 'Excellent', 'Great', 'Good'];
+    function list(t) { return t.split(',').map(function (x) { return x.trim(); }).filter(Boolean); }
+    function make() { return fbListing({ model: p.model, storage: p.storage_gb ? storageText(p.storage_gb) : '', battery: p.battery_pct, faults: faults, working: list(st.working), grade: st.grade, noCracks: st.noCracks, accessories: list(st.accessories), pickup: pickup.trim() }); }
+    shell('<h1>Facebook description</h1>' +
+      '<div class="card"><b>' + esc(p.model) + (p.storage_gb ? ' ' + storageText(p.storage_gb) : '') + '</b><div class="muted">' + esc([p.colour, p.battery_pct != null ? 'battery ' + p.battery_pct + '%' : ''].filter(Boolean).join(' · ')) + (faults.length ? '<br>Faults: ' + esc(faults.join(', ')) : '') + '</div><div class="hint">Model, storage, colour, battery and faults come from what you logged.</div></div>' +
+      '<div class="card"><label>Condition</label><div class="chips" id="gradechips">' + grades.map(function (g) { return '<button type="button" class="chip' + (st.grade === g ? ' on' : '') + '" data-grade="' + g + '">' + (g || 'Leave out') + '</button>'; }).join('') + '</div>' +
+      '<label class="chk"><input type="checkbox" id="nocr"' + (st.noCracks ? ' checked' : '') + '><span>No cracks or major damage (only tick if it’s true)</span></label>' +
+      '<label>Comes with (optional)</label><input id="acc" placeholder="e.g. box, charger" value="' + esc(st.accessories) + '">' +
+      (faults.length ? '<label>Things that work (optional)</label><input id="wrk" placeholder="e.g. Face ID works, Cameras work" value="' + esc(st.working) + '">' : '') +
+      '<label>Pickup suburb (optional)</label><input id="pk" placeholder="e.g. Kirwan 4817" value="' + esc(pickup) + '"><div class="hint">Saved on this phone for next time.</div></div>' +
+      '<div class="card"><div class="row between"><b>Title</b><button class="secondary small fixed" id="cpt">Copy</button></div><div class="fbbox" id="fbt"></div></div>' +
+      '<div class="card"><div class="row between"><b>Description</b><button class="small fixed" id="cpd">Copy</button></div><div class="fbbox" id="fbd"></div></div>' +
+      '<button class="secondary" id="back">Back</button>');
+    function paint() { var l = make(); $('fbt').textContent = l.title; $('fbd').textContent = l.description; }
+    paint();
+    all('[data-grade]').forEach(function (b) { b.onclick = function () { st.grade = b.getAttribute('data-grade'); all('[data-grade]').forEach(function (x) { x.classList.toggle('on', x === b); }); paint(); }; });
+    $('nocr').onchange = function () { st.noCracks = this.checked; paint(); };
+    $('acc').oninput = function () { st.accessories = this.value; paint(); };
+    if ($('wrk')) $('wrk').oninput = function () { st.working = this.value; paint(); };
+    $('pk').oninput = function () { pickup = this.value; try { localStorage.setItem('fb_pickup', pickup); } catch (e) { /* fine */ } paint(); };
+    function copyBtn(btn, get) { btn.onclick = function () { var t = get(); copyText(t); var old = btn.textContent; btn.textContent = 'Copied ✓'; setTimeout(function () { btn.textContent = old; }, 1600); }; }
+    copyBtn($('cpt'), function () { return make().title; });
+    copyBtn($('cpd'), function () { return make().description; });
+    $('back').onclick = function () { go('phones'); };
   };
   VIEWS.edit = function (id) {
     var p = allPhones().filter(function (x) { return x.id === id; })[0];
