@@ -326,7 +326,7 @@
       '<li>Battery under 85%: $50 off (iPhone 14 and below) or $70 off (15 and above). Always taken under 80%.</li>' +
       '<li>Smashed camera lens: $20 each. If the camera itself is exposed: $50 each.</li>' +
       '<li>A scratched or replaced screen counts as a broken screen.</li>' +
-      '<li>Damaged phones: when you have ' + MIN_SHIP + ' or more (or Ethan says it’s OK to ship fewer), tap <b>Ship › Ask Ethan for a label</b>. He sends you the label — print it, pack the box and post it, then tap <b>I’ve posted it</b>.</li>' +
+      '<li>Damaged phones: when you have ' + MIN_SHIP + ' or more (or Ethan says it’s OK to ship fewer), tap <b>Ship › Message Ethan for a label</b>. It opens a text to Ethan, all written out for you. He sends back the label — print it, pack the box and post it, then tap <b>I’ve posted it</b>.</li>' +
       '<li>Mint phones you keep.</li></ul></div>' +
       '<div class="card"><b>Using the app</b><ul class="rules"><li>No signal? Keep logging. Phones are saved on your phone and send by themselves.</li>' +
       '<li>Made a mistake? In <b>Phones</b>, tap <b>Edit</b> or <b>Delete</b> — only until it’s shipped.</li>' +
@@ -627,19 +627,30 @@
   // Declan asks for a label once he has enough damaged phones; Ethan sends it; Declan prints, packs and posts;
   // Ethan marks it received. Each side sees where the shipment is up to.
   function batchPhones(id) { return allPhones().filter(function (p) { return p.batch_id === id; }); }
+  // The text Declan sends Ethan to ask for a label: the phones, what he paid, and what he'll pack them in.
+  function labelMessage(phones) {
+    var n = phones.length, total = phones.reduce(function (a, p) { return a + (p.price_paid_cents || 0); }, 0);
+    var lines = phones.map(function (p, i) { return (i + 1) + '. ' + p.model + (p.storage_gb ? ' ' + storageText(p.storage_gb) : '') + (p.colour ? ' (' + p.colour + ')' : '') + ' - paid ' + money(p.price_paid_cents); });
+    return 'Hey Ethan, it\'s ' + (profile.name || 'Declan') + ' 👋\n\nI\'ve got ' + n + ' damaged phone' + (n === 1 ? '' : 's') + ' ready to ship:\n\n' + lines.join('\n') +
+      '\n\nTotal I\'ve paid: ' + money(total) + '\n\nCan you send me the postage label please? I\'ll pack them in ' + (n >= 10 ? 'a medium' : 'a small') + ' box with bubble wrap and post them as soon as I\'ve got it.\n\nThanks!';
+  }
+  function smsHref(body) { var n = phoneForLinks(); return n ? 'sms:' + n + '&body=' + encodeURIComponent(body) : '#'; }
+  function copyText(t) { try { if (navigator.clipboard) navigator.clipboard.writeText(t); } catch (e) { /* the message still opens in Messages */ } }
   VIEWS.ship = function () {
     var ready = readyToShip(), sel = {}; ready.forEach(function (p) { sel[p.id] = true; });
-    var batches = allBatches();
+    var batches = allBatches(), asked = null; // asked = the phones in the message he just opened, waiting for "I sent it"
+    function chosen() { return ready.filter(function (p) { return sel[p.id]; }); }
     function render() {
       var n = Object.keys(sel).filter(function (k) { return sel[k]; }).length;
       var req = ready.length ? '<h2>Ready to ship</h2><div class="card"><div class="row between"><b>Damaged phones</b><span class="muted fixed">' + n + ' selected</span></div>' + ready.map(function (p) {
         return '<div style="margin-top:8px"><button type="button" class="chip' + (sel[p.id] ? ' on good' : '') + '" style="width:100%;border-radius:14px" data-p="' + p.id + '">' + esc(p.model) + (p.storage_gb ? ' ' + storageText(p.storage_gb) : '') + '<small>' + esc(p.colour || '') + ' · paid ' + money(p.price_paid_cents) + '</small></button></div>';
       }).join('') + '</div><div class="card"><div class="bar"><i style="width:' + Math.min(100, Math.round(n / MIN_SHIP * 100)) + '%"></i></div><div class="muted">Ask for a label when you have ' + MIN_SHIP + ' or more. Ethan will send it to you.</div>' +
         (n > 0 && n < MIN_SHIP ? '<div style="margin-top:10px"><button type="button" class="chip' + (window._few ? ' on' : '') + '" id="few">Ethan said it’s OK to ship fewer than ' + MIN_SHIP + '</button></div>' : '') + '</div>' +
-        '<button id="go" ' + (n === 0 ? 'disabled' : '') + '>Ask Ethan for a label</button><div class="err" id="err"></div>' : '<div class="empty">No damaged phones waiting to ship.</div>';
+        (asked ? '<div class="card"><b>Did you send the message to Ethan?</b><div class="muted">Messages should have opened with everything written out. The message is also copied, so you can paste it if it didn’t.</div><div class="gap"></div><button id="sent">Yes, I sent it</button><div class="gap"></div><button class="secondary" id="again">Copy the message again</button><div class="gap"></div><button class="link" id="notyet">Not yet</button></div>'
+          : n === 0 ? '<button disabled>Message Ethan for a label</button>' : '<a class="btnlink green" id="go" href="' + smsHref(labelMessage(chosen())) + '">💬 Message Ethan for a label</a>') + '<div class="err" id="err"></div>' : '<div class="empty">No damaged phones waiting to ship.</div>';
       var mine = batches.length ? '<h2>Your shipments</h2>' + batches.map(function (b) {
         var st = batchStage(b), ph = batchPhones(b.id), t = STAGE_TEXT[st];
-        var body = st === 'waiting' ? '<div class="muted">Ethan has been told. You’ll get a notification when your label is ready.</div>'
+        var body = st === 'waiting' ? '<div class="muted">Ethan will text you the label. When he’s sent it, it shows up here with your tracking number.</div>'
           : st === 'label' ? '<div style="margin-top:8px"><b>Tracking ' + esc(b.tracking_number || '') + '</b></div><div class="muted">Print the label, pack the box and post it. Then tap the button.</div><div class="gap"></div><button data-posted="' + b.id + '">I’ve posted it</button>'
           : st === 'posted' ? '<div class="muted" style="margin-top:6px">Tracking ' + esc(b.tracking_number || '') + ' · posted ' + fmtDate(b.posted_at) + '</div>'
           : '<div class="muted" style="margin-top:6px">Received by Ethan ' + fmtDate(b.received_at) + '</div>';
@@ -649,12 +660,18 @@
       all('[data-p]').forEach(function (b) { b.onclick = function () { sel[b.getAttribute('data-p')] = !sel[b.getAttribute('data-p')]; render(); }; });
       if ($('few')) $('few').onclick = function () { window._few = !window._few; render(); };
       all('[data-posted]').forEach(function (b) { b.onclick = function () { if (!confirm('Have you posted the box?')) return; queue.push({ kind: 'posted', id: b.getAttribute('data-posted'), at: new Date().toISOString() }); setQueue(queue); syncQueue(); go('ship', undefined, true); }; });
-      if ($('go')) $('go').onclick = function () {
+      if ($('go')) $('go').onclick = function (e) {
         var ids = Object.keys(sel).filter(function (k) { return sel[k]; });
-        if (!ids.length) return;
-        if (ids.length < MIN_SHIP && !window._few) { $('err').textContent = 'You need ' + MIN_SHIP + ' phones, or tick that Ethan said it’s OK.'; return; }
-        $('go').disabled = true;
-        queue.push({ kind: 'batch', batch: { id: uuid(), tracking_number: null, shipped_at: new Date().toISOString() }, phoneIds: ids }); setQueue(queue);
+        if (ids.length < MIN_SHIP && !window._few) { e.preventDefault(); $('err').textContent = 'You need ' + MIN_SHIP + ' phones, or tick that Ethan said it’s OK.'; return; }
+        copyText(labelMessage(chosen()));                 // the text opens in Messages; this is the backup
+        asked = ids.slice();
+        setTimeout(function () { render(); }, 500);       // let Messages open first
+      };
+      if ($('again')) $('again').onclick = function () { copyText(labelMessage(ready.filter(function (p) { return asked.indexOf(p.id) > -1; }))); $('again').textContent = 'Copied ✓'; };
+      if ($('notyet')) $('notyet').onclick = function () { asked = null; render(); };
+      if ($('sent')) $('sent').onclick = function () {
+        // Now (and only now) the phones are marked as waiting for a label, so nothing is locked if he never sent the text.
+        queue.push({ kind: 'batch', batch: { id: uuid(), tracking_number: null, shipped_at: new Date().toISOString() }, phoneIds: asked }); setQueue(queue);
         window._few = false; syncQueue(); go('ship');
       };
     }

@@ -54,14 +54,10 @@ Deno.serve(async (req: Request) => {
     await sendOwners({ title: 'Declan: ' + title.toLowerCase(), body, url: './?go=meetups', tag: 'osoon-' + m.id });
     await db.from('partner_meetups').update({ reminded_at: new Date().toISOString() }).eq('id', m.id);
   }
-  // 3. shipping: Declan asked for a label -> tell Ethan; Ethan sent the label -> tell Declan; Declan posted it -> tell Ethan
+  // 3. shipping: Ethan sent the label -> tell Declan; Declan posted it -> tell Ethan
   let ship = 0;
   const count = async (batchId: string) => (await db.from('partner_phones').select('id', { count: 'exact', head: true }).eq('batch_id', batchId)).count ?? 0;
-  const { data: asked } = await db.from('partner_batches').select('*').is('label_sent_at', null).is('notified_requested_at', null);
-  for (const b of asked ?? []) {
-    ship += await sendOwners({ title: 'Declan needs a label', body: `${await count(b.id)} phones are ready to ship`, url: './?go=ship', tag: 'req-' + b.id });
-    await db.from('partner_batches').update({ notified_requested_at: new Date().toISOString() }).eq('id', b.id);
-  }
+  // (Label requests no longer send Ethan an app alert: Declan texts him from the app instead.)
   const { data: labelled } = await db.from('partner_batches').select('*').not('label_sent_at', 'is', null).is('notified_label_at', null);
   for (const b of labelled ?? []) {
     ship += await send(b.partner_id, { title: 'Your label is ready', body: 'Print it, pack the box and post it, then tap “I’ve posted it”.', url: './?go=ship', tag: 'label-' + b.id });
