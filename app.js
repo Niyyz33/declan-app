@@ -4,6 +4,7 @@
   var $app = document.getElementById('app');
   var $banner = document.getElementById('banner');
   var $tabs = document.getElementById('tabs');
+  var $actions = document.getElementById('actions');
   var sb = null, session = null;
   var VERSION = (window.CONFIG && window.CONFIG.APP_VERSION) || 'dev';
   var MIN_SHIP = 5;
@@ -154,6 +155,7 @@
     var scroll = window.scrollY;
     $app.className = (view === 'log' || view === 'login') ? 'nobar' : '';
     noAnim = !!keepScroll;
+    $actions.innerHTML = '';
     VIEWS[view](arg);
     if (keepScroll) window.scrollTo(0, scroll);
     renderTabs();
@@ -319,11 +321,12 @@
     var ids = page ? STEPS : [STEPS[draft.step]];
     var progress = '<div class="steps">' + STEPS.map(function (s, i) { return '<i class="' + (i < draft.step ? 'done' : i === draft.step ? 'cur' : '') + '"></i>'; }).join('') + '</div>';
     var body = ids.map(function (s) { return (page ? '<h2>' + s.title + '</h2>' : '') + stepBody(s.id); }).join('');
-    shell('<div class="row between" style="margin-bottom:4px"><button class="link" id="home">‹ Home</button><button class="link" id="mode" style="text-align:right">' + (page ? 'Step by step' : 'See all on one page') + '</button></div>' +
+    shell('<div class="row between" style="margin-bottom:4px"><button class="link" id="home">‹ Home</button><button class="link" id="mode" style="text-align:right">' + (page ? 'Step by step' : 'One page view') + '</button></div>' +
       (page ? '<h1>Log a phone</h1>' : '<h1>' + STEPS[draft.step].title + '</h1>' + progress) + body +
       (page ? '<div class="gap"></div><button class="link" id="startover">Start over</button>' : '') +
-      '<div class="actionbar"><div class="inner">' + (page ? '<button id="save">Save phone</button>' : (draft.step > 0 ? '<button class="secondary" id="back">Back</button>' : '') +
-        (draft.step < last ? '<button id="next">Next</button>' : '<button id="save">Save phone</button>')) + '</div></div>');
+      '');
+    $actions.innerHTML = '<div class="actionbar"><div class="inner">' + (page ? '<button id="save">Save phone</button>' : (draft.step > 0 ? '<button class="secondary" id="back">Back</button>' : '') +
+        (draft.step < last ? '<button id="next">Next</button>' : '<button id="save">Save phone</button>')) + '</div></div>';
     bindLog();
     if (document.getElementById('sum')) renderSummary();
   };
@@ -461,7 +464,7 @@
       notes: draft.notes || null, status: 'bought', bought_at: new Date().toISOString()
     };
     queue.push({ kind: 'phone', row: row }); setQueue(queue); draft = null; persistDraft(); saving = false; syncQueue();
-    current = 'saved'; renderTabs();
+    current = 'saved'; $actions.innerHTML = ''; renderTabs();
     shell('<div class="brand"><h1 class="ok">Saved ✓</h1></div><div class="card"><b>' + esc(row.model) + (row.storage_gb ? ' ' + storageText(row.storage_gb) : '') + '</b><div class="muted">' + esc(row.colour || '') + '</div><div style="margin-top:8px">Paid ' + money(row.price_paid_cents) + ' · <span class="pill ' + row.type + '">' + row.type + '</span></div></div>' +
       (navigator.onLine ? '' : '<p class="muted">No signal — it’s saved on your phone and will send by itself.</p>') +
       (row.type === 'damaged' && readyToShip().length >= MIN_SHIP ? '<div class="tip"><b>You have ' + readyToShip().length + ' damaged phones — time to ship a batch!</b></div>' : '') +
@@ -579,6 +582,8 @@
       });
     }
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* not supported */ }
+    document.addEventListener('focusin', function (e) { var t = e.target; if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && t.type !== 'checkbox'))) document.body.classList.add('kb'); });
+    document.addEventListener('focusout', function () { setTimeout(function () { var a = document.activeElement; if (!(a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'checkbox')))) document.body.classList.remove('kb'); }, 80); });
     if (!window.CONFIG || !window.CONFIG.SUPABASE_URL) { shell('<h1>Not set up yet</h1><p class="muted">Tell Ethan the app isn’t connected.</p>'); return; }
     sb = window.supabase.createClient(window.CONFIG.SUPABASE_URL, window.CONFIG.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'declan-auth' } });
     session = await liveSession();
