@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#00091a">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="guide.css">
+<title>If Something Goes Wrong</title>
+</head>
+<body>
+<main>
+  <div class="top"><a href="guides.html">‹ All guides</a><span>Cash for Phones Townsville</span></div>
+  <div class="preview" id="preview"><b>Ethan’s preview.</b> Declan can’t see this guide until you approve it.</div>
+  <section class="hero"><div data-bubbles='{"l":[40,150],"r":[128,128],"mouth":"o"}'></div>
+    <h1>If something goes wrong 🛠️</h1><p class="sub">Don’t panic. Here’s what to do.</p></section>
+  <div class="stop"><b>Never call Ethan during a meetup.</b> Everything you need is on the meetup card. If you’re not sure, <b>walk away</b> and text him afterwards.</div>
+  <section class="step"><div class="sh"><div class="num">1</div><h2>At a meetup</h2></div>
+    <div class="card"><div class="ministep"><div class="badge">⏱</div><div><b>Seller doesn’t turn up.</b> Wait a few minutes. Then open the <b>Meetups</b> tab and tap <b>No show</b>.</div></div>
+      <div class="ministep"><div class="badge">⏻</div><div><b>The phone doesn’t turn on.</b> Don’t buy it.</div></div>
+      <div class="ministep"><div class="badge">🔒</div><div><b>It asks for the seller’s Apple ID.</b> Don’t buy it.</div></div>
+      <div class="ministep"><div class="badge">💬</div><div><b>Seller wants more than the quote.</b> Be friendly and say no. If they won’t budge, walk away.</div></div>
+      <div class="ministep"><div class="badge">🚶</div><div><b>Something feels off.</b> Walk away. Text Ethan afterwards.</div></div></div>
+
+  </section>
+  <section class="step"><div class="sh"><div class="num">2</div><h2>In the app</h2></div>
+    <div class="card"><div class="ministep"><div class="badge">📶</div><div><b>No signal.</b> Keep going. Phones save on your phone and send by themselves when the signal’s back.</div></div>
+      <div class="ministep"><div class="badge">🔑</div><div><b>Can’t log in.</b> Text Ethan. He can reset your password.</div></div>
+      <div class="ministep"><div class="badge">🔴</div><div><b>Red bar: “couldn’t be sent”.</b> Tap it, then tap <b>Try again</b>.</div></div>
+      <div class="ministep"><div class="badge">🔔</div><div><b>No alerts.</b> Open <b>Settings › Notifications › Cash for Phones</b> and make sure they’re on. Also make sure you use the app from its Home Screen icon.</div></div>
+      <div class="ministep"><div class="badge">📅</div><div><b>Calendar’s behind.</b> It can take a while. Check the <b>Meetups</b> tab, which is always up to date.</div></div>
+      <div class="ministep"><div class="badge">🔄</div><div><b>Something looks off or a tab’s missing.</b> Swipe the app away, then open it again.</div></div>
+      <div class="ministep"><div class="badge">✏️</div><div><b>I logged a phone wrong.</b> Go to <b>Phones</b>, then <b>Edit</b> or <b>Delete</b>. You can do that until it’s shipped.</div></div></div>
+
+  </section>
+  <section class="step"><div class="sh"><div class="num" style="background:var(--blue);box-shadow:none">💬</div><h2>Still stuck?</h2></div>
+    <div class="card"><p>Text Ethan <b>after</b> the meetup. He’ll sort it.</p><a class="cta" id="msg" href="#">Message Ethan</a></div>
+    <a class="cta alt" href="guides.html">Back to all guides</a></section>
+</main>
+<script src="deductions.js"></script>
+<script src="guide-kit.js"></script>
+<script>
+(function () { var n = ''; try { var s = JSON.parse(localStorage.getItem('declan_settings') || '{}'); n = (s.ethan_phone || '').replace(/[^\d+]/g, ''); if (n.charAt(0) === '0') n = '+61' + n.slice(1); } catch (e) { /* none */ }
+  var a = document.getElementById('msg'); if (n) a.href = 'sms:' + n; else a.style.display = 'none'; })();
+</script>
+</body>
+</html>

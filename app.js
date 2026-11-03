@@ -246,10 +246,10 @@
   var noAnim = false;
   function shell(html) { $app.innerHTML = '<div class="view"' + (noAnim ? ' style="animation:none"' : '') + '>' + html + '</div>'; }
   function renderTabs() {
-    var hide = !session || current === 'login' || current === 'log' || current === 'edit' || !current;
+    var hide = !session || current === 'login' || current === 'log' || current === 'edit' || current === 'sold' || !current;
     $tabs.hidden = hide;
     if (hide) return;
-    var active = current === 'orates' ? 'ostatement' : current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
+    var active = current === 'sold' ? 'phones' : current === 'orates' ? 'ostatement' : current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
     var ready = readyToShip().length;
     function tab(id, label, icon, extra) { return '<button class="tab ' + id + (active === id ? ' on' : '') + '" data-tab="' + id + '">' + icon + (extra || '') + '<span>' + label + '</span></button>'; }
     if (isOwner()) {
@@ -301,6 +301,7 @@
       '<div class="bar"><i style="width:' + Math.min(100, Math.round(ready / MIN_SHIP * 100)) + '%"></i></div>' +
       '<div class="muted">Ship when you have ' + MIN_SHIP + ' or more. Mint phones you keep.</div>' +
       (ready ? '<div style="height:12px"></div><button class="' + (ready >= MIN_SHIP ? '' : 'secondary') + '" id="ship">Get a shipping label</button>' : '') + '</div>' +
+      (settings.guides_published ? '<a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Guides: how to inspect, what to say, and more</a>' : '') +
       (tel ? '<h2>Need Ethan?</h2><div class="row"><a class="btnlink green" href="sms:' + tel + '">💬 Message Ethan</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div>' : '') +
       '<div class="row" style="margin-top:18px"><button class="link" id="help">Rules &amp; help</button><button class="link" id="out" style="text-align:right">Log out</button></div>' +
       '<div class="sync">' + (lastSync ? 'Synced ' + fmtDate(lastSync) + ' · ' : '') + esc(versionText(VERSION)) + '</div>');
@@ -568,7 +569,7 @@
   // ---------- my phones ----------
   var phoneFilter = 'all', phoneSearch = '';
   function statusLabel(p) {
-    if (p.type === 'mint' && p.status === 'bought') return ['kept', 'With you'];
+    if (p.type === 'mint' && p.status === 'bought') return p.sold_price_cents != null ? ['received', '✓ Sold'] : ['kept', 'With you'];
     if (p.batch_id && p.status === 'bought') { var b = allBatches().filter(function (x) { return x.id === p.batch_id; })[0]; if (b) return STAGE_TEXT[batchStage(b)]; }
     return { bought: ['bought', 'Bought'], shipped: ['shipped', '📦 Shipped'], received: ['received', '✓ Received'] }[p.status] || ['bought', p.status];
   }
@@ -591,11 +592,14 @@
           '<div class="money"><span>Paid ' + money(p.price_paid_cents) + '</span><span class="muted">Quote ' + money(p.quoted_min_cents) + (p.quoted_max_cents !== p.quoted_min_cents ? '–' + money(p.quoted_max_cents) : '') + '</span></div>' +
           (p.total_deductions_cents ? '<div class="muted">Deductions ' + money(p.total_deductions_cents) + '</div>' : '') +
           '<div style="margin-top:10px"><span class="pill ' + st[0] + '">' + st[1] + '</span>' + (overLimit(p) ? ' <span class="pill damaged">⚠ Over limit</span>' : '') + (p._failed ? ' <span class="err">couldn’t send</span>' : p._pending ? ' <span class="muted">waiting to send</span>' : '') + (track ? ' <span class="muted">· Tracking ' + esc(track) + '</span>' : '') + '</div>' +
-          (canEdit ? '<div class="acts"><button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button></div>' : '') + '</div>';
+          (p.type === 'mint' && p.sold_price_cents != null ? '<div style="margin-top:8px"><b>Sold for ' + money(p.sold_price_cents) + '</b> <span class="muted">· ' + (p.sold_price_cents - p.price_paid_cents >= 0 ? '+' : '') + money(p.sold_price_cents - p.price_paid_cents) + ' on what you paid</span></div>' : '') +
+          (!isOwner() && p.type === 'mint' && !p._failed ? '<div class="acts"><button class="small" data-sold="' + p.id + '">' + (p.sold_price_cents != null ? 'Change sale price' : '💰 Mark sold') + '</button>' + (canEdit && p.sold_price_cents == null ? '<button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button>' : '') + '</div>'
+            : canEdit ? '<div class="acts"><button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button></div>' : '') + '</div>';
       }).join('') : '<div class="empty">' + (phones.length ? 'Nothing matches that.' : 'No phones yet. Log your first one!') + '</div>'));
     $('search').oninput = function () { phoneSearch = this.value; var pos = this.selectionStart; go('phones', undefined, true); var s = $('search'); s.focus(); s.setSelectionRange(pos, pos); };
     all('[data-filter]').forEach(function (b) { b.onclick = function () { phoneFilter = b.getAttribute('data-filter'); go('phones', undefined, true); }; });
     all('[data-edit]').forEach(function (b) { b.onclick = function () { go('edit', b.getAttribute('data-edit')); }; });
+    all('[data-sold]').forEach(function (b) { b.onclick = function () { go('sold', b.getAttribute('data-sold')); }; });
     all('[data-del]').forEach(function (b) { b.onclick = function () { deletePhone(b.getAttribute('data-del')); }; });
   };
   function deletePhone(id) {
@@ -605,6 +609,22 @@
     else { queue.push({ kind: 'delete', id: id }); setQueue(queue); syncQueue(); }
     go('phones', undefined, true);
   }
+  VIEWS.sold = function (id) {
+    var p = allPhones().filter(function (x) { return x.id === id; })[0];
+    if (!p) return go('phones');
+    shell('<h1>Mark sold</h1><div class="card"><b>' + esc(p.model) + (p.storage_gb ? ' ' + storageText(p.storage_gb) : '') + '</b><div class="muted">You paid ' + money(p.price_paid_cents) + '. Put in what it sold for.</div>' +
+      '<label>Sold for ($)</label><input id="sp" type="number" inputmode="decimal" value="' + (p.sold_price_cents != null ? p.sold_price_cents / 100 : '') + '" autofocus><div class="err" id="err"></div></div>' +
+      '<button id="save">Save</button><div class="gap"></div><button class="secondary" id="cancel">Cancel</button>' + (p.sold_price_cents != null ? '<div class="gap"></div><button class="link" id="unsell">It didn’t sell after all</button>' : ''));
+    $('cancel').onclick = function () { go('phones'); };
+    function put(cents, at) {
+      var qi = queue.filter(function (i) { return i.kind === 'phone' && i.row.id === id; })[0], patch = { sold_price_cents: cents, sold_at: at };
+      if (qi) { Object.assign(qi.row, patch); delete qi.failed; setQueue(queue); }
+      else { queue = queue.filter(function (i) { return !(i.kind === 'edit' && i.id === id && 'sold_price_cents' in i.patch); }); queue.push({ kind: 'edit', id: id, patch: patch }); setQueue(queue); }
+      syncQueue(); go('phones');
+    }
+    $('save').onclick = function () { var c = dollarsToCents($('sp').value); if (c === null || c < 0) { $('err').textContent = 'Enter what it sold for.'; return; } put(c, p.sold_at || new Date().toISOString()); };
+    if ($('unsell')) $('unsell').onclick = function () { put(null, null); };
+  };
   VIEWS.edit = function (id) {
     var p = allPhones().filter(function (x) { return x.id === id; })[0];
     if (!p) return go('phones');
@@ -931,7 +951,7 @@
   // owner side: book Declan's meetups
   VIEWS.omeetups = function () {
     shell('<h1>Declan’s meetups</h1><div id="pushcard"></div><button id="book">＋ Book a meetup</button>' + meetupSections() +
-      '<div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
+      '<a class="btnlink" href="guides.html" style="margin-top:14px">📖 Preview Declan’s guides (he can’t see them yet)</a><div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { go('obook'); };
     renderPushCard();
     $('out').onclick = async function () { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; current = ''; clearCaches(); go('login'); };
