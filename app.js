@@ -363,7 +363,7 @@
   var STEPS = [
     { id: 'phone', title: 'The phone' }, { id: 'battery', title: 'Battery' }, { id: 'parts', title: 'Parts & service history' },
     { id: 'screen', title: 'Screen' }, { id: 'cameras', title: 'Cameras' }, { id: 'frame', title: 'Frame & back' },
-    { id: 'buttons', title: 'Face ID, speaker & ports' }, { id: 'price', title: 'Price paid' }
+    { id: 'buttons', title: 'Face ID, speaker & buttons' }, { id: 'price', title: 'Price paid' }
   ];
   function newDraft() { return { step: 0, mode: 'steps', model: '', storage: '', colour: '', colourOther: '', battery: '', batteryUnknownPart: false, partsBattery: false, faults: {}, lensesCracked: 0, lensesExposed: 0, type: '', typeTouched: false, quote: '', paid: '', notes: '', ded: {}, dedTotal: '' }; }
   function selectedFaults() { return Object.keys(draft.faults).filter(function (k) { return draft.faults[k]; }); }
@@ -406,9 +406,9 @@
     if (id === 'screen') return '<div class="card"><div class="chips">' + faultChip('screen_scratched') + faultChip('screen_broken') + '</div><div class="hint">Check under the light. A scratched or replaced screen counts as a broken screen.</div></div>';
     if (id === 'cameras') return '<div class="card"><div class="row"><div><label>Smashed lenses</label><div class="stepper"><button type="button" data-lens="lc" data-d="-1">−</button><b id="lcv">' + draft.lensesCracked + '</b><button type="button" data-lens="lc" data-d="1">＋</button></div></div>' +
       '<div><label>Camera exposed (lens gone)</label><div class="stepper"><button type="button" data-lens="le" data-d="-1">−</button><b id="lev">' + draft.lensesExposed + '</b><button type="button" data-lens="le" data-d="1">＋</button></div></div></div>' +
-      '<label>Camera not working</label><div class="chips">' + faultChip('rearCam') + faultChip('frontCam') + '</div><div class="hint">A4 paper test: point each camera at a sheet of paper and check it’s clear.</div></div>';
+      '<label>Camera not working</label><div class="chips">' + faultChip('rearCam') + faultChip('frontCam') + '</div><div class="hint">Check the front and back cameras both work.</div></div>';
     if (id === 'frame') return '<div class="card"><div class="chips">' + faultChip('frame') + faultChip('back_broken') + '</div></div>';
-    if (id === 'buttons') return '<div class="card"><div class="chips">' + faultChip('faceid') + faultChip('speaker') + faultChip('charging') + faultChip('board') + '</div></div>';
+    if (id === 'buttons') return '<div class="card"><div class="chips">' + faultChip('faceid') + faultChip('speaker') + faultChip('board') + '</div></div>';
     if (id === 'price') return '<div class="card"><label>Quote for this phone ($)</label><input id="quote" inputmode="text" placeholder="e.g. 230-260" value="' + esc(draft.quote) + '"><div class="hint" id="quotehint"></div></div><div id="sum"></div>' +
       '<label>Notes (optional)</label><textarea id="notes" rows="2">' + esc(draft.notes) + '</textarea>' +
       '<div class="err" id="err"></div>';
@@ -950,8 +950,8 @@
 
   // owner side: book Declan's meetups
   VIEWS.omeetups = function () {
-    shell('<h1>Declan’s meetups</h1><div id="pushcard"></div><button id="book">＋ Book a meetup</button>' + meetupSections() +
-      '<a class="btnlink" href="guides.html" style="margin-top:14px">📖 Preview Declan’s guides (he can’t see them yet)</a><div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
+    shell('<h1>Declan’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview Declan’s guides (he can’t see them yet)</a><div id="pushcard"></div><button id="book">＋ Book a meetup</button>' + meetupSections() +
+      '<div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { go('obook'); };
     renderPushCard();
     $('out').onclick = async function () { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; current = ''; clearCaches(); go('login'); };

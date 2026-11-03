@@ -79,16 +79,16 @@
     ruler: function () { return A.bent(); },
     battery: function () { // a drawn copy of the iPhone battery health screen
       return svg('0 0 330 190', '<rect x="14" y="10" width="302" height="170" rx="18" fill="#1c1c1e"/><text x="165" y="40" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">Battery Health &amp; Charging</text>' +
-        '<rect x="28" y="56" width="274" height="64" rx="12" fill="#2c2c2e"/><text x="44" y="84" font-size="16" fill="#fff">Maximum Capacity</text><text x="286" y="86" text-anchor="end" font-size="26" font-weight="800" fill="#ff6b6f">82%</text><text x="44" y="108" font-size="12.5" fill="#9a9aa0">Battery capacity compared to when it was new</text>' +
+        '<rect x="28" y="56" width="274" height="64" rx="12" fill="#2c2c2e"/><text x="44" y="84" font-size="16" fill="#fff">Maximum Capacity</text><text x="286" y="86" text-anchor="end" font-size="26" font-weight="800" fill="#ff6b6f">82%</text><text x="44" y="108" font-size="12.5" fill="#9a9aa0">Compared with when it was new</text>' +
         '<rect x="22" y="50" width="286" height="76" rx="14" fill="none" stroke="#ffd27a" stroke-width="3" stroke-dasharray="5 5"/>' +
         '<text x="165" y="154" text-anchor="middle" font-size="14.5" font-weight="800" fill="#ffd27a">Under 85% = deduct</text><text x="165" y="172" text-anchor="middle" font-size="12.5" fill="#9fb1cf">Settings › Battery › Battery Health</text>');
     },
     parts: function () {
-      return svg('0 0 330 190', '<rect x="14" y="10" width="302" height="170" rx="18" fill="#1c1c1e"/><text x="165" y="38" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">Parts and Service History</text>' +
-        '<rect x="28" y="52" width="274" height="108" rx="12" fill="#2c2c2e"/>' +
+      return svg('0 0 330 206', '<rect x="14" y="10" width="302" height="150" rx="18" fill="#1c1c1e"/><text x="165" y="38" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">Parts and Service History</text>' +
+        '<rect x="28" y="52" width="274" height="96" rx="12" fill="#2c2c2e"/>' +
         '<text x="44" y="82" font-size="15.5" fill="#fff">Battery</text><text x="286" y="82" text-anchor="end" font-size="15.5" font-weight="800" fill="#ffd27a">Unknown Part</text><line x1="44" y1="96" x2="286" y2="96" stroke="#3a3a3c"/>' +
-        '<text x="44" y="122" font-size="15.5" fill="#fff">Display</text><text x="286" y="122" text-anchor="end" font-size="15.5" font-weight="800" fill="#ffd27a">Unknown Part</text><line x1="44" y1="136" x2="286" y2="136" stroke="#3a3a3c"/>' +
-        '<text x="44" y="152" font-size="12.5" fill="#9a9aa0">Settings › General › About › Parts and Service History</text>');
+        '<text x="44" y="126" font-size="15.5" fill="#fff">Display</text><text x="286" y="126" text-anchor="end" font-size="15.5" font-weight="800" fill="#ffd27a">Unknown Part</text>' +
+        '<text x="165" y="186" text-anchor="middle" font-size="13" fill="#9fb1cf">Settings › General › About</text><text x="165" y="202" text-anchor="middle" font-size="13" fill="#9fb1cf">› Parts and Service History</text>');
     },
     paper: function () {
       return svg('0 0 330 196', '<rect x="0" y="158" width="330" height="38" fill="#0c2347"/><rect x="190" y="14" width="120" height="136" rx="4" fill="#fff" transform="rotate(4 250 82)"/><text x="250" y="88" text-anchor="middle" font-size="22" font-weight="900" fill="#c9d3e6" transform="rotate(4 250 82)">A4</text>' +

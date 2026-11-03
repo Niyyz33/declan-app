@@ -36,22 +36,22 @@
     <div class="warn"><b>A scratched or third-party screen counts as a broken screen.</b> To sell it, the screen needs replacing.</div>
   </section>
   <section class="step"><div class="sh"><div class="num">4</div><h2>The cameras</h2></div>
-    <div class="card"><div data-art="paper"></div><p style="margin-top:10px"><b>The paper test:</b> open the camera and point each lens at a sheet of white paper. You should see clear white, with no black spots or blur.</p><p><b>Smashed lens:</b> $20 each. <b>Camera exposed (lens gone):</b> $50 each. A camera that doesn’t work is its own deduction.</p></div>
+    <div class="card"><p>Open the Camera app and check the <b>front and back cameras</b> both work.</p><p><b>Smashed lens:</b> $20 each. <b>Camera exposed (lens gone):</b> $50 each. A camera that doesn’t work is its own deduction.</p></div>
 
   </section>
   <section class="step"><div class="sh"><div class="num">5</div><h2>Frame and back</h2></div>
     <div class="card"><p>Turn the phone over. A <b>cracked back</b> is a deduction.</p><p>Now check the frame. Look along the edge and run your finger round it. <b>Chips and scratches</b> deduct. <b>Bent</b> deducts too.</p><div data-art="bent"></div><p style="margin-top:10px">Straight means a flat edge. Bent means you can see a bow or a gap.</p></div>
 
   </section>
-  <section class="step"><div class="sh"><div class="num">6</div><h2>Face ID, speaker, buttons and charging</h2></div>
-    <div class="card"><div class="vs" style="grid-template-columns:repeat(4,1fr)"><div><span data-art="faceid"></span><small>Face ID</small></div><div><span data-art="speaker"></span><small>Speaker</small></div><div><span data-art="power"></span><small>Buttons</small></div><div><span data-art="charge"></span><small>Charging</small></div></div><p>Test each one. If one doesn’t work, it’s a deduction.</p></div>
+  <section class="step"><div class="sh"><div class="num">6</div><h2>Face ID, speaker and buttons</h2></div>
+    <div class="card"><div class="vs three"><div><span data-art="faceid"></span><small>Face ID</small></div><div><span data-art="speaker"></span><small>Speaker</small></div><div><span data-art="power"></span><small>Buttons</small></div></div><p>Test each one. If one doesn’t work, it’s a deduction.</p></div>
 
   </section>
   <section class="step"><div class="sh"><div class="num" style="background:var(--blue);box-shadow:none">$</div><h2>Deduction lookup</h2></div>
     <div class="card"><label for="model" style="color:var(--muted);font-size:14px;font-weight:700">Pick the model</label><select id="model"></select><div id="table"></div></div>
     <div class="tip">You don’t have to remember these. The app adds them up when you log the phone. This is just so you know what each fault costs while you’re checking.</div></section>
   <section class="step"><div class="sh"><div class="num" style="background:var(--blue);box-shadow:none">✓</div><h2>Before you say a price</h2></div>
-    <div class="card checks" data-key="inspect"><label><input type="checkbox"><span>It turns on</span></label><label><input type="checkbox"><span>I checked the battery health</span></label><label><input type="checkbox"><span>I checked Parts and Service History</span></label><label><input type="checkbox"><span>I looked at the screen under a light</span></label><label><input type="checkbox"><span>I tested the cameras, Face ID, speaker and charging</span></label><label><input type="checkbox"><span>I checked the frame and the back</span></label></div>
+    <div class="card checks" data-key="inspect"><label><input type="checkbox"><span>It turns on</span></label><label><input type="checkbox"><span>I checked the battery health</span></label><label><input type="checkbox"><span>I checked Parts and Service History</span></label><label><input type="checkbox"><span>I looked at the screen under a light</span></label><label><input type="checkbox"><span>I tested the cameras, Face ID, speaker and buttons</span></label><label><input type="checkbox"><span>I checked the frame and the back</span></label></div>
     <a class="cta" href="guide-safety.html">Next: buying safely →</a></section>
 </main>
 <script src="deductions.js"></script>
@@ -64,7 +64,7 @@
   if (!cat || !cat.models || !cat.models.length) { sel.style.display = 'none'; table.innerHTML = '<p style="margin-top:10px;color:var(--muted)">Open the app once with internet and the lookup fills in.</p>'; return; }
   sel.innerHTML = cat.models.map(function (m) { return '<option>' + m.name + '</option>'; }).join('');
   var money = function (c) { return c === null ? '<span style="color:var(--amber)">ask Ethan</span>' : '$' + (c / 100); };
-  var ROWS = [['Broken or scratched screen', 'screen', 'Also a replaced screen'], ['Broken back', 'back'], ['Bent or chipped frame', 'frame'], ['Charging port', 'charging'], ['Face ID not working', 'faceid'], ['Speaker, earpiece or buttons', 'speaker'], ['Rear camera not working', 'rearCam'], ['Front camera not working', 'frontCam'], ['Wi-Fi, Bluetooth or cellular', 'board'], ['Other replaced part', 'smallParts']];
+  var ROWS = [['Broken or scratched screen', 'screen', 'Also a replaced screen'], ['Broken back', 'back'], ['Bent or chipped frame', 'frame'], ['Face ID not working', 'faceid'], ['Speaker, earpiece or buttons', 'speaker'], ['Rear camera not working', 'rearCam'], ['Front camera not working', 'frontCam'], ['Wi-Fi, Bluetooth or cellular', 'board'], ['Other replaced part', 'smallParts']];
   function draw() {
     var m = sel.value, rows = ROWS.map(function (r) { return '<tr><td>' + r[0] + (r[2] ? '<small>' + r[2] + '</small>' : '') + '</td><td>' + money(D.benLookup(cat.deds, m, r[1])) + '</td></tr>'; });
     rows.push('<tr><td>Battery under 85%<small>Always deducted under 80%</small></td><td>' + money(D.batteryCents(m)) + '</td></tr>', '<tr><td>Smashed camera lens<small>Each lens</small></td><td>$20</td></tr>', '<tr><td>Camera exposed<small>Each, lens gone</small></td><td>$50</td></tr>');
