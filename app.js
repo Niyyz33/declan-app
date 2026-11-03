@@ -229,7 +229,8 @@
     var tel = phoneForLinks();
     shell('<h1>Rules &amp; help</h1>' +
       '<div class="card"><b>The rules</b><ul class="rules">' +
-      '<li>You can never pay more than <b>the quote minus the deductions</b>. The app blocks it.</li>' +
+      '<li>Log each phone <b>after</b> you’ve bought it — not during the sale.</li>' +
+      '<li>Price paid can’t be more than <b>the quote minus the deductions</b>. The app blocks it.</li>' +
       '<li>Battery under 85%: $50 off (iPhone 14 and below) or $70 off (15 and above). Always taken under 80%.</li>' +
       '<li>Smashed camera lens: $20 each. If the camera itself is exposed: $50 each.</li>' +
       '<li>A scratched or replaced screen counts as a broken screen.</li>' +
@@ -264,7 +265,7 @@
   var STEPS = [
     { id: 'phone', title: 'The phone' }, { id: 'battery', title: 'Battery' }, { id: 'parts', title: 'Parts & service history' },
     { id: 'screen', title: 'Screen' }, { id: 'cameras', title: 'Cameras' }, { id: 'frame', title: 'Frame & back' },
-    { id: 'buttons', title: 'Face ID, speaker & ports' }, { id: 'price', title: 'Price' }
+    { id: 'buttons', title: 'Face ID, speaker & ports' }, { id: 'price', title: 'Price paid' }
   ];
   function newDraft() { return { step: 0, mode: 'steps', model: '', storage: '', colour: '', colourOther: '', battery: '', batteryUnknownPart: false, partsBattery: false, faults: {}, lensesCracked: 0, lensesExposed: 0, type: '', typeTouched: false, quote: '', paid: '', notes: '', ded: {}, dedTotal: '' }; }
   function selectedFaults() { return Object.keys(draft.faults).filter(function (k) { return draft.faults[k]; }); }
@@ -310,7 +311,7 @@
       '<label>Camera not working</label><div class="chips">' + faultChip('rearCam') + faultChip('frontCam') + '</div><div class="hint">A4 paper test: point each camera at a sheet of paper and check it’s clear.</div></div>';
     if (id === 'frame') return '<div class="card"><div class="chips">' + faultChip('frame') + faultChip('back_broken') + '</div></div>';
     if (id === 'buttons') return '<div class="card"><div class="chips">' + faultChip('faceid') + faultChip('speaker') + faultChip('charging') + faultChip('board') + '</div></div>';
-    if (id === 'price') return '<div class="card"><label>Quote you gave the seller ($)</label><input id="quote" inputmode="text" placeholder="e.g. 230-260" value="' + esc(draft.quote) + '"><div class="hint" id="quotehint"></div></div><div id="sum"></div>' +
+    if (id === 'price') return '<div class="card"><label>Quote for this phone ($)</label><input id="quote" inputmode="text" placeholder="e.g. 230-260" value="' + esc(draft.quote) + '"><div class="hint" id="quotehint"></div></div><div id="sum"></div>' +
       '<label>Notes (optional)</label><textarea id="notes" rows="2">' + esc(draft.notes) + '</textarea>' +
       '<div class="err" id="err"></div>';
     return '';
@@ -389,17 +390,11 @@
   }
   // The most Declan may pay: the top of the quote minus the deductions. Never below $0.
   function maxPay(q, total) { return q ? Math.max(0, q.max - total) : null; }
-  function offerText(q, total) {
-    if (!q) return '—';
-    var lo = Math.max(0, q.min - total), hi = Math.max(0, q.max - total);
-    return lo === hi ? money(hi) : money(lo) + ' – ' + money(hi);
-  }
-  function offerSub(q, t) { return q ? 'quote minus ' + money(t.total) + ' deductions' : 'type the quote above'; }
   function renderSummary() {
     var t = totals(), q = parseQuote(draft.quote), suggestType = D.suggestType({ faults: selectedFaults(), lensesCracked: draft.lensesCracked, lensesExposed: draft.lensesExposed });
     if (!draft.typeTouched) draft.type = suggestType;
-    var html = '<div class="offer"><div class="lbl">Offer the seller</div><div class="big" id="offer">' + offerText(q, t.total) + '</div><div class="lbl" id="offersub" style="text-transform:none;letter-spacing:0;font-weight:600">' + offerSub(q, t) + '</div></div>';
-    html += '<div class="card"><b>Deductions</b>';
+    var html = '';
+    html += '<div class="card"><b>Deductions</b><div class="muted">What was wrong with it and what came off the price. Untick or change anything that doesn’t apply.</div>';
     if (!t.lines.length) html += '<div class="muted" style="margin-top:6px">Nothing ticked, so no deductions.</div>';
     t.lines.forEach(function (l) {
       var s = lineState(l);
@@ -427,13 +422,11 @@
   function updateTotalsOnly(fromTotalBox) {
     var t = totals(), q = parseQuote(draft.quote);
     var box = $('dtotal'); if (box && !fromTotalBox) box.value = t.total / 100;
-    var offer = $('offer'); if (offer) offer.textContent = offerText(q, t.total);
-    var osub = $('offersub'); if (osub) osub.textContent = offerSub(q, t);
     var note = $('dnote'); if (note) { note.innerHTML = dnote(t); wireReset(); }
     var hint = $('quotehint'); if (hint) hint.textContent = q ? (q.min === q.max ? 'Quote: ' + money(q.max) : 'Quote: ' + money(q.min) + ' to ' + money(q.max)) : 'Type it like 230-260, or just one price like 250.';
     var cap = maxPay(q, t.total), paid = dollarsToCents(draft.paid);
     var warn = $('capwarn');
-    if (warn) warn.innerHTML = (cap !== null && paid !== null && paid > cap) ? '<div class="err">You can’t pay more than ' + money(cap) + ' (the top of the quote minus deductions).</div>' : (cap !== null ? '<div class="hint">Most you can pay: <b>' + money(cap) + '</b></div>' : '');
+    if (warn) warn.innerHTML = (cap !== null && paid !== null && paid > cap) ? '<div class="err">You can’t pay more than ' + money(cap) + ' (the top of the quote minus deductions).</div>' : '';
   }
 
   var saving = false;
@@ -442,7 +435,7 @@
     var err = '';
     var q = parseQuote(draft.quote), qMin = q ? q.min : null, qMax = q ? q.max : null, paid = dollarsToCents(draft.paid), t = totals(), cap = maxPay(q, t.total);
     if (!draft.model) err = 'Choose the model.';
-    else if (!q) err = 'Enter the quote you gave the seller, like 230-260.';
+    else if (!q) err = 'Enter the quote for this phone, like 230-260.';
     else if (paid === null) err = 'Enter the price paid.';
     else if (paid > cap) err = 'You can’t pay more than ' + money(cap) + ' (the top of the quote minus deductions).';
     else if (draft.battery !== '' && (isNaN(parseInt(draft.battery, 10)) || parseInt(draft.battery, 10) > 100)) err = 'Battery % should be 1–100.';
