@@ -82,6 +82,6 @@
     return (o.faults || []).length === 0 && !o.lensesCracked && !o.lensesExposed ? 'mint' : 'damaged';
   }
 
-  var api = { FAULTS: FAULTS, modelNumber: modelNumber, batteryCents: batteryCents, suggest: suggest, suggestType: suggestType };
+  var api = { FAULTS: FAULTS, modelNumber: modelNumber, batteryCents: batteryCents, benLookup: benLookup, suggest: suggest, suggestType: suggestType };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Deductions = api;
 })(typeof window !== 'undefined' ? window : this);

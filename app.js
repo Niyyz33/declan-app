@@ -15,6 +15,8 @@
   var profile = load('profile', { name: '', role: '' });
   var meetups = load('meetups', []);
   var payments = load('payments', []);
+  var ownerData = load('ownerdata', { ff: [], bands: [], settings: {}, valuations: [] });
+  var S = window.Statement;
   var partnersList = load('partners', []);
   var settings = load('settings', {});
   var lastSync = load('lastsync', null);
@@ -24,7 +26,7 @@
   function load(k, d) { try { var v = JSON.parse(localStorage.getItem('declan_' + k)); return v === null || v === undefined ? d : v; } catch (e) { return d; } }
   function save(k, v) { try { if (v === null) localStorage.removeItem('declan_' + k); else localStorage.setItem('declan_' + k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function money(c) { return '$' + (c / 100).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+  function money(c) { return (c < 0 ? '−' : '') + '$' + (Math.abs(c) / 100).toLocaleString('en-AU', { minimumFractionDigits: Math.abs(c) % 100 === 0 ? 0 : 2, maximumFractionDigits: 2 }); }
   function storageText(gb) { return gb >= 1024 && gb % 1024 === 0 ? (gb / 1024) + 'TB' : gb + 'GB'; }
   function uuid() { return (crypto.randomUUID && crypto.randomUUID()) || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }); }
   function isNetworkError(e) { return !navigator.onLine || /fetch|network|load failed|timeout/i.test((e && e.message) || ''); }
@@ -35,7 +37,7 @@
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
-  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments'].forEach(function (k) { save(k, null); }); profile = { name: '', role: '' }; serverPhones = []; serverBatches = []; payments = []; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata'].forEach(function (k) { save(k, null); }); profile = { name: '', role: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
   // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
   function versionText(v) {
     var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
@@ -54,6 +56,7 @@
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     list: '<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
     cal: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+    doc: '<svg viewBox="0 0 24 24"><path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M14.5 3.5V7.5h4M9 12h6M9 15.5h6"/></svg>',
     box: '<svg viewBox="0 0 24 24"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/></svg>'
   };
 
@@ -131,10 +134,14 @@
       var b = await sb.from('partner_batches').select('*').order('shipped_at', { ascending: false }).limit(100);
       if (!r.error) { serverPhones = r.data; save('phones', serverPhones); lastSync = new Date().toISOString(); save('lastsync', lastSync); }
       if (b && !b.error) { serverBatches = b.data; save('batches', serverBatches); }
-      if (isOwner()) { var pm = await sb.from('batch_payments').select('*'); if (pm && !pm.error) { payments = pm.data; save('payments', payments); } }
+      if (isOwner()) {
+        var pm = await sb.from('batch_payments').select('*'); if (pm && !pm.error) { payments = pm.data; save('payments', payments); }
+        var ep = await sb.from('expected_prices').select('*'), cb = await sb.from('commission_bands').select('*').order('band_no'), os = await sb.from('owner_settings').select('*'), pv = await sb.from('phone_valuations').select('*');
+        if (ep && !ep.error && cb && !cb.error && os && !os.error && pv && !pv.error) { var so = {}; os.data.forEach(function (x) { so[x.key] = x.value; }); ownerData = { ff: ep.data, bands: cb.data, settings: so, valuations: pv.data }; save('ownerdata', ownerData); }
+      }
       var mt = await sb.from('partner_meetups').select('*').order('starts_at', { ascending: true }).limit(400);
       if (mt && !mt.error) { meetups = mt.data; save('meetups', meetups); }
-      if (['home', 'phones', 'ship', 'oship', 'meetups', 'omeetups'].indexOf(current) > -1) go(current, undefined, true);
+      if (['home', 'phones', 'ship', 'oship', 'meetups', 'omeetups', 'ostatement'].indexOf(current) > -1) go(current, undefined, true);
     } catch (e) { /* offline */ }
   }
   async function loadCatalogue() {
@@ -223,12 +230,12 @@
     var hide = !session || current === 'login' || current === 'log' || current === 'edit' || !current;
     $tabs.hidden = hide;
     if (hide) return;
-    var active = current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
+    var active = current === 'orates' ? 'ostatement' : current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
     var ready = readyToShip().length;
     function tab(id, label, icon, extra) { return '<button class="tab ' + id + (active === id ? ' on' : '') + '" data-tab="' + id + '">' + icon + (extra || '') + '<span>' + label + '</span></button>'; }
     if (isOwner()) {
       var waiting = allBatches().filter(function (b) { return batchStage(b) === 'waiting'; }).length;
-      $tabs.innerHTML = tab('omeetups', 'Meetups', ICON.cal) + tab('obook', 'Book', ICON.plus) + tab('oship', 'Shipments', ICON.box, waiting ? '<span class="dot">' + waiting + '</span>' : '') + tab('phones', 'Phones', ICON.list);
+      $tabs.innerHTML = tab('omeetups', 'Meetups', ICON.cal) + tab('obook', 'Book', ICON.plus) + tab('oship', 'Shipments', ICON.box, waiting ? '<span class="dot">' + waiting + '</span>' : '') + tab('phones', 'Phones', ICON.list) + tab('ostatement', 'Statement', ICON.doc);
     }
     else {
       var labelsReady = allBatches().filter(function (b) { return batchStage(b) === 'label'; }).length;
@@ -686,6 +693,84 @@
         renderPushCard();
   };
     });
+  };
+
+  // ---------- statement (Ethan only) ----------
+  var stmtK = null;
+  function ownerSettings() { var s = ownerData.settings || {}; return { flat_cents: +s.damaged_flat_cents || 0, pct: +s.damaged_pct || 0, cap_cents: s.damaged_cap_cents ? +s.damaged_cap_cents : null }; }
+  function valuationMap() { var m = {}; (ownerData.valuations || []).forEach(function (v) { m[v.phone_id] = v; }); return m; }
+  function buildStatement(k) {
+    return S.statement(k, { phones: allPhones(), batches: allBatches(), payments: payments, valuations: valuationMap(), ff: ownerData.ff, deds: catalogue.deds, bands: ownerData.bands, settings: ownerSettings() });
+  }
+  function fmtPeriod(p) { return 'Fortnight to ' + new Date(p.date + 10 * 3600000).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }); }
+  function priceInput(kind, phoneId, current) { return '<div class="row" style="margin-top:6px"><input type="number" inputmode="decimal" data-val="' + kind + '" data-ph="' + phoneId + '" placeholder="' + (kind === 'expected' ? 'Expected sale $' : 'Price-sheet value $') + '" value="' + (current != null ? current / 100 : '') + '"><button class="secondary small fixed" data-saveval="' + phoneId + '" data-kind="' + kind + '">Save</button></div>'; }
+  function statementText(st) {
+    var L = [fmtPeriod(st.period), ''];
+    st.damaged.forEach(function (d) { L.push('Damaged shipment (' + d.lines.length + ' phones): reimburse ' + money(d.reimburse) + ' + fees ' + money(d.fees) + ' = ' + money(d.owed) + ', paid ' + money(d.paid) + ', still owed ' + money(d.remaining)); });
+    if (st.mint.length) L.push('Mint commission owed by Declan: ' + money(st.declanOwes) + ' (' + st.mint.length + ' phones)');
+    L.push('', st.net > 0 ? 'Net: Ethan pays Declan ' + money(st.net) : st.net < 0 ? 'Net: Declan pays Ethan ' + money(-st.net) : 'Net: even');
+    return L.join('\n');
+  }
+  VIEWS.ostatement = function () {
+    if (stmtK === null) stmtK = S.currentPeriodIndex(Date.now());
+    var st = buildStatement(stmtK), noData = !(ownerData.ff && ownerData.ff.length);
+    var netHtml = st.net > 0 ? '<div class="big" style="color:#8ff0ab">You pay Declan ' + money(st.net) + '</div>' : st.net < 0 ? '<div class="big" style="color:#ffd27a">Declan pays you ' + money(-st.net) + '</div>' : '<div class="big">Even</div>';
+    shell('<h1>Statement</h1><div class="row between" style="margin-bottom:12px"><button class="secondary small fixed" id="prevk">‹</button><b style="text-align:center">' + fmtPeriod(st.period) + '</b><button class="secondary small fixed" id="nextk">›</button></div>' +
+      (noData ? '<div class="tip">The price table hasn’t loaded yet. Open this once with signal.</div>' : '') +
+      '<div class="card" style="text-align:center"><div class="muted">Net for this fortnight</div>' + netHtml + (st.missing ? '<div style="color:var(--amber);margin-top:6px">⚠ ' + st.missing + (st.missing === 1 ? ' phone needs' : ' phones need') + ' a price from you — see below</div>' : '') + '</div>' +
+      '<h2>You owe Declan · damaged phones</h2>' + (st.damaged.length ? st.damaged.map(function (d) {
+        return '<div class="card"><div class="row between"><b>' + d.lines.length + ' phones</b><span class="muted fixed">received ' + fmtDate(d.batch.received_at) + '</span></div>' + d.lines.map(function (l) {
+          var ph = l.phone;
+          return '<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="row between"><span>' + esc(ph.model) + (ph.storage_gb ? ' ' + storageText(ph.storage_gb) : '') + '</span><b class="fixed">fee ' + money(l.fee) + '</b></div>' +
+            '<div class="muted">Paid ' + money(ph.price_paid_cents) + (ownerSettings().pct ? ' · expected sale ' + (l.expected === null ? '<span style="color:var(--amber)">needs a price</span>' : money(l.expected) + (l.manual ? ' (you set it)' : '')) + (l.profit === null ? '' : ' · profit ' + money(l.profit)) : '') + '</div>' +
+            (ownerSettings().pct && (l.needsPrice || l.manual) ? priceInput('expected', ph.id, l.manual ? l.expected : null) : '') + '</div>';
+        }).join('') +
+          '<div class="row between" style="margin-top:10px"><span>Reimburse what he paid</span><b class="fixed">' + money(d.reimburse) + '</b></div><div class="row between"><span>Fees</span><b class="fixed">' + money(d.fees) + '</b></div>' +
+          '<div class="row between"><span>Already paid</span><b class="fixed">−' + money(d.paid) + '</b></div><div class="row between"><b>Still to pay</b><b class="fixed">' + money(d.remaining) + '</b></div></div>';
+      }).join('') : '<div class="empty">No damaged shipments received in this fortnight.</div>') +
+      '<h2>Declan owes you · mint phones</h2>' + (st.mint.length ? '<div class="card">' + st.mint.map(function (l) {
+        var ph = l.phone;
+        return '<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="row between"><span>' + esc(ph.model) + (ph.storage_gb ? ' ' + storageText(ph.storage_gb) : '') + '</span><b class="fixed">' + (l.fee === null ? '—' : money(l.fee)) + '</b></div>' +
+          '<div class="muted">Paid ' + money(ph.price_paid_cents) + ' · price sheet ' + (l.sheet === null ? '<span style="color:var(--amber)">needs a price</span>' : money(l.sheet)) + (l.spread === null ? '' : ' · spread ' + money(l.spread)) + '</div>' +
+          (l.needsPrice || (valuationMap()[ph.id] || {}).sheet_price_cents != null ? priceInput('sheet', ph.id, (valuationMap()[ph.id] || {}).sheet_price_cents) : '') + '</div>';
+      }).join('') + '<div class="row between" style="margin-top:10px"><b>Commission owed</b><b class="fixed">' + money(st.declanOwes) + '</b></div></div>' : '<div class="empty">No mint phones logged in this fortnight.</div>') +
+      '<div class="gap"></div><button id="copy">Copy statement</button><div class="gap"></div><button class="secondary" id="rates">Change rates</button>');
+    $('prevk').onclick = function () { stmtK--; go('ostatement', undefined, true); };
+    $('nextk').onclick = function () { stmtK++; go('ostatement', undefined, true); };
+    $('copy').onclick = function () { var t = statementText(st); if (navigator.clipboard) navigator.clipboard.writeText(t).then(function () { $('copy').textContent = 'Copied ✓'; }); else prompt('Copy this:', t); };
+    $('rates').onclick = function () { go('orates'); };
+    all('[data-saveval]').forEach(function (b) {
+      b.onclick = async function () {
+        var id = b.getAttribute('data-saveval'), kind = b.getAttribute('data-kind'), inp = document.querySelector('[data-val="' + kind + '"][data-ph="' + id + '"]'), cents = dollarsToCents(inp.value);
+        if (!navigator.onLine) { alert('You need signal to do that.'); return; }
+        var row = { phone_id: id, updated_at: new Date().toISOString() }, old = valuationMap()[id] || {};
+        row.expected_sale_cents = kind === 'expected' ? cents : (old.expected_sale_cents == null ? null : old.expected_sale_cents);
+        row.sheet_price_cents = kind === 'sheet' ? cents : (old.sheet_price_cents == null ? null : old.sheet_price_cents);
+        var r = await sb.from('phone_valuations').upsert(row, { onConflict: 'phone_id' });
+        if (r.error) { alert('Couldn’t save: ' + r.error.message); return; }
+        await refreshPhones(); go('ostatement', undefined, true);
+      };
+    });
+  };
+  VIEWS.orates = function () {
+    var os = ownerSettings(), bands = (ownerData.bands || []).slice().sort(function (a, b) { return a.band_no - b.band_no; });
+    shell('<h1>Rates</h1><div class="card"><b>Damaged phones — fee to Declan</b><div class="muted">You pay back what he paid, plus this flat fee for each phone.</div><label>Flat fee per phone ($)</label><input id="rflat" type="number" inputmode="decimal" value="' + os.flat_cents / 100 + '"></div>' +
+      '<div class="card"><b>Mint phones — commission by spread</b><div class="muted">Spread = price-sheet value minus what Declan paid.</div>' + bands.map(function (b) {
+        return '<div class="row" style="margin-top:10px"><div>' + (b.min_spread_cents == null ? '<label>Under the next band</label><input disabled value="from $0 (or less)">' : '<label>Spread from ($)</label><input type="number" inputmode="decimal" data-bmin="' + b.band_no + '" value="' + b.min_spread_cents / 100 + '">') + '</div><div><label>Commission ($)</label><input type="number" inputmode="decimal" data-bfee="' + b.band_no + '" value="' + b.fee_cents / 100 + '"></div></div>';
+      }).join('') + '</div><div class="err" id="err"></div><button id="save">Save rates</button><div class="gap"></div><button class="secondary" id="back">Back</button>');
+    $('back').onclick = function () { go('ostatement'); };
+    $('save').onclick = async function () {
+      if (!navigator.onLine) { $('err').textContent = 'You need signal to do that.'; return; }
+      var flat = dollarsToCents($('rflat').value);
+      if (flat === null) { $('err').textContent = 'Enter the flat fee.'; return; }
+      var r = await sb.from('owner_settings').upsert([{ key: 'damaged_flat_cents', value: String(flat) }, { key: 'damaged_pct', value: '0' }], { onConflict: 'key' });
+      if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; return; }
+      var brows = bands.map(function (b) { var mi = document.querySelector('[data-bmin="' + b.band_no + '"]'), fe = document.querySelector('[data-bfee="' + b.band_no + '"]'); return { band_no: b.band_no, min_spread_cents: mi ? dollarsToCents(mi.value) : null, fee_cents: dollarsToCents(fe.value) }; });
+      if (brows.some(function (b) { return b.fee_cents === null || (b.band_no !== 1 && b.min_spread_cents === null); })) { $('err').textContent = 'Fill in every band.'; return; }
+      r = await sb.from('commission_bands').upsert(brows, { onConflict: 'band_no' });
+      if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; return; }
+      await refreshPhones(); go('ostatement');
+    };
   };
 
   // ---------- push notifications (meetup booked / one hour to go) ----------
