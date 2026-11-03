@@ -105,7 +105,7 @@
 
   // ---------- log a phone ----------
   var draft = null;
-  function newDraft() { return { model: '', storage: '', colour: '', colourOther: '', battery: '', batteryUnknownPart: false, partsBattery: false, faults: {}, lensesCracked: 0, lensesExposed: 0, type: '', typeTouched: false, qMin: '', qMax: '', paid: '', notes: '', ded: {} }; }
+  function newDraft() { return { model: '', storage: '', colour: '', colourOther: '', battery: '', batteryUnknownPart: false, partsBattery: false, faults: {}, lensesCracked: 0, lensesExposed: 0, type: '', typeTouched: false, quote: '', paid: '', notes: '', ded: {}, dedTotal: '' }; }
   function selectedFaults() { return Object.keys(draft.faults).filter(function (k) { return draft.faults[k]; }); }
   function modelRec() { return catalogue.models.filter(function (m) { return m.name === draft.model; })[0]; }
   function faultCheck(id, label, hint) { return '<label class="check"><input type="checkbox" data-fault="' + id + '"' + (draft.faults[id] ? ' checked' : '') + '><span>' + label + (hint ? '<small>' + hint + '</small>' : '') + '</span></label>'; }
@@ -138,8 +138,7 @@
 
       '<h2><span class="step">6</span> Face ID, speaker, buttons</h2><div class="card">' + f('faceid') + f('speaker') + f('charging') + f('board') + '</div>' +
 
-      '<h2>Price</h2><div class="card"><div class="row"><div><label>Quoted from ($)</label><input id="qmin" type="number" inputmode="decimal" value="' + esc(draft.qMin) + '"></div>' +
-        '<div><label>Quoted to ($)</label><input id="qmax" type="number" inputmode="decimal" value="' + esc(draft.qMax) + '"></div></div></div>' +
+      '<h2>Price</h2><div class="card"><label>Quote you gave the seller ($)</label><input id="quote" inputmode="text" placeholder="e.g. 230-260" value="' + esc(draft.quote) + '"><div class="muted" id="quotehint" style="margin-top:6px"></div></div>' +
       '<div id="sum"></div>' +
       '<label>Notes (optional)</label><textarea id="notes" rows="2">' + esc(draft.notes) + '</textarea>' +
       '<div style="height:14px"></div><button id="save">Save phone</button><div class="err" id="err"></div>' +
@@ -154,8 +153,7 @@
     $('pbat').onchange = function () { draft.partsBattery = this.checked; renderSummary(); };
     $('lc').oninput = function () { draft.lensesCracked = Math.max(0, parseInt(this.value, 10) || 0); renderSummary(); };
     $('le').oninput = function () { draft.lensesExposed = Math.max(0, parseInt(this.value, 10) || 0); renderSummary(); };
-    $('qmin').oninput = function () { draft.qMin = this.value; renderSummary(); };
-    $('qmax').oninput = function () { draft.qMax = this.value; renderSummary(); };
+    $('quote').oninput = function () { draft.quote = this.value; renderSummary(); };
     $('notes').oninput = function () { draft.notes = this.value; };
     Array.prototype.forEach.call(document.querySelectorAll('[data-fault]'), function (el) { el.onchange = function () { draft.faults[el.getAttribute('data-fault')] = el.checked; renderSummary(); }; });
     $('cancel').onclick = function () { if (confirm('Throw this phone away without saving?')) { draft = null; go('home'); } };
@@ -172,14 +170,22 @@
     });
   }
   function lineState(line) { var s = draft.ded[line.id] || {}; return { include: line.required ? true : (s.include === undefined ? true : s.include), cents: s.cents === undefined ? line.cents : s.cents }; }
+  // "230-260", "230 to 260", "$230 - $260" or just "250" all work.
+  function parseQuote(str) {
+    var nums = (String(str).replace(/,/g, '').match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
+    if (!nums.length) return null;
+    var a = nums[0], b = nums.length > 1 ? nums[1] : nums[0];
+    return { min: Math.round(Math.min(a, b) * 100), max: Math.round(Math.max(a, b) * 100) };
+  }
   function totals() {
-    var lines = computeLines(), total = 0;
-    lines.forEach(function (l) { var s = lineState(l); if (s.include) total += s.cents; });
-    return { lines: lines, total: total };
+    var lines = computeLines(), sum = 0;
+    lines.forEach(function (l) { var s = lineState(l); if (s.include) sum += s.cents; });
+    var override = draft.dedTotal !== '' ? dollarsToCents(draft.dedTotal) : null;
+    return { lines: lines, sum: sum, total: override === null ? sum : override, overridden: override !== null };
   }
   function dollarsToCents(v) { var n = parseFloat(v); return isNaN(n) ? null : Math.round(n * 100); }
   function renderSummary() {
-    var t = totals(), qMax = dollarsToCents(draft.qMax), suggestType = D.suggestType({ faults: selectedFaults(), lensesCracked: draft.lensesCracked, lensesExposed: draft.lensesExposed });
+    var t = totals(), q = parseQuote(draft.quote), qMax = q ? q.max : null, suggestType = D.suggestType({ faults: selectedFaults(), lensesCracked: draft.lensesCracked, lensesExposed: draft.lensesExposed });
     if (!draft.typeTouched) draft.type = suggestType;
     var html = '<h2>Deductions</h2><div class="card">';
     if (!t.lines.length) html += '<div class="muted">Nothing ticked, so no deductions.</div>';
@@ -190,8 +196,9 @@
         (!l.priced ? '<small class="err" style="display:block">No set price for this model — ask Ethan, or type an amount</small>' : '') +
         '</div><input type="number" inputmode="decimal" data-amt="' + l.id + '" value="' + (s.cents / 100) + '"></div>';
     });
-    html += '<div class="row between" style="margin-top:12px"><span>Total deductions</span><span class="total">' + money(t.total) + '</span></div>';
-    if (qMax !== null) html += '<div class="row between"><span class="muted">Top of quote minus deductions</span><span>' + money(Math.max(0, qMax - t.total)) + '</span></div>';
+    html += '<div class="row between" style="margin-top:12px"><span>Total deductions</span><span style="flex:none;width:130px"><input id="dtotal" type="number" inputmode="decimal" value="' + (t.total / 100) + '" style="font-weight:800;font-size:18px"></span></div>' +
+      '<div class="muted" id="dnote" style="margin-top:4px">' + (t.overridden ? 'You changed this total (suggested ' + money(t.sum) + '). <button class="link" id="dreset" type="button">Reset</button>' : 'You can type a different total here if you need to.') + '</div>';
+    html += '<div class="row between" id="dleft">' + (qMax !== null ? '<span class="muted">Top of quote minus deductions</span><span>' + money(Math.max(0, qMax - t.total)) + '</span>' : '') + '</div>';
     html += '</div>' +
       '<div class="card"><label>Type</label><select id="type"><option value="damaged"' + (draft.type === 'damaged' ? ' selected' : '') + '>Damaged (ships to Ethan)</option><option value="mint"' + (draft.type === 'mint' ? ' selected' : '') + '>Mint (you keep it)</option></select>' +
       '<div class="muted" style="margin-top:6px">Suggested: ' + suggestType + (suggestType === 'mint' ? ' (nothing wrong, or just the battery)' : ' (it has a fault)') + '. Not sure? Ask Ethan.</div>' +
@@ -200,31 +207,36 @@
     $('sum').innerHTML = html;
     Array.prototype.forEach.call(document.querySelectorAll('[data-inc]'), function (el) { el.onchange = function () { var id = el.getAttribute('data-inc'); draft.ded[id] = Object.assign({}, draft.ded[id], { include: el.checked }); renderSummary(); }; });
     Array.prototype.forEach.call(document.querySelectorAll('[data-amt]'), function (el) { el.oninput = function () { var id = el.getAttribute('data-amt'); var c = dollarsToCents(el.value); draft.ded[id] = Object.assign({}, draft.ded[id], { cents: c === null ? 0 : c }); updateTotalsOnly(); }; });
+    var hint = $('quotehint'); if (hint) hint.textContent = q ? (q.min === q.max ? 'Quote: ' + money(q.max) : 'Quote: ' + money(q.min) + ' to ' + money(q.max)) + ' \u2014 you can\u2019t pay more than ' + money(q.max) : 'Type it like 230-260, or just one price like 250.';
+    $('dtotal').oninput = function () { draft.dedTotal = this.value; updateTotalsOnly(true); };
+    if ($('dreset')) $('dreset').onclick = function () { draft.dedTotal = ''; renderSummary(); };
     $('type').onchange = function () { draft.type = this.value; draft.typeTouched = true; };
     $('paid').oninput = function () { draft.paid = this.value; updateTotalsOnly(); };
   }
   // re-render only the numbers while typing, so the keyboard doesn't lose focus
-  function updateTotalsOnly() {
-    var t = totals(), qMax = dollarsToCents(draft.qMax);
-    var totalEl = document.querySelector('#sum .total'); if (totalEl) totalEl.textContent = money(t.total);
+  function updateTotalsOnly(fromTotalBox) {
+    var t = totals(), q = parseQuote(draft.quote), qMax = q ? q.max : null;
+    var box = $('dtotal'); if (box && !fromTotalBox) box.value = t.total / 100;
+    var left = $('dleft'); if (left) left.innerHTML = qMax !== null ? '<span class="muted">Top of quote minus deductions</span><span>' + money(Math.max(0, qMax - t.total)) + '</span>' : '';
+    var note = $('dnote'); if (note) { note.innerHTML = t.overridden ? 'You changed this total (suggested ' + money(t.sum) + '). <button class="link" id="dreset" type="button">Reset</button>' : 'You can type a different total here if you need to.'; if ($('dreset')) $('dreset').onclick = function () { draft.dedTotal = ''; renderSummary(); }; }
     var warn = qMax !== null && dollarsToCents(draft.paid) > qMax;
     var existing = document.getElementById('capwarn');
-    if (warn && !existing) { var d = document.createElement('div'); d.className = 'err'; d.id = 'capwarn'; d.textContent = 'That’s more than the top of the quote (' + money(qMax) + '). You can’t pay more than that.'; $('paid').insertAdjacentElement('afterend', d); }
+    if (warn && !existing) { var d = document.createElement('div'); d.className = 'err'; d.id = 'capwarn'; d.textContent = 'That\u2019s more than the top of the quote (' + money(qMax) + '). You can\u2019t pay more than that.'; $('paid').insertAdjacentElement('afterend', d); }
     if (!warn && existing) existing.remove();
   }
 
   function savePhone() {
     var err = '';
-    var qMin = dollarsToCents(draft.qMin), qMax = dollarsToCents(draft.qMax), paid = dollarsToCents(draft.paid);
+    var q = parseQuote(draft.quote), qMin = q ? q.min : null, qMax = q ? q.max : null, paid = dollarsToCents(draft.paid);
     if (!draft.model) err = 'Choose the model.';
-    else if (qMin === null || qMax === null) err = 'Enter the quoted range.';
-    else if (qMin > qMax) err = 'The quote’s “from” is higher than its “to”.';
+    else if (!q) err = 'Enter the quote you gave the seller, like 230-260.';
     else if (paid === null) err = 'Enter the price paid.';
     else if (paid > qMax) err = 'Price paid can’t be more than the top of the quote (' + money(qMax) + ').';
     else if (draft.battery !== '' && (isNaN(parseInt(draft.battery, 10)) || parseInt(draft.battery, 10) > 100)) err = 'Battery % should be 1–100.';
     if (err) { $('err').textContent = err; return; }
     var t = totals(), deductions = [];
     t.lines.forEach(function (l) { var s = lineState(l); if (s.include) deductions.push({ label: l.label, cents: s.cents }); });
+    if (t.overridden && t.total !== t.sum) deductions.push({ label: 'Adjusted by Declan', cents: t.total - t.sum });
     var issues = selectedFaults().map(faultLabel);
     if (draft.lensesCracked) issues.push('Smashed camera lens x' + draft.lensesCracked);
     if (draft.lensesExposed) issues.push('Camera exposed x' + draft.lensesExposed);
