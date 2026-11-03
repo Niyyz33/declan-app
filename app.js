@@ -234,7 +234,7 @@
     shell('<div class="greet"><img src="icons/logo.png" alt=""><div><h1>' + name + ' 👋</h1><div id="sentstatus" style="font-weight:600;font-size:14px"></div></div></div>' +
       installTip() +
       (inProgress ? '<div class="card"><b>Phone in progress</b><div class="muted">' + esc(draft.model) + ' — saved, pick up where you left off.</div><div class="row" style="margin-top:12px"><button id="cont">Continue</button><button class="secondary" id="discard">Discard</button></div></div>' : '') +
-      nextMeetupCard() +
+      nextMeetupCard() + '<div id="pushcard"></div>' +
       '<button id="log" style="font-size:18px;padding:18px">＋ Log a phone</button>' +
       '<h2>Ready to ship</h2><div class="card"><div class="row between"><b>' + ready + ' damaged ' + (ready === 1 ? 'phone' : 'phones') + '</b><span class="muted fixed">' + (ready >= MIN_SHIP ? 'Ready to ship!' : (MIN_SHIP - ready) + ' more to go') + '</span></div>' +
       '<div class="bar"><i style="width:' + Math.min(100, Math.round(ready / MIN_SHIP * 100)) + '%"></i></div>' +
@@ -244,6 +244,7 @@
       '<div class="row" style="margin-top:18px"><button class="link" id="help">Rules &amp; help</button><button class="link" id="out" style="text-align:right">Log out</button></div>' +
       '<div class="sync">' + (lastSync ? 'Last updated ' + fmtDate(lastSync) + ' · ' : '') + 'v' + esc(VERSION) + '</div>');
     if ($('nextm')) $('nextm').onclick = function () { go('meetups'); };
+    renderPushCard();
     $('log').onclick = function () { go('log'); }; if ($('ship')) $('ship').onclick = function () { go('ship'); };
     if ($('cont')) $('cont').onclick = function () { go('log'); };
     if ($('discard')) $('discard').onclick = function () { if (confirm('Throw this phone away without saving?')) { draft = null; persistDraft(); go('home'); } };
@@ -599,6 +600,41 @@
     render();
   };
 
+  // ---------- push notifications (meetup booked / one hour to go) ----------
+  function b64ToBytes(b64) { var raw = atob((b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')), out = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i); return out; }
+  function pushSupported() { return !!(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY) && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+  async function pushSubscribe() {
+    var reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(window.CONFIG.VAPID_PUBLIC_KEY) });
+    var j = sub.toJSON();
+    var r = await sb.from('push_subscriptions').upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_id: session.user.id }, { onConflict: 'endpoint' });
+    return !r.error;
+  }
+  // Quietly keeps this phone's saved subscription fresh each time the app opens (only once alerts are on).
+  async function ensurePush() {
+    if (!pushSupported() || Notification.permission !== 'granted' || !session || !session.user || !navigator.onLine) return;
+    try { await pushSubscribe(); } catch (e) { /* try again next launch */ }
+  }
+  async function renderPushCard() {
+    var el = $('pushcard');
+    if (!el || isOwner() || !(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY)) return;
+    if (!pushSupported() || !isStandalone()) { el.innerHTML = '<div class="tip"><b>Want an alert an hour before each meetup?</b> Add the app to your Home Screen first (Share ⬆︎ → Add to Home Screen), open it from the icon, then turn alerts on here.</div>'; return; }
+    if (Notification.permission === 'denied') { el.innerHTML = '<div class="tip">Alerts are blocked. Turn them on in <b>Settings › Notifications › Cash for Phones</b>.</div>'; return; }
+    var on = false;
+    try { var reg = await navigator.serviceWorker.ready; on = Notification.permission === 'granted' && !!(await reg.pushManager.getSubscription()); } catch (e) { /* ignore */ }
+    if (on) { el.innerHTML = '<div class="muted" style="margin:0 2px 12px">🔔 Meetup alerts are on — you’ll get one when Ethan books and one an hour before.</div>'; return; }
+    el.innerHTML = '<div class="card"><b>🔔 Meetup alerts</b><div class="muted">Get a notification the moment Ethan books a meetup, and another one hour before.</div><div class="gap"></div><button id="pushon">Turn on alerts</button><div class="err" id="pusherr"></div></div>';
+    $('pushon').onclick = async function () {
+      $('pusherr').textContent = '';
+      try {
+        var perm = await Notification.requestPermission();
+        if (perm !== 'granted') { $('pusherr').textContent = 'Alerts weren’t allowed. You can change this in Settings › Notifications.'; return; }
+        if (!(await pushSubscribe())) { $('pusherr').textContent = 'Couldn’t save that. Check your signal and try again.'; return; }
+        renderPushCard();
+      } catch (e) { $('pusherr').textContent = 'Couldn’t turn alerts on: ' + (e && e.message ? e.message : 'try again'); }
+    };
+  }
+
   // ---------- meetups ----------
   function sortedMeetups() { return allMeetups().slice().sort(function (a, b) { return new Date(a.starts_at) - new Date(b.starts_at); }); }
   function calendarCard() {
@@ -667,8 +703,8 @@
     persistDraft(); go('log');
   }
   VIEWS.meetups = function () {
-    shell('<h1>Meetups</h1>' + calendarCard() + meetupSections());
-    bindMeetupActions();
+    shell('<h1>Meetups</h1><div id="pushcard"></div>' + calendarCard() + meetupSections());
+    bindMeetupActions(); renderPushCard();
   };
 
   // owner side: book Declan's meetups
@@ -730,7 +766,10 @@
     renderBanner();
     if (!session) return go('login');
     go(isOwner() ? 'omeetups' : 'home');
-    loadCatalogue(); loadProfile(); refreshPhones(); syncQueue();
+    var deep = new URLSearchParams(location.search).get('go');
+    if (deep === 'meetups' && !isOwner()) go('meetups');
+    if (deep) history.replaceState(null, '', location.pathname);
+    loadCatalogue(); loadProfile(); refreshPhones(); syncQueue(); ensurePush();
     window.addEventListener('online', function () { loadCatalogue(); loadProfile(); syncQueue(); renderBanner(); });
     window.addEventListener('offline', renderBanner);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) { syncQueue(); refreshPhones(); } });
