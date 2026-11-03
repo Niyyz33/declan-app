@@ -234,6 +234,8 @@
     $app.className = (view === 'log' || view === 'login') ? 'nobar' : '';
     noAnim = !!keepScroll;
     $actions.innerHTML = '';
+    if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) document.activeElement.blur();
+    document.body.classList.remove('kb');
     var typed = {};
     if (keepScroll) all('[data-trk],[data-pship],[data-parr]').forEach(function (el) { if (el.value) typed[el.outerHTML.match(/data-(trk|pship|parr)="[^"]*"/)[0]] = el.value; });
     VIEWS[view](arg);
@@ -630,7 +632,7 @@
   // The text Declan sends Ethan to ask for a label: the phones, what he paid, and what he'll pack them in.
   function labelMessage(phones) {
     var n = phones.length, total = phones.reduce(function (a, p) { return a + (p.price_paid_cents || 0); }, 0);
-    var lines = phones.map(function (p, i) { return (i + 1) + '. ' + p.model + (p.storage_gb ? ' ' + storageText(p.storage_gb) : '') + (p.colour ? ' (' + p.colour + ')' : '') + ' - paid ' + money(p.price_paid_cents); });
+    var lines = phones.map(function (p, i) { return (i + 1) + '. ' + p.model + (p.storage_gb ? ' ' + storageText(p.storage_gb) : '') + (p.colour ? ' (' + p.colour + ')' : '') + ' - ' + ((p.issues || []).length ? p.issues.join(', ') : 'damage as logged') + ' - paid ' + money(p.price_paid_cents); });
     return 'Hey Ethan, it\'s ' + (profile.name || 'Declan') + ' 👋\n\nI\'ve got ' + n + ' damaged phone' + (n === 1 ? '' : 's') + ' ready to ship:\n\n' + lines.join('\n') +
       '\n\nTotal I\'ve paid: ' + money(total) + '\n\nCan you send me the postage label please? I\'ll pack them in ' + (n >= 10 ? 'a medium' : 'a small') + ' box with bubble wrap and post them as soon as I\'ve got it.\n\nThanks!';
   }
@@ -978,6 +980,7 @@
     }
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* not supported */ }
     document.addEventListener('focusin', function (e) { var t = e.target; if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && t.type !== 'checkbox'))) document.body.classList.add('kb'); });
+    setInterval(function () { var a = document.activeElement; if (document.body.classList.contains('kb') && !(a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'checkbox')))) document.body.classList.remove('kb'); }, 1500);
     document.addEventListener('focusout', function () { setTimeout(function () { var a = document.activeElement; if (!(a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'checkbox')))) document.body.classList.remove('kb'); }, 80); });
     if (!window.CONFIG || !window.CONFIG.SUPABASE_URL) { shell('<h1>Not set up yet</h1><p class="muted">Tell Ethan the app isn’t connected.</p>'); return; }
     sb = window.supabase.createClient(window.CONFIG.SUPABASE_URL, window.CONFIG.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'declan-auth' } });
