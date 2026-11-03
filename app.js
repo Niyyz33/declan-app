@@ -26,6 +26,12 @@
     if (failed.length) { $banner.hidden = false; $banner.className = 'bad'; $banner.textContent = failed.length + ' phone(s) couldn’t be saved — tell Ethan: ' + failed[0].failed; }
     else if (pending) { $banner.hidden = false; $banner.className = ''; $banner.textContent = pending + ' waiting to send — will send automatically when you have signal'; }
     else { $banner.hidden = true; }
+    var st = document.getElementById('sentstatus');
+    if (st) {
+      if (failed.length || pending) { st.textContent = ''; }
+      else if (!navigator.onLine) { st.className = 'muted'; st.textContent = 'Offline \u2014 nothing waiting'; }
+      else { st.className = 'ok'; st.textContent = 'All sent \u2713'; }
+    }
   }
   var syncing = false;
   // The saved login is renewed hourly in the background. With no signal that renewal fails, so a
@@ -99,7 +105,7 @@
   function viewHome() {
     var phones = allPhones();
     var bought = phones.filter(function (p) { return p.type === 'damaged' && p.status === 'bought'; }).length;
-    $app.innerHTML = '<h1>Hey Declan</h1>' +
+    $app.innerHTML = '<h1>Hey Declan</h1><div id="sentstatus" style="margin:-8px 0 12px;font-weight:600"></div>' +
       '<button id="log">+ Log a phone</button><div style="height:10px"></div>' +
       '<div class="row"><button class="secondary" id="phones">My phones (' + phones.length + ')</button><button class="secondary" id="ship">Ship a batch' + (bought ? ' (' + bought + ')' : '') + '</button></div>' +
       '<div class="card" style="margin-top:14px"><b>Meetups</b><div class="muted">Your meetups land in the shared “Declan Meetups” calendar on your phone.</div></div>' +
@@ -107,6 +113,7 @@
       '<button class="link" id="out">Log out</button>';
     $('log').onclick = function () { go('log'); }; $('phones').onclick = function () { go('phones'); }; $('ship').onclick = function () { go('ship'); };
     $('out').onclick = async function () { await sb.auth.signOut(); session = null; go('login'); };
+    renderBanner();
   }
 
   // ---------- log a phone ----------
@@ -312,7 +319,8 @@
     if (!session) return go('login');
     go('home');
     loadCatalogue(); refreshPhones(); syncQueue();
-    window.addEventListener('online', function () { loadCatalogue(); syncQueue(); });
+    window.addEventListener('online', function () { loadCatalogue(); syncQueue(); renderBanner(); });
+    window.addEventListener('offline', renderBanner);
     setInterval(syncQueue, 30000);
   }
   boot();
