@@ -9,3 +9,5 @@ Branding: Cash for Phones Townsville (logo + colours from the Cash4Phones app).
 Update 3: run change-3.sql once (meetups + calendar secret), then deploy the calendar feed:
 `supabase functions deploy calendar --project-ref udkbhgzmmnrwmadqakia --no-verify-jwt`. Test the feed: `node supabase/functions/calendar/ics.test.mjs`.
 Before EVERY release: run `tests/overflow-audit.js` (in the test page at 320px wide) over every screen of the app (Declan + owner) and every guide, with long names and lots of data. It must report nothing sticking out of any box, button, drawing or screen.
+
+Smoothness rules: `refreshPhones()` runs one at a time and only redraws the screen if the data really changed (and never while someone is typing). The alerts card is painted from its last known state so it doesn't pop in. A new app version waits until Declan leaves the screen (or goes Home) before reloading. Don't add code that rebuilds the whole screen on a timer.

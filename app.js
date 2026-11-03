@@ -55,7 +55,7 @@
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
-  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices'].forEach(function (k) { save(k, null); }); listPrices = []; profile = { name: '', role: '', price_city: 'townsville' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml'].forEach(function (k) { save(k, null); }); listPrices = []; pushHtml = ''; profile = { name: '', role: '', price_city: 'townsville' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
   // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
   function versionText(v) {
     var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
@@ -151,8 +151,20 @@
     setQueue(queue); syncing = false;
     if (navigator.onLine) refreshPhones();
   }
-  async function refreshPhones() {
+  var refreshing = null;
+  function dataSig() { return JSON.stringify([serverPhones, serverBatches, meetups, payments, ownerData]); }
+  function typingNow() { var a = document.activeElement; return !!(a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'checkbox' && a.type !== 'button'))); }
+  function syncLine() { return (lastSync ? 'Synced ' + fmtDate(lastSync) + ' · ' : '') + esc(versionText(VERSION)); }
+  // One refresh at a time, and the screen is only redrawn when something really changed. Before this, every refresh
+  // (open, every 30 seconds, coming back to the app) rebuilt the whole screen, which made it flash and jump.
+  function refreshPhones() {
+    if (refreshing) return refreshing;
+    refreshing = doRefreshPhones().then(function () { refreshing = null; }, function () { refreshing = null; });
+    return refreshing;
+  }
+  async function doRefreshPhones() {
     if (!sb || !session || !navigator.onLine) return;
+    var before = dataSig();
     try {
       var r = await sb.from('partner_phones').select('*').order('bought_at', { ascending: false }).limit(500);
       var b = await sb.from('partner_batches').select('*').order('shipped_at', { ascending: false }).limit(100);
@@ -165,7 +177,8 @@
       }
       var mt = await sb.from('partner_meetups').select('*').order('starts_at', { ascending: true }).limit(400);
       if (mt && !mt.error) { meetups = mt.data; save('meetups', meetups); }
-      if (['home', 'phones', 'ship', 'oship', 'meetups', 'omeetups', 'ostatement'].indexOf(current) > -1) go(current, undefined, true);
+      if (dataSig() === before) { var sl = $('syncline'); if (sl) sl.innerHTML = syncLine(); return; }
+      if (['home', 'phones', 'ship', 'oship', 'meetups', 'omeetups', 'ostatement'].indexOf(current) > -1 && !typingNow()) go(current, undefined, true);
     } catch (e) { /* offline */ }
   }
   async function loadCatalogue() {
@@ -313,7 +326,7 @@
       (settings.guides_published ? '<a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Guides</a>' : '') +
       (tel ? '<h2>Need Ethan?</h2><div class="row"><a class="btnlink green" href="sms:' + tel + '">💬 Message Ethan</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div>' : '') +
       '<div class="row" style="margin-top:18px"><button class="link" id="help">Rules &amp; help</button><button class="link" id="out" style="text-align:right">Log out</button></div>' +
-      '<div class="sync">' + (lastSync ? 'Synced ' + fmtDate(lastSync) + ' · ' : '') + esc(versionText(VERSION)) + '</div>');
+      '<div class="sync" id="syncline">' + syncLine() + '</div>');
     if ($('nextm')) $('nextm').onclick = function () { go('meetups'); };
     renderPushCard();
     $('log').onclick = function () { go('log'); }; if ($('ship')) $('ship').onclick = function () { go('ship'); };
@@ -918,17 +931,23 @@
     if (!pushSupported() || Notification.permission !== 'granted' || !session || !session.user || !navigator.onLine) return;
     try { await pushSubscribe(); } catch (e) { /* try again next launch */ }
   }
+  var pushHtml = load('pushhtml', '');
+  function paintPush(el, html) { if (el.innerHTML && pushHtml === html) { bindPush(); return; } { el.innerHTML = html; try { localStorage.setItem('declan_pushhtml', JSON.stringify(html)); } catch (e) { /* fine */ } pushHtml = html; bindPush(); } }
   async function renderPushCard() {
     var el = $('pushcard');
     if (!el || !(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY)) return;
+    if (pushHtml && !el.innerHTML) { el.innerHTML = pushHtml; bindPush(); }
     var what = isOwner() ? 'when Declan asks for a label or posts a batch, and an hour before each meetup' : 'the moment Ethan books a meetup, and another one an hour before';
-    if (!pushSupported() || !isStandalone()) { el.innerHTML = '<div class="tip"><b>Want alerts?</b> Add the app to your Home Screen first (Share ⬆︎ → Add to Home Screen), open it from the icon, then turn alerts on here.</div>'; return; }
-    if (Notification.permission === 'denied') { el.innerHTML = '<div class="tip">Alerts are blocked. Turn them on in <b>Settings › Notifications › Cash for Phones</b>.</div>'; return; }
+    if (!pushSupported() || !isStandalone()) { paintPush(el, '<div class="tip"><b>Want alerts?</b> Add the app to your Home Screen first (Share ⬆︎ → Add to Home Screen), open it from the icon, then turn alerts on here.</div>'); return; }
+    if (Notification.permission === 'denied') { paintPush(el, '<div class="tip">Alerts are blocked. Turn them on in <b>Settings › Notifications › Cash for Phones</b>.</div>'); return; }
     var on = false;
     try { var reg = await navigator.serviceWorker.ready; on = Notification.permission === 'granted' && !!(await reg.pushManager.getSubscription()); } catch (e) { /* ignore */ }
-    if (on) { el.innerHTML = '<div class="muted" style="margin:0 2px 12px">🔔 Alerts are on — you’ll get one ' + what + '.</div>'; return; }
-    el.innerHTML = '<div class="card"><b>🔔 Alerts</b><div class="muted">Get a notification ' + what + '.</div><div class="gap"></div><button id="pushon">Turn on alerts</button><div class="err" id="pusherr"></div></div>';
-    $('pushon').onclick = async function () {
+    if (on) { paintPush(el, '<div class="muted" style="margin:0 2px 12px">🔔 Alerts are on — you’ll get one ' + what + '.</div>'); return; }
+    paintPush(el, '<div class="card"><b>🔔 Alerts</b><div class="muted">Get a notification ' + what + '.</div><div class="gap"></div><button id="pushon">Turn on alerts</button><div class="err" id="pusherr"></div></div>');
+  }
+  function bindPush() {
+    var btn = $('pushon'); if (!btn) return;
+    btn.onclick = async function () {
       $('pusherr').textContent = '';
       try {
         var perm = await Notification.requestPermission();
@@ -1058,7 +1077,8 @@
       navigator.serviceWorker.register('sw.js').catch(function () {});
       navigator.serviceWorker.addEventListener('controllerchange', function () {
         if (!had) { had = true; return; } // first install, nothing to refresh
-        if (current === 'log' && draft && draft.model) pendingReload = true; else location.reload();
+        // A new version is ready. Don't reload while Declan is looking at the screen (that's the flash): wait until he leaves the app or goes Home.
+        if (document.hidden && !(current === 'log' && draft && draft.model)) location.reload(); else pendingReload = true;
       });
     }
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* not supported */ }
@@ -1079,7 +1099,7 @@
     loadCatalogue(); loadProfile(); refreshPhones(); syncQueue(); ensurePush();
     window.addEventListener('online', function () { loadCatalogue(); loadProfile(); syncQueue(); renderBanner(); });
     window.addEventListener('offline', renderBanner);
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) { syncQueue(); refreshPhones(); } });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) { if (pendingReload && !(current === 'log' && draft && draft.model)) location.reload(); } else { syncQueue(); refreshPhones(); } });
     setInterval(syncQueue, 30000);
   }
   boot();
