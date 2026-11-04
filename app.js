@@ -33,7 +33,7 @@
   var serverPhones = load('phones', []);
   var serverBatches = load('batches', []);
   var queue = load('queue', []);
-  var profile = load('profile', { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '', signed_off_at: null, avail_on: false, avail_start: null, avail_end: null });
+  var profile = load('profile', { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '', signed_off_at: null, avail_on: false, avail_start: null, avail_end: null, meet: '', ship: {}, tested: null });
   var meetups = load('meetups', []);
   var payments = load('payments', []);
   var ownerData = load('ownerdata', { ff: [], bands: [], settings: {}, valuations: [] });
@@ -67,6 +67,50 @@
     return 'App updated ' + d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
   }
   function isOwner() { return profile.role === 'owner'; }
+  // ---- my details: where I usually meet people + the address Ethan needs for my shipping label ----
+  function detailsDone() { var sh = profile.ship || {}; return !!(profile.meet && sh.name && sh.street && sh.suburb && sh.state && sh.postcode); }
+  function detailsCard() {
+    if (isOwner() || detailsDone()) return '';
+    return '<div class="card"><b>Add your details</b><div class="muted" style="margin:6px 0 12px">Where you usually meet people, and the address Ethan needs to send your shipping label.</div><button id="detailsgo">Add my details</button></div>';
+  }
+  function viewDetails() {
+    var sh = profile.ship || {}, states = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
+    shell('<h1>My details</h1><div class="card"><b>Where you usually meet people</b><label>Meeting spot</label><input id="d_meet" autocomplete="off" placeholder="e.g. Stockland Aitkenvale, food court" value="' + esc(profile.meet || '') + '"><div class="hint">Ethan uses this when he books your meetups. Your confirm message includes it.</div></div>' +
+      '<div class="card"><b>Address for your shipping label</b><div class="muted" style="margin:4px 0 0">Ethan fills in your label from this. It’s only seen by Ethan.</div>' +
+      '<label>Full name</label><input id="d_name" autocomplete="name" value="' + esc(sh.name || '') + '"><label>Phone</label><input id="d_phone" type="tel" inputmode="tel" autocomplete="tel" value="' + esc(sh.phone || '') + '">' +
+      '<label>Street address</label><input id="d_street" autocomplete="street-address" value="' + esc(sh.street || '') + '"><label>Suburb</label><input id="d_suburb" autocomplete="address-level2" value="' + esc(sh.suburb || '') + '">' +
+      '<div class="row"><div><label>State</label><select id="d_state"><option value="">Choose</option>' + states.map(function (x) { return '<option' + (sh.state === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div><div><label>Postcode</label><input id="d_post" inputmode="numeric" autocomplete="postal-code" maxlength="4" value="' + esc(sh.postcode || '') + '"></div></div>' +
+      '<div class="err" id="err"></div></div><button id="save">Save</button><div class="gap"></div><button class="secondary" id="cancel">Back</button>');
+    $('cancel').onclick = function () { go('home'); };
+    $('save').onclick = async function () {
+      var v = { meet: $('d_meet').value.trim(), name: $('d_name').value.trim(), phone: $('d_phone').value.trim(), street: $('d_street').value.trim(), suburb: $('d_suburb').value.trim(), state: $('d_state').value, postcode: $('d_post').value.trim() };
+      if (!v.meet) { $('err').textContent = 'Add where you usually meet people.'; return; }
+      if (!v.name || !v.street || !v.suburb || !v.state || !/^\d{4}$/.test(v.postcode)) { $('err').textContent = 'Fill in your name, street, suburb, state and a 4-digit postcode.'; return; }
+      if (!navigator.onLine) { $('err').textContent = 'You need signal to save this.'; return; }
+      $('save').disabled = true;
+      var r = await sb.rpc('set_my_details', { p_meet: v.meet, p_name: v.name, p_phone: v.phone, p_street: v.street, p_suburb: v.suburb, p_state: v.state, p_postcode: v.postcode });
+      if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; $('save').disabled = false; return; }
+      profile = Object.assign({}, profile, { meet: v.meet, ship: { name: v.name, phone: v.phone, street: v.street, suburb: v.suburb, state: v.state, postcode: v.postcode } }); save('profile', profile);
+      go('home');
+    };
+  }
+  // ---- one-time "send me a test alert" (hides for good once he says it arrived) ----
+  var testState = '';
+  function testCard() {
+    if (isOwner() || profile.tested || !(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY) || !('Notification' in window) || Notification.permission !== 'granted') return '';
+    if (testState === 'sent') return '<div class="card"><b>Did the alert arrive?</b><div class="muted" style="margin:6px 0 12px">It should have buzzed your phone just now.</div><div class="row" style="gap:8px"><button id="testyes">Yes, it arrived</button><button class="secondary" id="testno">No</button></div></div>';
+    if (testState === 'no') return '<div class="card"><b>Let’s fix that</b><div class="muted" style="margin:6px 0 12px">Open the app from its <b>Home Screen icon</b>, not Safari. Then check Settings › Notifications › Cash for Phones is on, and Focus or Do Not Disturb is off. Then try again.</div><button id="testgo">Send another test</button></div>';
+    return '<div class="card"><b>Check your alerts</b><div class="muted" style="margin:6px 0 12px">Send yourself one test alert. You only need to do this once.</div><button id="testgo">Send me a test alert</button><div class="err" id="testerr"></div></div>';
+  }
+  function bindTest() {
+    if ($('testgo')) $('testgo').onclick = async function () {
+      this.disabled = true; var r = await sb.functions.invoke('push-test');
+      if (r.error || !r.data || !r.data.sent) { if ($('testerr')) $('testerr').textContent = 'No alert was sent. Turn alerts on first (Meetups tab), then try again.'; this.disabled = false; return; }
+      testState = 'sent'; go('home', undefined, true);
+    };
+    if ($('testyes')) $('testyes').onclick = async function () { await sb.rpc('confirm_alerts_tested'); profile = Object.assign({}, profile, { tested: new Date().toISOString() }); save('profile', profile); testState = ''; go('home', undefined, true); };
+    if ($('testno')) $('testno').onclick = function () { testState = 'no'; go('home', undefined, true); };
+  }
   // ---- availability: Declan says when he's free each day; Ethan books meetups into those times ----
   function pTz(pid) { return partnerTz(pid) || 'Australia/Brisbane'; }
   function dayKey(offset, tz) { return new Date(Date.now() + (offset || 0) * 86400000).toLocaleDateString('en-CA', { timeZone: tz || profile.timezone || 'Australia/Brisbane' }); }
@@ -367,11 +411,11 @@
   async function loadProfile() {
     if (!sb || !session || !session.user || !navigator.onLine) return;
     try {
-      var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min').eq('id', session.user.id).maybeSingle();
+      var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min,meet_location,ship_name,ship_phone,ship_street,ship_suburb,ship_state,ship_postcode,alerts_tested_at').eq('id', session.user.id).maybeSingle();
       var before = profile.role;
-      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '', signed_off_at: p.data.signed_off_at || null, avail_on: !!p.data.default_avail_enabled, avail_start: p.data.default_avail_start_min, avail_end: p.data.default_avail_end_min }; save('profile', profile); routeToMyCity(); }
+      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '', signed_off_at: p.data.signed_off_at || null, avail_on: !!p.data.default_avail_enabled, avail_start: p.data.default_avail_start_min, avail_end: p.data.default_avail_end_min, meet: p.data.meet_location || '', ship: { name: p.data.ship_name || '', phone: p.data.ship_phone || '', street: p.data.ship_street || '', suburb: p.data.ship_suburb || '', state: p.data.ship_state || '', postcode: p.data.ship_postcode || '' }, tested: p.data.alerts_tested_at || null }; save('profile', profile); routeToMyCity(); }
       if (before !== profile.role && current && current !== 'login') setTimeout(function () { go(isOwner() ? 'omeetups' : 'home'); }, 0);
-      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city,city_name,timezone,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min'); if (pl && !pl.error) { var plBefore = JSON.stringify(partnersList); partnersList = pl.data; save('partners', partnersList); if (JSON.stringify(partnersList) !== plBefore && ['omeetups', 'phones', 'oship', 'ostatement'].indexOf(current) > -1 && !typingNow()) go(current, undefined, true); } }
+      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city,city_name,timezone,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min,meet_location,ship_name,ship_phone,ship_street,ship_suburb,ship_state,ship_postcode'); if (pl && !pl.error) { var plBefore = JSON.stringify(partnersList); partnersList = pl.data; save('partners', partnersList); if (JSON.stringify(partnersList) !== plBefore && ['omeetups', 'phones', 'oship', 'ostatement'].indexOf(current) > -1 && !typingNow()) go(current, undefined, true); } }
       var s = await sb.from('app_settings').select('key,value');
       if (!s.error && s.data) { var o = {}; s.data.forEach(function (x) { o[x.key] = x.value; }); settings = o; save('settings', o); }
     } catch (e) { /* offline, or settings not set up yet */ }
@@ -425,6 +469,7 @@
   var pendingReload = false;
   var VIEWS = {};
   VIEWS.avail = viewAvail;
+  VIEWS.details = viewDetails;
   function go(view, arg, keepScroll) {
     if (pendingReload && view === 'home') { location.reload(); return; }
     if (isOwner() && (view === 'home' || view === 'log')) view = 'omeetups';
@@ -452,10 +497,10 @@
     all('[data-vp]').forEach(function (b) { b.onclick = function () { viewing = b.getAttribute('data-vp'); save('viewing', viewing); go(current, undefined, true); }; });
   }
   function renderTabs() {
-    var hide = !session || current === 'login' || current === 'log' || current === 'edit' || current === 'sold' || current === 'fbdesc' || current === 'avail' || !current;
+    var hide = !session || current === 'login' || current === 'log' || current === 'edit' || current === 'sold' || current === 'fbdesc' || current === 'avail' || current === 'details' || !current;
     $tabs.hidden = hide;
     if (hide) return;
-    var active = current === 'sold' || current === 'fbdesc' ? 'phones' : current === 'avail' ? 'home' : current === 'orates' ? 'ostatement' : current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
+    var active = current === 'sold' || current === 'fbdesc' ? 'phones' : current === 'avail' || current === 'details' ? 'home' : current === 'orates' ? 'ostatement' : current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
     var ready = readyToShip().length;
     function tab(id, label, icon, extra) { return '<button class="tab ' + id + (active === id ? ' on' : '') + '" data-tab="' + id + '">' + icon + (extra || '') + '<span>' + label + '</span></button>'; }
     if (isOwner()) {
@@ -501,7 +546,7 @@
     shell('<div class="greet"><img src="' + logoSrc() + '" alt=""><div><h1>' + name + ' 👋</h1><div id="sentstatus" style="font-weight:600;font-size:14px"></div></div></div>' +
       installTip() +
       (inProgress ? '<div class="card"><b>Phone in progress</b><div class="muted">' + esc(draft.model) + ' — saved, pick up where you left off.</div><div class="row" style="margin-top:12px"><button id="cont">Continue</button><button class="secondary" id="discard">Discard</button></div></div>' : '') +
-      nextMeetupCard() + '<div id="pushcard"></div>' + availCard() + onbCard() +
+      nextMeetupCard() + '<div id="pushcard"></div>' + testCard() + detailsCard() + availCard() + onbCard() +
       '<button id="log" style="font-size:18px;padding:18px">＋ Log a phone</button>' +
       '<h2>Ready to ship</h2><div class="card"><div class="row between"><b>' + ready + ' damaged ' + (ready === 1 ? 'phone' : 'phones') + '</b><span class="muted fixed">' + (ready >= MIN_SHIP ? 'Ready to ship!' : (MIN_SHIP - ready) + ' more to go') + '</span></div>' +
       '<div class="bar"><i style="width:' + Math.min(100, Math.round(ready / MIN_SHIP * 100)) + '%"></i></div>' +
@@ -509,16 +554,19 @@
       (ready ? '<div style="height:12px"></div><button class="' + (ready >= MIN_SHIP ? '' : 'secondary') + '" id="ship">Get a shipping label</button>' : '') + '</div>' +
       (settings.guides_published ? '<a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Guides</a>' : '') +
       (tel ? '<h2>Need Ethan?</h2><div class="row"><a class="btnlink green" href="sms:' + tel + '">💬 Message Ethan</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div>' : '') +
-      '<div class="row" style="margin-top:18px"><button class="link" id="help">Rules &amp; help</button><button class="link" id="out" style="text-align:right">Log out</button></div>' +
+      '<div class="row" style="margin-top:18px"><button class="link" id="help">Rules &amp; help</button><button class="link" id="mydetails">My details</button><button class="link" id="out" style="text-align:right">Log out</button></div>' +
       '<div class="sync" id="syncline">' + syncLine() + '</div>');
     if ($('nextm')) $('nextm').onclick = function () { go('meetups'); };
     bindOnb();
     if ($('availgo')) $('availgo').onclick = function () { go('avail'); };
+    if ($('detailsgo')) $('detailsgo').onclick = function () { go('details'); };
+    bindTest();
     renderPushCard();
     $('log').onclick = function () { go('log'); }; if ($('ship')) $('ship').onclick = function () { go('ship'); };
     if ($('cont')) $('cont').onclick = function () { go('log'); };
     if ($('discard')) $('discard').onclick = function () { if (confirm('Throw this phone away without saving?')) { draft = null; persistDraft(); go('home'); } };
     $('help').onclick = function () { go('help'); };
+    $('mydetails').onclick = function () { go('details'); };
     $('out').onclick = async function () {
       if (queue.filter(function (i) { return i.kind !== 'onb'; }).length && !confirm('You have phones that haven’t sent yet. If you log out now you could lose them. Log out anyway?')) return;
       try { await sb.auth.signOut(); } catch (e) { /* offline */ }
@@ -965,9 +1013,15 @@
 
   // Ethan's side: send labels, mark received, note what he's paid.
   function paymentFor(id) { return payments.filter(function (p) { return p.batch_id === id; })[0] || {}; }
+  function shipFromText(p) { return [p.ship_name, p.ship_street, [p.ship_suburb, p.ship_state, p.ship_postcode].filter(Boolean).join(' '), p.ship_phone].filter(Boolean).join('\n'); }
+  function shipFromCard() {
+    var v = viewingPartner(); if (!v) return '';
+    if (!v.ship_street) return '<div class="card"><b>' + esc(v.name) + '’s address</b><div class="muted" style="margin-top:6px">Not added yet. They add it under My details.</div></div>';
+    return '<div class="card"><div class="row between"><b>' + esc(v.name) + '’s address for the label</b><button class="secondary small fixed" id="copyship">Copy</button></div><div style="margin-top:8px;white-space:pre-line;overflow-wrap:anywhere">' + esc(shipFromText(v)) + '</div></div>';
+  }
   VIEWS.oship = function () {
     var batches = allBatches();
-    shell('<h1>Shipments</h1><div id="pushcard"></div>' + (batches.length ? batches.map(function (b) {
+    shell('<h1>Shipments</h1><div id="pushcard"></div>' + shipFromCard() + (batches.length ? batches.map(function (b) {
       var st = batchStage(b), ph = batchPhones(b.id), t = STAGE_TEXT[st], pay = paymentFor(b.id), total = ph.reduce(function (a, p) { return a + (p.price_paid_cents || 0); }, 0);
       var action = st === 'waiting' ? '<label>Tracking number from your label</label><input data-trk="' + b.id + '" autocapitalize="characters" autocomplete="off" placeholder="e.g. 34ABC123456"><div class="gap"></div><button data-label="' + b.id + '">Label sent to ' + esc(pn()) + '</button>'
         : st !== 'received' ? '<div class="muted" style="margin-top:6px">Tracking ' + esc(b.tracking_number || '') + (st === 'posted' ? ' · posted ' + fmtDate(b.posted_at) : ' · waiting for ' + esc(pn()) + ' to post') + '</div><div class="gap"></div><button data-recv="' + b.id + '">Mark received</button>'
@@ -978,6 +1032,7 @@
         '<div><label>On arrival ($)</label><input type="number" inputmode="decimal" data-parr="' + b.id + '" value="' + (pay.paid_on_arrival_cents != null ? pay.paid_on_arrival_cents / 100 : '') + '"></div></div><div class="gap"></div><button class="secondary" data-savepay="' + b.id + '">Save payments</button><div class="err" data-err="' + b.id + '"></div></div>';
     }).join('') : '<div class="empty">No shipments yet. When ' + esc(pn()) + ' asks for a label it shows up here.</div>'));
     function fail(id, msg) { var e = document.querySelector('[data-err="' + id + '"]'); if (e) e.textContent = msg; }
+    if ($('copyship')) $('copyship').onclick = function () { copyText(shipFromText(viewingPartner())); this.textContent = 'Copied ✓'; };
     all('[data-label]').forEach(function (btn) {
       btn.onclick = async function () {
         var id = btn.getAttribute('data-label'), trk = document.querySelector('[data-trk="' + id + '"]').value.trim();
@@ -1169,7 +1224,7 @@
     if (isOwner()) return '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink green" href="sms:' + tel + '">💬 Message ' + esc(first) + '</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
     var d = new Date(m.starts_at), clock = d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }), isToday = d.toDateString() === new Date().toDateString(),
       day = isToday ? ' today' : ' on ' + d.toLocaleDateString('en-AU', { weekday: 'long' });
-    var confirmTxt = 'Hey ' + first + ', it’s ' + me + ' from Cash for Phones. Just checking you’re still good for our ' + clock + ' meetup' + day + ' for your ' + m.model + '?';
+    var confirmTxt = 'Hey ' + first + ', it’s ' + me + ' from Cash for Phones. Just checking you’re still good for our ' + clock + ' meetup' + (m.location ? ' at ' + m.location : '') + day + ' for your ' + m.model + '?';
     var arriveTxt = 'Hey ' + first + ', it’s ' + me + '. I’ve just arrived' + (m.location ? ' at ' + m.location : '') + '.';
     return '<div style="margin-top:8px"><a class="btnlink green" href="sms:' + tel + '&body=' + encodeURIComponent(confirmTxt) + '">💬 Confirm with ' + esc(first) + '</a></div>' +
       '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink" href="sms:' + tel + '&body=' + encodeURIComponent(arriveTxt) + '">📍 I’ve arrived</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
@@ -1266,7 +1321,12 @@
       $('avh').innerHTML = (out ? '<span style="color:var(--amber)">⚠ ' : '<span style="color:var(--green)">✓ ') + esc(p.name) + ': ' + esc(a.text) + '</span>';
       return out ? a : null;
     }
-    $('sw').onchange = availHint; $('sw').oninput = availHint; if ($('sp')) $('sp').onchange = availHint; availHint();
+    $('sw').onchange = availHint; $('sw').oninput = availHint; availHint();
+    // the partner's usual meeting spot goes in for you (you can still change it)
+    var lastSpot = '';
+    function fillSpot() { var p = $('sp') ? partnerById($('sp').value) : who; if (!m && p && p.meet_location && (!$('sl').value || $('sl').value === lastSpot)) { $('sl').value = p.meet_location; } lastSpot = p && p.meet_location || ''; }
+    if ($('sp')) $('sp').onchange = function () { availHint(); fillSpot(); };
+    fillSpot();
     $('save').onclick = async function () {
       var picked = $('sp') ? partnerById($('sp').value) : who, ptz = picked ? (picked.timezone || 'Australia/Brisbane') : tz;
       var q = parseQuote($('sq').value), when = $('sw').value ? zonedToUtc($('sw').value, ptz) : null, declan = picked, err = '';
@@ -1278,6 +1338,8 @@
       else if (!declan) err = 'Their login isn’t set up yet.';
       else if (!navigator.onLine) err = 'You need signal to book a meetup.';
       if (err) { $('err').textContent = err; return; }
+      var when0 = when.getTime(), clash = meetups.filter(function (x) { return x.status === 'booked' && x.partner_id === (picked && picked.id) && x.id !== id && x.starts_at && Math.abs(new Date(x.starts_at).getTime() - when0) < 60 * 60000; })[0];
+      if (clash && !confirm((picked ? picked.name : 'They') + ' already has ' + clash.seller_name + ' at ' + fmtWhen(clash.starts_at, clash.partner_id).split(' · ')[1] + '. Book this one anyway?')) return;
       var outside = availHint(); if (outside && !confirm('That’s outside ' + (picked ? picked.name : 'their') + '’s free times (' + outside.text + '). Book it anyway?')) return;
       $('save').disabled = true;
       var fields = { seller_name: $('sn').value.trim(), seller_contact: $('sc').value.trim() || null, model: $('sm').value.trim(), issues: $('si').value.trim() || null, quoted_min_cents: q.min, quoted_max_cents: q.max, starts_at: when.toISOString(), location: $('sl').value.trim(), notes: $('sx').value.trim() || null };
