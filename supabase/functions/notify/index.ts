@@ -71,5 +71,20 @@ Deno.serve(async (req: Request) => {
     ship += await sendOwners({ title: (who(b.partner_id)?.name ?? 'Partner') + ' posted a batch', body: `${await count(b.id)} phones · tracking ${b.tracking_number ?? ''}`, url: './?go=ship', tag: 'posted-' + b.id });
     await db.from('partner_batches').update({ notified_posted_at: new Date().toISOString() }).eq('id', b.id);
   }
-  return Response.json({ newBookings: sentNew, oneHour: sentSoon, shipping: ship });
+  // 4. a partner ticked off every step of the "Start here" checklist -> tell Ethan (once; again only if they un-tick and finish again)
+  let checklist = 0;
+  const { count: stepCount } = await db.from('onboarding_items').select('id', { count: 'exact', head: true });
+  if (stepCount) {
+    const { data: ppl } = await db.from('partners').select('id,name,checklist_done_notified_at').eq('role', 'partner');
+    for (const p of ppl ?? []) {
+      const { count: done } = await db.from('onboarding_progress').select('item_id', { count: 'exact', head: true }).eq('partner_id', p.id);
+      if ((done ?? 0) >= stepCount && !p.checklist_done_notified_at) {
+        checklist += await sendOwners({ title: p.name + ' finished the checklist', body: 'All ' + stepCount + ' steps are ticked. Open the app to sign them off.', url: './?go=meetups', tag: 'checklist-' + p.id });
+        await db.from('partners').update({ checklist_done_notified_at: new Date().toISOString() }).eq('id', p.id);
+      } else if ((done ?? 0) < stepCount && p.checklist_done_notified_at) {
+        await db.from('partners').update({ checklist_done_notified_at: null }).eq('id', p.id);
+      }
+    }
+  }
+  return Response.json({ newBookings: sentNew, oneHour: sentSoon, shipping: ship, checklist });
 });
