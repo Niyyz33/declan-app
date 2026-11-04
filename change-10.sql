@@ -41,7 +41,7 @@ insert into onboarding_items (id, label, detail, link, sort_order) values
  ('pack', 'Packing and posting', 'How to wrap, box and post damaged phones.', 'ship-guide.html', 80),
  ('help', 'If something goes wrong', 'Quick fixes for meetups and the app.', 'guide-help.html', 90),
  ('deductions', 'Learn the deduction table', 'Know what each fault takes off, so you can price on the spot.', 'guide-inspect.html', 100),
- ('practice-inspect', 'Practise inspecting 3 phones', 'Use your own old phones, or ones Ethan gives you.', null, 110),
+ ('practice-inspect', 'Practise inspecting a phone', 'Use your own old phone, or one Ethan gives you.', null, 110),
  ('practice-log', 'Log a practice phone in the app', 'Go through the Log screen once. Ethan will clear it.', null, 120),
  ('practice-meetup', 'Do a practice meetup', 'Run one with Ethan, or watch him do a real one.', null, 130),
  ('review', 'Practise asking for a Google review', 'Say it out loud once so it feels natural.', 'guide-meetup.html', 140)

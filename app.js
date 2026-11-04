@@ -74,7 +74,7 @@
   }
   function toggleOnb(pid, item, done) {
     queue = queue.filter(function (i) { return !(i.kind === 'onb' && i.pid === pid && i.item === item); });
-    queue.push({ kind: 'onb', pid: pid, item: item, done: done }); setQueue(queue); syncQueue(); renderBanner(); go(current, undefined, true);
+    queue.push({ kind: 'onb', pid: pid, item: item, done: done }); setQueue(queue); syncQueue(); go(current, undefined, true);
   }
   function onbRows(pid, who) {
     var done = onbDone(pid);
@@ -178,8 +178,9 @@
   // ---------- offline queue ----------
   function setQueue(q) { queue = q; save('queue', q); renderBanner(); }
   function renderBanner() {
-    var pending = queue.filter(function (i) { return !i.failed; }).length;
-    var failed = queue.filter(function (i) { return i.failed; });
+    var loud = queue.filter(function (i) { return i.kind !== 'onb'; }); // checklist ticks sync quietly, no banner
+    var pending = loud.filter(function (i) { return !i.failed; }).length;
+    var failed = loud.filter(function (i) { return i.failed; });
     if (failed.length) { $banner.hidden = false; $banner.className = 'bad'; $banner.textContent = failed.length + (failed.length === 1 ? ' item' : ' items') + ' couldn’t be sent — tap to see why'; $banner.onclick = function () { go('issues'); }; }
     else if (pending) { $banner.hidden = false; $banner.className = ''; $banner.onclick = null; $banner.textContent = pending + ' waiting to send — sends by itself when you have signal'; }
     else { $banner.hidden = true; $banner.onclick = null; }
@@ -238,6 +239,7 @@
         }
         if (error) {
           if (isNetworkError(error)) break;
+          if (item.kind === 'onb') { queue.splice(i, 1); i--; continue; }
           item.failed = error.message;
         } else { queue.splice(i, 1); i--; }
       }
@@ -450,7 +452,7 @@
     if ($('discard')) $('discard').onclick = function () { if (confirm('Throw this phone away without saving?')) { draft = null; persistDraft(); go('home'); } };
     $('help').onclick = function () { go('help'); };
     $('out').onclick = async function () {
-      if (queue.length && !confirm('You have phones that haven’t sent yet. If you log out now you could lose them. Log out anyway?')) return;
+      if (queue.filter(function (i) { return i.kind !== 'onb'; }).length && !confirm('You have phones that haven’t sent yet. If you log out now you could lose them. Log out anyway?')) return;
       try { await sb.auth.signOut(); } catch (e) { /* offline */ }
       session = null; current = ''; clearCaches(); go('login');
     };
