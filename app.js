@@ -68,6 +68,19 @@
     return 'App updated ' + d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
   }
   function isOwner() { return profile.role === 'owner'; }
+  // ---- what a damaged phone pays, and how close to the step-up ($30 -> $35) ----
+  function feeCard() {
+    if (isOwner() || !session) return '';
+    var f = +settings.fee_damaged_cents, bonus = +settings.fee_bonus_cents, after = +settings.fee_bonus_after;
+    if (!f) return '';
+    var ords = S.monthOrdinals(allPhones()), nowK = new Date(Date.now() + 10 * 3600000), month = nowK.getUTCFullYear() + '-' + nowK.getUTCMonth(), n = 0;
+    allPhones().forEach(function (p) { if (p.type === 'damaged' && ords[p.id]) { var d = new Date(new Date(p.bought_at).getTime() + 10 * 3600000); if (d.getUTCFullYear() + '-' + d.getUTCMonth() === month) n++; } });
+    var line;
+    if (!after || !bonus) line = 'You earn <b>' + money(f) + '</b> for every damaged phone you buy.';
+    else if (n >= after) line = 'You’re past ' + after + ' this month, so every damaged phone now pays <b>' + money(bonus) + '</b> for the rest of the month.';
+    else line = 'You earn <b>' + money(f) + '</b> for every damaged phone. After <b>' + after + '</b> in a month, each one pays <b>' + money(bonus) + '</b> for the rest of that month.';
+    return '<div class="card"><b>Your fee</b><div style="margin-top:8px;line-height:1.4">' + line + '</div>' + (after && bonus ? '<div class="row between" style="margin-top:10px"><span class="muted">Damaged phones this month</span><b>' + (n >= after ? n + ' (past ' + after + ')' : n + ' of ' + after) + '</b></div><div class="bar" style="margin:8px 0 0"><i style="width:' + Math.min(100, Math.round(n / after * 100)) + '%"></i></div>' : '') + '</div>';
+  }
   // ---- my details: where I usually meet people + the address Ethan needs for my shipping label ----
   function detailsDone() { var sh = profile.ship || {}; return !!(profile.meet && sh.name && sh.street && sh.suburb && sh.state && sh.postcode); }
   function detailsCard() {
@@ -548,7 +561,7 @@
     shell('<div class="greet"><img src="' + logoSrc() + '" alt=""><div><h1>' + name + ' 👋</h1><div id="sentstatus" style="font-weight:600;font-size:14px"></div></div></div>' +
       installTip() +
       (inProgress ? '<div class="card"><b>Phone in progress</b><div class="muted">' + esc(draft.model) + ' — saved, pick up where you left off.</div><div class="row" style="margin-top:12px"><button id="cont">Continue</button><button class="secondary" id="discard">Discard</button></div></div>' : '') +
-      nextMeetupCard() + '<div id="pushcard"></div>' + testCard() + detailsCard() + availCard() + onbCard() +
+      nextMeetupCard() + '<div id="pushcard"></div>' + testCard() + detailsCard() + availCard() + feeCard() + onbCard() +
       '<button id="log" style="font-size:18px;padding:18px">＋ Log a phone</button>' +
       '<h2>Ready to ship</h2><div class="card"><div class="row between"><b>' + ready + ' damaged ' + (ready === 1 ? 'phone' : 'phones') + '</b><span class="muted fixed">' + (ready >= MIN_SHIP ? 'Ready to ship!' : (MIN_SHIP - ready) + ' more to go') + '</span></div>' +
       '<div class="bar"><i style="width:' + Math.min(100, Math.round(ready / MIN_SHIP * 100)) + '%"></i></div>' +
@@ -1153,6 +1166,7 @@
       if (isNaN(after) || bonus === null) { $('err').textContent = 'Check the step-up numbers.'; return; }
       var r = await sb.from('owner_settings').upsert([{ key: 'damaged_flat_cents', value: String(flat) }, { key: 'damaged_pct', value: '0' }, { key: 'damaged_bonus_after', value: String(after) }, { key: 'damaged_bonus_cents', value: String(bonus) }], { onConflict: 'key' });
       if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; return; }
+      await sb.from('app_settings').upsert([{ key: 'fee_damaged_cents', value: String(flat) }, { key: 'fee_bonus_after', value: String(after) }, { key: 'fee_bonus_cents', value: String(bonus) }], { onConflict: 'key' }); // so partners see the same numbers
       var brows = bands.map(function (b) { var mi = document.querySelector('[data-bmin="' + b.band_no + '"]'), fe = document.querySelector('[data-bfee="' + b.band_no + '"]'); return { band_no: b.band_no, min_spread_cents: mi ? dollarsToCents(mi.value) : null, fee_cents: dollarsToCents(fe.value) }; });
       if (brows.some(function (b) { return b.fee_cents === null || (b.band_no !== 1 && b.min_spread_cents === null); })) { $('err').textContent = 'Fill in every band.'; return; }
       r = await sb.from('commission_bands').upsert(brows, { onConflict: 'band_no' });
