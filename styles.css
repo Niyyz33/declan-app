@@ -138,3 +138,11 @@ label.chk input { width:auto; margin-top:3px; flex:none; }
 .pricerow > div { background:#03102a; border:1px solid var(--line); border-radius:12px; padding:10px; min-width:0; }
 .pricerow small { display:block; color:var(--muted); font-size:12.5px; }
 .pricerow .big { font-size:22px; font-weight:800; overflow-wrap:anywhere; }
+
+.onbrow { display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); min-width:0; }
+.onbrow:first-of-type { border-top:0; }
+.onbtext { flex:1; min-width:0; overflow-wrap:anywhere; }
+.onbtext .muted { font-size:13.5px; }
+button.tick { width:30px; height:30px; min-width:30px; padding:0; border-radius:50%; background:transparent; border:2px solid var(--line); box-shadow:none; color:#fff; font-weight:800; font-size:16px; line-height:1; flex:none; margin-top:1px; }
+button.tick.on { background:var(--green); border-color:var(--green); }
+a.onblink { flex:none; align-self:center; color:var(--blue2); font-weight:700; text-decoration:none; padding:8px 10px; border-radius:12px; background:var(--card2); border:1px solid var(--line); }

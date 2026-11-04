@@ -27,10 +27,12 @@
   var MIN_SHIP = 5;
   var catalogue = load('catalogue', { models: [], deds: [] });
   var listPrices = load('listprices', []);
+  var onb = load('onb', { items: [], progress: [] });
+  var onbOpen = false;
   var serverPhones = load('phones', []);
   var serverBatches = load('batches', []);
   var queue = load('queue', []);
-  var profile = load('profile', { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' });
+  var profile = load('profile', { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '', signed_off_at: null });
   var meetups = load('meetups', []);
   var payments = load('payments', []);
   var ownerData = load('ownerdata', { ff: [], bands: [], settings: {}, valuations: [] });
@@ -55,7 +57,7 @@
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
-  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml'].forEach(function (k) { save(k, null); }); listPrices = []; pushHtml = ''; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml', 'onb'].forEach(function (k) { save(k, null); }); listPrices = []; pushHtml = ''; onb = { items: [], progress: [] }; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
   // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
   function versionText(v) {
     var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
@@ -64,6 +66,58 @@
     return 'App updated ' + d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
   }
   function isOwner() { return profile.role === 'owner'; }
+  // ---- "Start here" checklist ----
+  function onbDone(pid) {
+    var set = {}; onb.progress.forEach(function (r) { if (r.partner_id === pid) set[r.item_id] = 1; });
+    queue.forEach(function (i) { if (i.kind === 'onb' && i.pid === pid) { if (i.done) set[i.item] = 1; else delete set[i.item]; } });
+    return set;
+  }
+  function toggleOnb(pid, item, done) {
+    queue = queue.filter(function (i) { return !(i.kind === 'onb' && i.pid === pid && i.item === item); });
+    queue.push({ kind: 'onb', pid: pid, item: item, done: done }); setQueue(queue); syncQueue(); renderBanner(); go(current, undefined, true);
+  }
+  function onbRows(pid, who) {
+    var done = onbDone(pid);
+    return onb.items.map(function (it) {
+      var on = !!done[it.id];
+      return '<div class="onbrow"><button type="button" class="tick' + (on ? ' on' : '') + '" data-onb="' + it.id + '" data-pid="' + pid + '" aria-label="' + esc(it.label) + (on ? ' (done)' : ' (not done)') + '">' + (on ? '✓' : '') + '</button>' +
+        '<div class="onbtext"><b>' + esc(it.label) + '</b><div class="muted">' + esc(it.detail || '') + '</div></div>' + (it.link && who === 'partner' ? '<a class="onblink" href="' + esc(it.link) + '">Open</a>' : '') + '</div>';
+    }).join('');
+  }
+  function onbCount(pid) { var d = onbDone(pid); return onb.items.filter(function (it) { return d[it.id]; }).length; }
+  function bindOnb() { all('[data-onb]').forEach(function (b) { b.onclick = function () { var pid = b.getAttribute('data-pid'), id = b.getAttribute('data-onb'); toggleOnb(pid, id, !onbDone(pid)[id]); }; }); }
+  // for Declan / Quinn: top of Home
+  function onbCard() {
+    if (!settings.guides_published || !onb.items.length || !session || !session.user) return '';
+    var pid = session.user.id, n = onbCount(pid), total = onb.items.length, signed = profile.signed_off_at;
+    if (n === total && signed) return '<div class="card"><div class="row between"><b>✓ Start here</b><span class="muted">All done · signed off by Ethan</span></div></div>';
+    return '<div class="card"><div class="row between"><b>Start here</b><span class="muted fixed">' + n + ' of ' + total + ' done</span></div>' +
+      '<div class="bar" style="margin:10px 0"><i style="width:' + Math.round(n / total * 100) + '%"></i></div>' +
+      (n === total ? '<div class="good" style="margin-bottom:8px"><b>All done!</b> Ethan will sign you off.</div>' : '<div class="muted" style="margin-bottom:6px">Go through these in order. Tap the circle when you’ve done one.</div>') +
+      onbRows(pid, 'partner') + '</div>';
+  }
+  // for Ethan: the chosen partner's progress, with a sign-off
+  function onbOwnerCard() {
+    var v = viewingPartner(); if (!v || !onb.items.length) return '';
+    var n = onbCount(v.id), total = onb.items.length, signed = (partnerById(v.id) || {}).signed_off_at;
+    return '<div class="card"><div class="row between"><b>' + esc(v.name) + ' · ' + n + ' of ' + total + ' done</b><button class="link fixed" id="onbtoggle" style="width:auto">' + (onbOpen ? 'Hide' : 'Show') + '</button></div>' +
+      '<div class="bar" style="margin:10px 0"><i style="width:' + Math.round(n / total * 100) + '%"></i></div>' +
+      (signed ? '<div class="good"><b>Signed off ✓</b> ' + fmtDate(signed) + '</div>' : '') +
+      (onbOpen ? '<div class="muted" style="margin-bottom:6px">You can tick the practice ones for them.</div>' + onbRows(v.id, 'owner') : '') +
+      '<div class="gap"></div><button class="' + (signed ? 'secondary' : '') + '" id="signoff">' + (signed ? 'Undo sign-off' : 'Sign ' + esc(v.name) + ' off') + '</button></div>';
+  }
+  function bindOnbOwner() {
+    bindOnb();
+    if ($('onbtoggle')) $('onbtoggle').onclick = function () { onbOpen = !onbOpen; go(current, undefined, true); };
+    if ($('signoff')) $('signoff').onclick = async function () {
+      var v = viewingPartner(), cur = (partnerById(v.id) || {}).signed_off_at, val = cur ? null : new Date().toISOString();
+      if (!cur && onbCount(v.id) < onb.items.length && !confirm(v.name + ' hasn’t finished the checklist yet. Sign off anyway?')) return;
+      var r = await sb.from('partners').update({ signed_off_at: val }).eq('id', v.id).select('id');
+      if (r.error || !(r.data || []).length) { alert('Couldn’t save that. Check your signal and try again.'); return; }
+      partnersList = partnersList.map(function (p) { return p.id === v.id ? Object.assign({}, p, { signed_off_at: val }) : p; }); save('partners', partnersList);
+      go(current, undefined, true);
+    };
+  }
   // ---- more than one partner (Declan in Townsville, Quinn in Melbourne) ----
   var LOGOS = { Townsville: 'icons/logo.png', Melbourne: 'icons/logo-melbourne.png' };
   function cityName() { return profile.city_name || (window.BRAND && window.BRAND.city) || 'Townsville'; }
@@ -174,6 +228,9 @@
           var m1 = await sb.from('partner_meetups').update(item.patch).eq('id', item.id).select('id');
           error = m1.error;
           if (!error && !(m1.data || []).length) error = { message: 'That meetup couldn’t be updated. Tell Ethan.' };
+        } else if (item.kind === 'onb') {
+          error = item.done ? (await sb.from('onboarding_progress').upsert({ partner_id: item.pid, item_id: item.item }, { onConflict: 'partner_id,item_id' })).error
+            : (await sb.from('onboarding_progress').delete().eq('partner_id', item.pid).eq('item_id', item.item)).error;
         } else if (item.kind === 'delete') {
           var d1 = await sb.from('partner_phones').delete().eq('id', item.id).select('id');
           error = d1.error;
@@ -199,8 +256,19 @@
     refreshing = doRefreshPhones().then(function () { refreshing = null; }, function () { refreshing = null; });
     return refreshing;
   }
+  async function loadOnboarding() {
+    if (!sb || !session || !navigator.onLine) return;
+    try {
+      var it = await sb.from('onboarding_items').select('id,label,detail,link,sort_order').order('sort_order');
+      var pr = await sb.from('onboarding_progress').select('partner_id,item_id');
+      if (it.error || pr.error) return;
+      var before = JSON.stringify(onb); onb = { items: it.data, progress: pr.data }; save('onb', onb);
+      if (JSON.stringify(onb) !== before && ['home', 'omeetups'].indexOf(current) > -1 && !typingNow()) go(current, undefined, true);
+    } catch (e) { /* offline */ }
+  }
   async function doRefreshPhones() {
     if (!sb || !session || !navigator.onLine) return;
+    loadOnboarding();
     var before = dataSig();
     try {
       var r = await sb.from('partner_phones').select('*').order('bought_at', { ascending: false }).limit(500);
@@ -231,11 +299,11 @@
   async function loadProfile() {
     if (!sb || !session || !session.user || !navigator.onLine) return;
     try {
-      var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token').eq('id', session.user.id).maybeSingle();
+      var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token,signed_off_at').eq('id', session.user.id).maybeSingle();
       var before = profile.role;
-      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '' }; save('profile', profile); routeToMyCity(); }
+      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '', signed_off_at: p.data.signed_off_at || null }; save('profile', profile); routeToMyCity(); }
       if (before !== profile.role && current && current !== 'login') setTimeout(function () { go(isOwner() ? 'omeetups' : 'home'); }, 0);
-      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city,city_name,timezone'); if (pl && !pl.error) { partnersList = pl.data; save('partners', partnersList); } }
+      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city,city_name,timezone,signed_off_at'); if (pl && !pl.error) { partnersList = pl.data; save('partners', partnersList); } }
       var s = await sb.from('app_settings').select('key,value');
       if (!s.error && s.data) { var o = {}; s.data.forEach(function (x) { o[x.key] = x.value; }); settings = o; save('settings', o); }
     } catch (e) { /* offline, or settings not set up yet */ }
@@ -364,7 +432,7 @@
     shell('<div class="greet"><img src="' + logoSrc() + '" alt=""><div><h1>' + name + ' 👋</h1><div id="sentstatus" style="font-weight:600;font-size:14px"></div></div></div>' +
       installTip() +
       (inProgress ? '<div class="card"><b>Phone in progress</b><div class="muted">' + esc(draft.model) + ' — saved, pick up where you left off.</div><div class="row" style="margin-top:12px"><button id="cont">Continue</button><button class="secondary" id="discard">Discard</button></div></div>' : '') +
-      nextMeetupCard() + '<div id="pushcard"></div>' +
+      nextMeetupCard() + '<div id="pushcard"></div>' + onbCard() +
       '<button id="log" style="font-size:18px;padding:18px">＋ Log a phone</button>' +
       '<h2>Ready to ship</h2><div class="card"><div class="row between"><b>' + ready + ' damaged ' + (ready === 1 ? 'phone' : 'phones') + '</b><span class="muted fixed">' + (ready >= MIN_SHIP ? 'Ready to ship!' : (MIN_SHIP - ready) + ' more to go') + '</span></div>' +
       '<div class="bar"><i style="width:' + Math.min(100, Math.round(ready / MIN_SHIP * 100)) + '%"></i></div>' +
@@ -375,6 +443,7 @@
       '<div class="row" style="margin-top:18px"><button class="link" id="help">Rules &amp; help</button><button class="link" id="out" style="text-align:right">Log out</button></div>' +
       '<div class="sync" id="syncline">' + syncLine() + '</div>');
     if ($('nextm')) $('nextm').onclick = function () { go('meetups'); };
+    bindOnb();
     renderPushCard();
     $('log').onclick = function () { go('log'); }; if ($('ship')) $('ship').onclick = function () { go('ship'); };
     if ($('cont')) $('cont').onclick = function () { go('log'); };
@@ -424,6 +493,7 @@
     if (i.kind === 'batch') return 'Label request for ' + i.phoneIds.length + ' phones';
     if (i.kind === 'posted') return 'Marking a shipment as posted';
     if (i.kind === 'edit') return 'A change to a saved phone';
+    if (i.kind === 'onb') return 'A checklist tick';
     if (i.kind === 'meetup') return 'Your answer for a meetup';
     return 'Deleting a phone';
   }
@@ -1079,9 +1149,10 @@
 
   // owner side: book Declan's meetups
   VIEWS.omeetups = function () {
-    shell('<h1>' + pn() + '’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview the guides</a><div id="pushcard"></div><button id="book">＋ Book a meetup</button>' + meetupSections() +
+    shell('<h1>' + pn() + '’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview the guides</a><div id="pushcard"></div>' + onbOwnerCard() + '<button id="book">＋ Book a meetup</button>' + meetupSections() +
       '<div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { go('obook'); };
+    bindOnbOwner();
     renderPushCard();
     $('out').onclick = async function () { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; current = ''; clearCaches(); go('login'); };
     bindMeetupActions();
