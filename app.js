@@ -29,6 +29,7 @@
   var listPrices = load('listprices', []);
   var onb = load('onb', { items: [], progress: [] });
   var onbOpen = false;
+  var onbMyOpen = load('onbopen', false);
   var avail = load('avail', []);
   var serverPhones = load('phones', []);
   var serverBatches = load('batches', []);
@@ -199,12 +200,13 @@
   // for Declan / Quinn: top of Home
   function onbCard() {
     if (!settings.guides_published || !onb.items.length || !session || !session.user) return '';
-    var pid = session.user.id, n = onbCount(pid), total = onb.items.length, signed = profile.signed_off_at;
+    var pid = session.user.id, n = onbCount(pid), total = onb.items.length, signed = profile.signed_off_at, done = onbDone(pid);
     if (n === total && signed) return '<div class="card"><div class="row between"><b>✓ Start here</b><span class="muted">All done · signed off by Ethan</span></div></div>';
-    return '<div class="card"><div class="row between"><b>Start here</b><span class="muted fixed">' + n + ' of ' + total + ' done</span></div>' +
-      '<div class="bar" style="margin:10px 0"><i style="width:' + Math.round(n / total * 100) + '%"></i></div>' +
-      (n === total ? '<div class="good" style="margin-bottom:8px"><b>All done!</b> Ethan will sign you off.</div>' : '<div class="muted" style="margin-bottom:6px">Go through these in order. Tap the circle when you’ve done one.</div>') +
-      onbRows(pid, 'partner') + '</div>';
+    var next = onb.items.filter(function (it) { return !done[it.id]; })[0];
+    return '<div class="card"><div class="row between"><b>Start here</b><button class="link fixed" id="onbmytoggle" style="width:auto">' + (onbMyOpen ? 'Hide' : 'Show steps') + '</button></div>' +
+      '<div class="row between" style="margin-top:6px"><span class="muted">' + n + ' of ' + total + ' done</span></div><div class="bar" style="margin:8px 0"><i style="width:' + Math.round(n / total * 100) + '%"></i></div>' +
+      (n === total ? '<div class="good" style="margin-bottom:8px"><b>All done!</b> Ethan will sign you off.</div>' : !onbMyOpen && next ? '<div class="muted">Next: <b style="color:var(--text)">' + esc(next.label) + '</b></div>' : '') +
+      (onbMyOpen ? '<div class="muted" style="margin-bottom:6px">Go through these in order. Tap the circle when you’ve done one.</div>' + onbRows(pid, 'partner') : '') + '</div>';
   }
   // for Ethan: the chosen partner's progress, with a sign-off
   function onbOwnerCard() {
@@ -558,6 +560,7 @@
       '<div class="sync" id="syncline">' + syncLine() + '</div>');
     if ($('nextm')) $('nextm').onclick = function () { go('meetups'); };
     bindOnb();
+    if ($('onbmytoggle')) $('onbmytoggle').onclick = function () { onbMyOpen = !onbMyOpen; save('onbopen', onbMyOpen); go('home', undefined, true); };
     if ($('availgo')) $('availgo').onclick = function () { go('avail'); };
     if ($('detailsgo')) $('detailsgo').onclick = function () { go('details'); };
     bindTest();
@@ -1338,8 +1341,6 @@
       else if (!declan) err = 'Their login isn’t set up yet.';
       else if (!navigator.onLine) err = 'You need signal to book a meetup.';
       if (err) { $('err').textContent = err; return; }
-      var when0 = when.getTime(), clash = meetups.filter(function (x) { return x.status === 'booked' && x.partner_id === (picked && picked.id) && x.id !== id && x.starts_at && Math.abs(new Date(x.starts_at).getTime() - when0) < 60 * 60000; })[0];
-      if (clash && !confirm((picked ? picked.name : 'They') + ' already has ' + clash.seller_name + ' at ' + fmtWhen(clash.starts_at, clash.partner_id).split(' · ')[1] + '. Book this one anyway?')) return;
       var outside = availHint(); if (outside && !confirm('That’s outside ' + (picked ? picked.name : 'their') + '’s free times (' + outside.text + '). Book it anyway?')) return;
       $('save').disabled = true;
       var fields = { seller_name: $('sn').value.trim(), seller_contact: $('sc').value.trim() || null, model: $('sm').value.trim(), issues: $('si').value.trim() || null, quoted_min_cents: q.min, quoted_max_cents: q.max, starts_at: when.toISOString(), location: $('sl').value.trim(), notes: $('sx').value.trim() || null };
