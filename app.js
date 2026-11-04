@@ -68,6 +68,16 @@
   var LOGOS = { Townsville: 'icons/logo.png', Melbourne: 'icons/logo-melbourne.png' };
   function cityName() { return profile.city_name || (window.BRAND && window.BRAND.city) || 'Townsville'; }
   function logoSrc() { return LOGOS[cityName()] || 'icons/logo.png'; }
+  // Each partner lives in their own city's version (own icon, name and logo): Declan on the main address, Quinn on melbourne.html.
+  // If someone opens the wrong one, send them to theirs. Ethan (owner) can use either.
+  function cityRedirect(path, city) {
+    var m = /(^|\/)(index\.html|melbourne\.html)?$/.exec(path); if (!m) return null; // only the two real entry pages, never a test page
+    var onMel = /melbourne\.html$/.test(path);
+    if (city === 'Melbourne' && !onMel) return 'melbourne.html';
+    if (city === 'Townsville' && onMel) return './';
+    return null;
+  }
+  function routeToMyCity() { if (profile.role !== 'partner' || !profile.city_name) return; var to = cityRedirect(location.pathname, profile.city_name); if (to) location.replace(to + location.search); }
   var viewing = load('viewing', '');
   function partnerOptions() { return partnersList.filter(function (p) { return p.role === 'partner'; }); }
   function viewingPartner() { var ps = partnerOptions(); return ps.filter(function (p) { return p.id === viewing; })[0] || ps[0] || null; }
@@ -223,7 +233,7 @@
     try {
       var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token').eq('id', session.user.id).maybeSingle();
       var before = profile.role;
-      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '' }; save('profile', profile); }
+      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '' }; save('profile', profile); routeToMyCity(); }
       if (before !== profile.role && current && current !== 'login') setTimeout(function () { go(isOwner() ? 'omeetups' : 'home'); }, 0);
       if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city,city_name,timezone'); if (pl && !pl.error) { partnersList = pl.data; save('partners', partnersList); } }
       var s = await sb.from('app_settings').select('key,value');
@@ -1131,6 +1141,7 @@
     if (!session && hasStoredLogin()) session = { offlineUntilSignal: true };
     renderBanner();
     if (!session) return go('login');
+    routeToMyCity();
     go(isOwner() ? 'omeetups' : 'home');
     var deep = new URLSearchParams(location.search).get('go');
     if (deep === 'meetups' && !isOwner()) go('meetups');
