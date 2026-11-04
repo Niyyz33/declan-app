@@ -29,8 +29,9 @@ Deno.serve(async (req: Request) => {
   }
 
   // Who each partner is (name + time zone), so alerts use their own clock and name.
-  const { data: people } = await db.from('partners').select('id,name,timezone');
-  const who = (id: string) => (people ?? []).find((p: { id: string }) => p.id === id) as { name: string; timezone: string } | undefined;
+  const { data: people } = await db.from('partners').select('id,name,timezone,role,default_avail_enabled,default_avail_start_min,default_avail_end_min,default_avail_changed_at,default_avail_notified_at,avail_asked_on');
+  type Person = { id: string; name: string; timezone: string; role: string; default_avail_enabled: boolean; default_avail_start_min: number | null; default_avail_end_min: number | null; default_avail_changed_at: string | null; default_avail_notified_at: string | null; avail_asked_on: string | null };
+  const who = (id: string) => (people ?? []).find((p: { id: string }) => p.id === id) as Person | undefined;
   async function ownerIds() { const { data } = await db.from('partners').select('id').eq('role', 'owner'); return (data ?? []).map((o: { id: string }) => o.id); }
   async function sendOwners(payload: Record<string, string>) { let n = 0; for (const id of await ownerIds()) n += await send(id, payload); return n; }
 
@@ -86,5 +87,32 @@ Deno.serve(async (req: Request) => {
       }
     }
   }
-  return Response.json({ newBookings: sentNew, oneHour: sentSoon, shipping: ship, checklist });
+  let availPings = 0, asked = 0;
+  // 7. availability: the partner said when they're free -> tell Ethan (so he knows when to send leads)
+  const hm = (min: number) => { const h = Math.floor(min / 60), m = min % 60, ap = h >= 12 ? 'pm' : 'am', h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + String(m).padStart(2, '0') + ' ' + ap; };
+  const dayLabel = (day: string, tz: string) => { const today = new Date().toLocaleDateString('en-CA', { timeZone: tz }); return day === today ? 'today' : new Date(day + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }); };
+  const { data: avs } = await db.from('partner_availability').select('*').is('notified_at', null).gte('set_at', new Date(now - 86400000).toISOString());
+  for (const a of avs ?? []) {
+    const w = who(a.partner_id), tz = w?.timezone ?? 'Australia/Brisbane', day = dayLabel(a.day, tz);
+    const title = a.available ? `${w?.name ?? 'Partner'} is free ${day}` : `${w?.name ?? 'Partner'} is not available ${day}`;
+    availPings += await sendOwners({ title, body: a.available ? `${hm(a.start_min)} to ${hm(a.end_min)}. Good time to send leads.` : 'No leads for them that day.', url: './?go=meetups', tag: 'avail-' + a.partner_id + a.day });
+    await db.from('partner_availability').update({ notified_at: new Date().toISOString() }).eq('partner_id', a.partner_id).eq('day', a.day);
+  }
+  for (const p of (people ?? []) as Person[]) {
+    if (p.role !== 'partner') continue;
+    if (p.default_avail_changed_at && (!p.default_avail_notified_at || p.default_avail_changed_at > p.default_avail_notified_at)) {
+      availPings += await sendOwners({ title: p.default_avail_enabled ? `${p.name} is free every day` : `${p.name} turned off “same time every day”`, body: p.default_avail_enabled ? `${hm(p.default_avail_start_min ?? 0)} to ${hm(p.default_avail_end_min ?? 0)}. Good time to send leads.` : 'They will set their times day by day.', url: './?go=meetups', tag: 'avail-default-' + p.id });
+      await db.from('partners').update({ default_avail_notified_at: new Date().toISOString() }).eq('id', p.id);
+    }
+    // 8. each morning (from 8am their time) ask the partner for today's times, unless they use "same time every day"
+    const tz = p.timezone ?? 'Australia/Brisbane', today = new Date().toLocaleDateString('en-CA', { timeZone: tz }), hour = parseInt(new Date().toLocaleString('en-AU', { timeZone: tz, hour: 'numeric', hour12: false }), 10) % 24;
+    if (hour >= 8 && hour < 13 && p.avail_asked_on !== today) {
+      if (!p.default_avail_enabled) {
+        const { count: has } = await db.from('partner_availability').select('day', { count: 'exact', head: true }).eq('partner_id', p.id).eq('day', today);
+        if (!has) asked += await send(p.id, { title: 'What time are you free today?', body: 'Tap to tell Ethan when you can do meetups.', url: './?go=avail', tag: 'ask-avail-' + today });
+      }
+      await db.from('partners').update({ avail_asked_on: today }).eq('id', p.id);
+    }
+  }
+  return Response.json({ newBookings: sentNew, oneHour: sentSoon, shipping: ship, checklist, availPings, asked });
 });

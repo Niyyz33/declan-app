@@ -24,3 +24,7 @@ values ('<their auth user id>', 'Quinn', 'partner', 'melbourne', 'Melbourne', 'A
 3. Quinn opens `https://niyyz33.github.io/declan-app/melbourne.html` in Safari → Add to Home Screen (this gives him the Melbourne icon and name). Declan keeps the normal link.
 4. Ethan's owner screens then show a Declan / Quinn switcher (Meetups, Phones, Shipments, Statement). Bookings use the partner's own time zone (Melbourne has daylight saving).
 Shared by both: models and deduction table, guides, rates/commission, Ethan's phone number. Per partner: list prices (`list_prices.city`), calendar link, alerts, phones, shipments, meetups. Statement fortnights and monthly counts use Brisbane time for both (Ethan's accounting clock). Declan's spreadsheet export is still Declan-only.
+
+## How meetups and availability work (4 Nov 2026)
+Ethan closes every sale and books every meetup; Declan never books. Ethan asks the seller for their phone number and puts it on the booking (`seller_contact`), so Declan can message or call them from his meetup card.
+Each morning at 8am (their time) a push asks the partner when they're free that day (skipped if they use "same time every day"). When they save, Ethan gets a push, so he knows when to send leads. Ethan's booking form shows their free times for the chosen day and warns if the time is outside them. Tables: `partner_availability`; partner columns `default_avail_*`; function `set_default_availability`. SQL: change-12.sql and change-13.sql.

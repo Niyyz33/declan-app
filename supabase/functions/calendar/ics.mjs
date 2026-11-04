@@ -20,7 +20,7 @@ export function buildIcs(meetups, nowMs, who = { name: 'Declan', city: 'Townsvil
     if (m.status === 'cancelled') continue;
     const start = new Date(m.starts_at), end = new Date(start.getTime() + 45 * 60000);
     const quote = m.quoted_min_cents === m.quoted_max_cents ? dollars(m.quoted_max_cents) : dollars(m.quoted_min_cents) + '-' + dollars(m.quoted_max_cents);
-    const desc = ['Seller: ' + m.seller_name, 'Phone: ' + m.model, 'Quote: ' + quote, m.issues ? 'Issues: ' + m.issues : '', m.notes ? 'Notes: ' + m.notes : ''].filter(Boolean).join('\n');
+    const desc = ['Seller: ' + m.seller_name, m.seller_contact ? 'Seller phone: ' + m.seller_contact : '', 'Phone: ' + m.model, 'Quote: ' + quote, m.issues ? 'Issues: ' + m.issues : '', m.notes ? 'Notes: ' + m.notes : ''].filter(Boolean).join('\n');
     lines.push(
       'BEGIN:VEVENT', 'UID:' + m.id + '@cashforphones.' + who.city.toLowerCase().replace(/[^a-z]/g, ''), 'DTSTAMP:' + stamp(m.updated_at || m.created_at || nowMs),
       'DTSTART:' + stamp(start), 'DTEND:' + stamp(end),

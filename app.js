@@ -29,10 +29,11 @@
   var listPrices = load('listprices', []);
   var onb = load('onb', { items: [], progress: [] });
   var onbOpen = false;
+  var avail = load('avail', []);
   var serverPhones = load('phones', []);
   var serverBatches = load('batches', []);
   var queue = load('queue', []);
-  var profile = load('profile', { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '', signed_off_at: null });
+  var profile = load('profile', { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '', signed_off_at: null, avail_on: false, avail_start: null, avail_end: null });
   var meetups = load('meetups', []);
   var payments = load('payments', []);
   var ownerData = load('ownerdata', { ff: [], bands: [], settings: {}, valuations: [] });
@@ -57,7 +58,7 @@
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
-  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml', 'onb'].forEach(function (k) { save(k, null); }); listPrices = []; pushHtml = ''; onb = { items: [], progress: [] }; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml', 'onb', 'avail'].forEach(function (k) { save(k, null); }); listPrices = []; pushHtml = ''; onb = { items: [], progress: [] }; avail = []; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
   // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
   function versionText(v) {
     var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
@@ -66,6 +67,71 @@
     return 'App updated ' + d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
   }
   function isOwner() { return profile.role === 'owner'; }
+  // ---- availability: Declan says when he's free each day; Ethan books meetups into those times ----
+  function pTz(pid) { return partnerTz(pid) || 'Australia/Brisbane'; }
+  function dayKey(offset, tz) { return new Date(Date.now() + (offset || 0) * 86400000).toLocaleDateString('en-CA', { timeZone: tz || profile.timezone || 'Australia/Brisbane' }); }
+  function hmText(min) { var h = Math.floor(min / 60), m = min % 60, ap = h >= 12 ? 'pm' : 'am', h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + (m < 10 ? '0' : '') + m + ' ' + ap; }
+  function hmInput(min) { return (Math.floor(min / 60) < 10 ? '0' : '') + Math.floor(min / 60) + ':' + (min % 60 < 10 ? '0' : '') + (min % 60); }
+  function inputMin(v) { var m = /^(\d{1,2}):(\d{2})/.exec(v || ''); return m ? +m[1] * 60 + +m[2] : null; }
+  // what a partner has for one day: their own entry, else "same time every day" if it's on, else nothing
+  function availFor(p, day) {
+    var row = avail.filter(function (r) { return r.partner_id === p.id && r.day === day; })[0];
+    if (row) return row.available ? { text: hmText(row.start_min) + ' – ' + hmText(row.end_min), start: row.start_min, end: row.end_min, ok: true } : { text: 'Not available', ok: false };
+    if (p.default_avail_enabled || p.avail_on) { var st = p.default_avail_start_min != null ? p.default_avail_start_min : p.avail_start, en = p.default_avail_end_min != null ? p.default_avail_end_min : p.avail_end; if (st != null) return { text: hmText(st) + ' – ' + hmText(en) + ' (every day)', start: st, end: en, ok: true }; }
+    return null;
+  }
+  function myPartner() { return { id: session && session.user && session.user.id, avail_on: profile.avail_on, avail_start: profile.avail_start, avail_end: profile.avail_end }; }
+  async function loadAvailability() {
+    if (!sb || !session || !navigator.onLine) return;
+    try {
+      var r = await sb.from('partner_availability').select('partner_id,day,available,start_min,end_min').gte('day', dayKey(-1)).order('day');
+      if (r.error) return;
+      var before = JSON.stringify(avail); avail = r.data; save('avail', avail);
+      if (JSON.stringify(avail) !== before && ['home', 'omeetups', 'avail'].indexOf(current) > -1 && current !== 'avail' && !typingNow()) go(current, undefined, true);
+    } catch (e) { /* offline */ }
+  }
+  function availCard() {
+    if (isOwner() || !session || !session.user) return '';
+    var t = availFor(myPartner(), dayKey(0)), tm = availFor(myPartner(), dayKey(1));
+    return '<div class="card"><div class="row between"><b>Your times</b><button class="link fixed" id="availgo" style="width:auto">' + (t ? 'Change' : 'Set today') + '</button></div>' +
+      '<div class="row between" style="margin-top:8px"><span class="muted">Today</span><b>' + (t ? esc(t.text) : '<span style="color:var(--amber)">not set yet</span>') + '</b></div>' +
+      '<div class="row between" style="margin-top:6px"><span class="muted">Tomorrow</span><span>' + (tm ? esc(tm.text) : 'not set') + '</span></div></div>';
+  }
+  function availOwnerCard() {
+    var v = viewingPartner(); if (!v) return '';
+    var rows = [0, 1, 2].map(function (d) { var key = dayKey(d, v.timezone), a = availFor(v, key); return '<div class="row between" style="margin-top:6px"><span class="muted">' + (d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : new Date(key + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' })) + '</span><b>' + (a ? esc(a.text) : '<span class="muted">not set</span>') + '</b></div>'; }).join('');
+    return '<div class="card"><b>' + esc(v.name) + ' · free times</b>' + rows + '</div>';
+  }
+  function viewAvail() {
+    var me = myPartner(), tz = profile.timezone || 'Australia/Brisbane', pick = 0;
+    function draw() {
+      var day = dayKey(pick), cur = availFor(me, day), row = avail.filter(function (r) { return r.partner_id === me.id && r.day === day; })[0];
+      var off = row ? !row.available : false, st = cur && cur.ok ? cur.start : (profile.avail_start != null ? profile.avail_start : 16 * 60), en = cur && cur.ok ? cur.end : (profile.avail_end != null ? profile.avail_end : 20 * 60);
+      shell('<h1>When are you free?</h1><div class="chips" style="margin-bottom:14px"><button type="button" class="chip' + (pick === 0 ? ' on' : '') + '" data-d="0">Today</button><button type="button" class="chip' + (pick === 1 ? ' on' : '') + '" data-d="1">Tomorrow</button></div>' +
+        '<div class="card"><label class="chk"><input type="checkbox" id="av_off"' + (off ? ' checked' : '') + '><span>I’m not available this day</span></label>' +
+        '<div id="av_times"' + (off ? ' style="opacity:.4"' : '') + '><label>From</label><input id="av_s" type="time" value="' + hmInput(st) + '"><label>To</label><input id="av_e" type="time" value="' + hmInput(en) + '">' +
+        '<label class="chk"><input type="checkbox" id="av_all"' + (profile.avail_on ? ' checked' : '') + '><span>Use these times every day</span></label><div class="hint">You work every day at the same time? Tick this and you won’t be asked each morning.</div></div>' +
+        '<div class="err" id="err"></div></div><button id="save">Save and tell Ethan</button><div class="gap"></div><button class="secondary" id="cancel">Back</button>');
+      all('[data-d]').forEach(function (b) { b.onclick = function () { pick = +b.getAttribute('data-d'); draw(); }; });
+      $('av_off').onchange = function () { $('av_times').style.opacity = this.checked ? '.4' : '1'; };
+      $('cancel').onclick = function () { go('home'); };
+      $('save').onclick = async function () {
+        var s0 = inputMin($('av_s').value), e0 = inputMin($('av_e').value), isOff = $('av_off').checked, every = $('av_all').checked && !isOff;
+        if (!isOff && (s0 === null || e0 === null || e0 <= s0)) { $('err').textContent = 'Pick a start time that is before the end time.'; return; }
+        if (!navigator.onLine) { $('err').textContent = 'You need signal to send this to Ethan.'; return; }
+        $('save').disabled = true;
+        var r = await sb.from('partner_availability').upsert({ partner_id: me.id, day: day, available: !isOff, start_min: isOff ? null : s0, end_min: isOff ? null : e0 }, { onConflict: 'partner_id,day' });
+        if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; $('save').disabled = false; return; }
+        if (!isOff && (every !== profile.avail_on || (every && (s0 !== profile.avail_start || e0 !== profile.avail_end)))) { // marking one day off never touches “every day”
+          var rr = await sb.rpc('set_default_availability', { p_enabled: every, p_start: every ? s0 : null, p_end: every ? e0 : null });
+          if (rr.error) { $('err').textContent = 'Saved today, but couldn’t save “every day”: ' + rr.error.message; $('save').disabled = false; return; }
+          profile = Object.assign({}, profile, { avail_on: every, avail_start: every ? s0 : null, avail_end: every ? e0 : null }); save('profile', profile);
+        }
+        await loadAvailability(); go('home');
+      };
+    }
+    draw();
+  }
   // ---- "Start here" checklist ----
   function onbDone(pid) {
     var set = {}; onb.progress.forEach(function (r) { if (r.partner_id === pid) set[r.item_id] = 1; });
@@ -270,7 +336,7 @@
   }
   async function doRefreshPhones() {
     if (!sb || !session || !navigator.onLine) return;
-    loadOnboarding();
+    loadOnboarding(); loadAvailability();
     var before = dataSig();
     try {
       var r = await sb.from('partner_phones').select('*').order('bought_at', { ascending: false }).limit(500);
@@ -301,11 +367,11 @@
   async function loadProfile() {
     if (!sb || !session || !session.user || !navigator.onLine) return;
     try {
-      var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token,signed_off_at').eq('id', session.user.id).maybeSingle();
+      var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min').eq('id', session.user.id).maybeSingle();
       var before = profile.role;
-      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '', signed_off_at: p.data.signed_off_at || null }; save('profile', profile); routeToMyCity(); }
+      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '', signed_off_at: p.data.signed_off_at || null, avail_on: !!p.data.default_avail_enabled, avail_start: p.data.default_avail_start_min, avail_end: p.data.default_avail_end_min }; save('profile', profile); routeToMyCity(); }
       if (before !== profile.role && current && current !== 'login') setTimeout(function () { go(isOwner() ? 'omeetups' : 'home'); }, 0);
-      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city,city_name,timezone,signed_off_at'); if (pl && !pl.error) { partnersList = pl.data; save('partners', partnersList); } }
+      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city,city_name,timezone,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min'); if (pl && !pl.error) { var plBefore = JSON.stringify(partnersList); partnersList = pl.data; save('partners', partnersList); if (JSON.stringify(partnersList) !== plBefore && ['omeetups', 'phones', 'oship', 'ostatement'].indexOf(current) > -1 && !typingNow()) go(current, undefined, true); } }
       var s = await sb.from('app_settings').select('key,value');
       if (!s.error && s.data) { var o = {}; s.data.forEach(function (x) { o[x.key] = x.value; }); settings = o; save('settings', o); }
     } catch (e) { /* offline, or settings not set up yet */ }
@@ -358,6 +424,7 @@
   var current = '';
   var pendingReload = false;
   var VIEWS = {};
+  VIEWS.avail = viewAvail;
   function go(view, arg, keepScroll) {
     if (pendingReload && view === 'home') { location.reload(); return; }
     if (isOwner() && (view === 'home' || view === 'log')) view = 'omeetups';
@@ -385,10 +452,10 @@
     all('[data-vp]').forEach(function (b) { b.onclick = function () { viewing = b.getAttribute('data-vp'); save('viewing', viewing); go(current, undefined, true); }; });
   }
   function renderTabs() {
-    var hide = !session || current === 'login' || current === 'log' || current === 'edit' || current === 'sold' || current === 'fbdesc' || !current;
+    var hide = !session || current === 'login' || current === 'log' || current === 'edit' || current === 'sold' || current === 'fbdesc' || current === 'avail' || !current;
     $tabs.hidden = hide;
     if (hide) return;
-    var active = current === 'sold' || current === 'fbdesc' ? 'phones' : current === 'orates' ? 'ostatement' : current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
+    var active = current === 'sold' || current === 'fbdesc' ? 'phones' : current === 'avail' ? 'home' : current === 'orates' ? 'ostatement' : current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
     var ready = readyToShip().length;
     function tab(id, label, icon, extra) { return '<button class="tab ' + id + (active === id ? ' on' : '') + '" data-tab="' + id + '">' + icon + (extra || '') + '<span>' + label + '</span></button>'; }
     if (isOwner()) {
@@ -434,7 +501,7 @@
     shell('<div class="greet"><img src="' + logoSrc() + '" alt=""><div><h1>' + name + ' 👋</h1><div id="sentstatus" style="font-weight:600;font-size:14px"></div></div></div>' +
       installTip() +
       (inProgress ? '<div class="card"><b>Phone in progress</b><div class="muted">' + esc(draft.model) + ' — saved, pick up where you left off.</div><div class="row" style="margin-top:12px"><button id="cont">Continue</button><button class="secondary" id="discard">Discard</button></div></div>' : '') +
-      nextMeetupCard() + '<div id="pushcard"></div>' + onbCard() +
+      nextMeetupCard() + '<div id="pushcard"></div>' + availCard() + onbCard() +
       '<button id="log" style="font-size:18px;padding:18px">＋ Log a phone</button>' +
       '<h2>Ready to ship</h2><div class="card"><div class="row between"><b>' + ready + ' damaged ' + (ready === 1 ? 'phone' : 'phones') + '</b><span class="muted fixed">' + (ready >= MIN_SHIP ? 'Ready to ship!' : (MIN_SHIP - ready) + ' more to go') + '</span></div>' +
       '<div class="bar"><i style="width:' + Math.min(100, Math.round(ready / MIN_SHIP * 100)) + '%"></i></div>' +
@@ -446,6 +513,7 @@
       '<div class="sync" id="syncline">' + syncLine() + '</div>');
     if ($('nextm')) $('nextm').onclick = function () { go('meetups'); };
     bindOnb();
+    if ($('availgo')) $('availgo').onclick = function () { go('avail'); };
     renderPushCard();
     $('log').onclick = function () { go('log'); }; if ($('ship')) $('ship').onclick = function () { go('ship'); };
     if ($('cont')) $('cont').onclick = function () { go('log'); };
@@ -1094,6 +1162,7 @@
     if (next) html += '<div class="card" id="nextm" style="cursor:pointer"><div class="muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:12px">Next meetup</div><div class="name" style="font-size:18px;font-weight:800;margin-top:4px">' + fmtWhen(next.starts_at, next.partner_id) + '</div><div>' + esc(next.seller_name) + ' · ' + esc(next.model) + '</div>' + (next.location ? '<div class="muted">📍 ' + esc(next.location) + '</div>' : '') + '</div>';
     return html;
   }
+  function telFor(n) { var d = String(n || '').replace(/[^\d+]/g, ''); if (d.charAt(0) === '0') d = '+61' + d.slice(1); return d; }
   function meetupCard(m) {
     var st = MEETUP_STATUS[m.status] || ['bought', m.status], owner = isOwner(), booked = m.status === 'booked', late = booked && new Date(m.starts_at) < new Date();
     var acts = '';
@@ -1102,6 +1171,7 @@
     return '<div class="card phonecard"><div class="top"><div><div class="name">' + fmtWhen(m.starts_at, m.partner_id) + '</div><div class="meta">' + (late ? '<span style="color:var(--amber)">Did this happen? </span>' : '') + esc(m.model) + '</div></div><span class="pill ' + st[0] + '">' + st[1] + '</span></div>' +
       '<div style="margin-top:8px"><b>' + esc(m.seller_name) + '</b> · Quote ' + money(m.quoted_min_cents) + (m.quoted_max_cents !== m.quoted_min_cents ? '–' + money(m.quoted_max_cents) : '') + '</div>' +
       (m.issues ? '<div class="muted">' + esc(m.issues) + '</div>' : '') +
+      (m.seller_contact ? '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink green" href="sms:' + telFor(m.seller_contact) + '">💬 Message ' + esc(m.seller_name) + '</a><a class="btnlink" href="tel:' + telFor(m.seller_contact) + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>' : '') +
       (m.location ? '<div style="margin-top:6px"><a class="maplink" href="' + mapsLink(m.location) + '">📍 ' + esc(m.location) + '</a></div>' : '') +
       (m.notes ? '<div class="muted" style="margin-top:4px">' + esc(m.notes) + '</div>' : '') +
       (m._pending ? '<div class="muted" style="margin-top:6px">waiting to send</div>' : '') + acts + '</div>';
@@ -1151,7 +1221,7 @@
 
   // owner side: book Declan's meetups
   VIEWS.omeetups = function () {
-    shell('<h1>' + pn() + '’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview the guides</a><div id="pushcard"></div>' + onbOwnerCard() + '<button id="book">＋ Book a meetup</button>' + meetupSections() +
+    shell('<h1>' + pn() + '’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview the guides</a><div id="pushcard"></div>' + availOwnerCard() + onbOwnerCard() + '<button id="book">＋ Book a meetup</button>' + meetupSections() +
       '<div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { go('obook'); };
     bindOnbOwner();
@@ -1166,14 +1236,26 @@
     shell('<h1>' + (m ? 'Edit meetup' : 'Book a meetup') + '</h1><div class="card">' +
       (!m && partnerOptions().length > 1 ? '<label>Booking for</label><select id="sp">' + partnerOptions().map(function (p) { return '<option value="' + p.id + '"' + (who && who.id === p.id ? ' selected' : '') + '>' + esc(p.name) + (p.city_name ? ' · ' + esc(p.city_name) : '') + '</option>'; }).join('') + '</select>' : '') +
       '<label>Seller’s name</label><input id="sn" autocomplete="off" value="' + esc(m ? m.seller_name : '') + '">' +
+      '<label>Seller’s phone number</label><input id="sc" type="tel" inputmode="tel" autocomplete="off" placeholder="e.g. 0412 345 678" value="' + esc(m ? m.seller_contact || '' : '') + '"><div class="hint">Declan gets this on his meetup card so he can message them.</div>' +
       '<label>Phone model</label><input id="sm" list="modellist" autocomplete="off" placeholder="e.g. iPhone 14 Pro 256GB" value="' + esc(m ? m.model : '') + '"><datalist id="modellist">' + catalogue.models.map(function (x) { return '<option value="' + esc(x.name) + '">'; }).join('') + '</datalist>' +
       '<label>Issues</label><textarea id="si" rows="2" placeholder="e.g. cracked screen, battery 82%">' + esc(m ? m.issues || '' : '') + '</textarea>' +
       '<label>Quote ($)</label><input id="sq" inputmode="text" placeholder="e.g. 230-260" value="' + esc(m ? quoteText(m.quoted_min_cents, m.quoted_max_cents) : '') + '">' +
-      '<label>Date and time' + (who && who.city_name && tz !== Intl.DateTimeFormat().resolvedOptions().timeZone ? ' (' + esc(who.city_name) + ' time)' : '') + '</label><input id="sw" type="datetime-local" value="' + (m ? toZonedInput(m.starts_at, tz) : '') + '">' +
+      '<label>Date and time' + (who && who.city_name && tz !== Intl.DateTimeFormat().resolvedOptions().timeZone ? ' (' + esc(who.city_name) + ' time)' : '') + '</label><input id="sw" type="datetime-local" value="' + (m ? toZonedInput(m.starts_at, tz) : '') + '"><div class="hint" id="avh"></div>' +
       '<label>Where are they meeting?</label><input id="sl" autocomplete="off" placeholder="e.g. Stockland Aitkenvale, food court" value="' + esc(m ? m.location || '' : '') + '">' +
       '<label>Notes for ' + esc(who ? who.name : 'them') + ' (optional)</label><textarea id="sx" rows="2">' + esc(m ? m.notes || '' : '') + '</textarea>' +
       '<div class="err" id="err"></div></div><button id="save">' + (m ? 'Save changes' : 'Book it') + '</button><div class="gap"></div><button class="secondary" id="cancel">Cancel</button>');
     $('cancel').onclick = function () { go('omeetups'); };
+    // what the partner said about the day you're booking
+    function availHint() {
+      var p = $('sp') ? partnerById($('sp').value) : who, v = $('sw').value; if (!p) return null;
+      if (!v) { $('avh').textContent = ''; return null; }
+      var a = availFor(p, v.slice(0, 10)), mins = inputMin(v.slice(11)), out = false;
+      if (!a) { $('avh').innerHTML = '<span class="muted">' + esc(p.name) + ' hasn’t said when he’s free that day.</span>'; return null; }
+      out = !a.ok || (mins !== null && (mins < a.start || mins >= a.end));
+      $('avh').innerHTML = (out ? '<span style="color:var(--amber)">⚠ ' : '<span style="color:var(--green)">✓ ') + esc(p.name) + ': ' + esc(a.text) + '</span>';
+      return out ? a : null;
+    }
+    $('sw').onchange = availHint; $('sw').oninput = availHint; if ($('sp')) $('sp').onchange = availHint; availHint();
     $('save').onclick = async function () {
       var picked = $('sp') ? partnerById($('sp').value) : who, ptz = picked ? (picked.timezone || 'Australia/Brisbane') : tz;
       var q = parseQuote($('sq').value), when = $('sw').value ? zonedToUtc($('sw').value, ptz) : null, declan = picked, err = '';
@@ -1185,8 +1267,9 @@
       else if (!declan) err = 'Their login isn’t set up yet.';
       else if (!navigator.onLine) err = 'You need signal to book a meetup.';
       if (err) { $('err').textContent = err; return; }
+      var outside = availHint(); if (outside && !confirm('That’s outside ' + (picked ? picked.name : 'their') + '’s free times (' + outside.text + '). Book it anyway?')) return;
       $('save').disabled = true;
-      var fields = { seller_name: $('sn').value.trim(), model: $('sm').value.trim(), issues: $('si').value.trim() || null, quoted_min_cents: q.min, quoted_max_cents: q.max, starts_at: when.toISOString(), location: $('sl').value.trim(), notes: $('sx').value.trim() || null };
+      var fields = { seller_name: $('sn').value.trim(), seller_contact: $('sc').value.trim() || null, model: $('sm').value.trim(), issues: $('si').value.trim() || null, quoted_min_cents: q.min, quoted_max_cents: q.max, starts_at: when.toISOString(), location: $('sl').value.trim(), notes: $('sx').value.trim() || null };
       var r = m ? await sb.from('partner_meetups').update(fields).eq('id', id).select('id') : await sb.from('partner_meetups').insert(Object.assign({ id: uuid(), partner_id: declan.id, status: 'booked' }, fields));
       if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; $('save').disabled = false; return; }
       await refreshPhones(); go('omeetups');
@@ -1218,6 +1301,7 @@
     go(isOwner() ? 'omeetups' : 'home');
     var deep = new URLSearchParams(location.search).get('go');
     if (deep === 'meetups' && !isOwner()) go('meetups');
+    if (deep === 'avail' && !isOwner()) go('avail');
     if (deep === 'ship') go(isOwner() ? 'oship' : 'ship');
     if (deep) history.replaceState(null, '', location.pathname);
     loadCatalogue(); loadProfile(); refreshPhones(); syncQueue(); ensurePush();
