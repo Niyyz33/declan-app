@@ -30,7 +30,7 @@
   var serverPhones = load('phones', []);
   var serverBatches = load('batches', []);
   var queue = load('queue', []);
-  var profile = load('profile', { name: '', role: '', price_city: 'townsville' });
+  var profile = load('profile', { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' });
   var meetups = load('meetups', []);
   var payments = load('payments', []);
   var ownerData = load('ownerdata', { ff: [], bands: [], settings: {}, valuations: [] });
@@ -55,7 +55,7 @@
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
-  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml'].forEach(function (k) { save(k, null); }); listPrices = []; pushHtml = ''; profile = { name: '', role: '', price_city: 'townsville' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml'].forEach(function (k) { save(k, null); }); listPrices = []; pushHtml = ''; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
   // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
   function versionText(v) {
     var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
@@ -64,13 +64,40 @@
     return 'App updated ' + d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
   }
   function isOwner() { return profile.role === 'owner'; }
+  // ---- more than one partner (Declan in Townsville, Quinn in Melbourne) ----
+  var LOGOS = { Townsville: 'icons/logo.png', Melbourne: 'icons/logo-melbourne.png' };
+  function cityName() { return profile.city_name || (window.BRAND && window.BRAND.city) || 'Townsville'; }
+  function logoSrc() { return LOGOS[cityName()] || 'icons/logo.png'; }
+  var viewing = load('viewing', '');
+  function partnerOptions() { return partnersList.filter(function (p) { return p.role === 'partner'; }); }
+  function viewingPartner() { var ps = partnerOptions(); return ps.filter(function (p) { return p.id === viewing; })[0] || ps[0] || null; }
+  function pn() { var v = viewingPartner(); return v ? v.name : 'Declan'; }
+  function manyPartners() { return isOwner() && partnerOptions().length > 1; }
+  function partnerById(id) { return partnersList.filter(function (p) { return p.id === id; })[0] || null; }
+  function partnerTz(id) { var p = partnerById(id); return (p && p.timezone) || (!isOwner() && profile.timezone) || 'Australia/Brisbane'; }
+  function partnerBar() {
+    if (!manyPartners()) return '';
+    var v = viewingPartner();
+    return '<div class="chips" style="margin-bottom:14px">' + partnerOptions().map(function (p) { return '<button type="button" class="chip' + (v && v.id === p.id ? ' on' : '') + '" data-vp="' + p.id + '">' + esc(p.name) + (p.city_name ? ' · ' + esc(p.city_name) : '') + '</button>'; }).join('') + '</div>';
+  }
+  var PARTNER_VIEWS = ['omeetups', 'phones', 'oship', 'ostatement'];
+  // Clock time in a given time zone <-> a UTC instant (Ethan books in the partner's local time, e.g. Melbourne's daylight saving)
+  function tzParts(ms, tz) { var o = {}; new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(ms)).forEach(function (x) { o[x.type] = x.value; }); return o; }
+  function tzOffsetMs(tz, ms) { var p = tzParts(ms, tz); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - Math.floor(ms / 1000) * 1000; }
+  function zonedToUtc(str, tz) { var m = str.match(/^(\d+)-(\d+)-(\d+)T(\d+):(\d+)/); if (!m) return null; var guess = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]); return new Date(guess - tzOffsetMs(tz, guess - tzOffsetMs(tz, guess))); }
+  function toZonedInput(iso, tz) { var p = tzParts(new Date(iso).getTime(), tz); return p.year + '-' + p.month + '-' + p.day + 'T' + (p.hour === '24' ? '00' : p.hour) + ':' + p.minute; }
   // Recommended Facebook price for a phone: its model + storage in the city its partner sells in
   function priceFor(p) {
     var city = profile.price_city || 'townsville';
     if (isOwner()) { var pr = partnersList.filter(function (x) { return x.id === p.partner_id; })[0]; city = (pr && pr.price_city) || 'townsville'; }
     return listPrices.filter(function (x) { return x.city === city && x.model === p.model && x.storage_gb === p.storage_gb; })[0] || null;
   }
-  function fmtWhen(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
+  function fmtWhen(iso, pid) {
+    var d = new Date(iso), tz = isOwner() && pid ? partnerTz(pid) : undefined, o1 = { weekday: 'short', day: 'numeric', month: 'short' }, o2 = { hour: 'numeric', minute: '2-digit' };
+    if (tz) { o1.timeZone = tz; o2.timeZone = tz; }
+    var city = tz && tz !== Intl.DateTimeFormat().resolvedOptions().timeZone && partnerById(pid) && partnerById(pid).city_name ? ' (' + partnerById(pid).city_name + ' time)' : '';
+    return d.toLocaleDateString('en-AU', o1) + ' · ' + d.toLocaleTimeString('en-AU', o2) + city;
+  }
   function quoteText(min, max) { return min === max ? String(max / 100) : (min / 100) + '-' + (max / 100); }
   function mapsLink(place) { return 'https://maps.apple.com/?q=' + encodeURIComponent(place); }
   var MEETUP_STATUS = { booked: ['bought', 'Booked'], bought: ['received', '✓ Bought'], no_sale: ['kept', 'No sale'], no_show: ['damaged', 'No show'], cancelled: ['kept', 'Cancelled'] };
@@ -194,11 +221,11 @@
   async function loadProfile() {
     if (!sb || !session || !session.user || !navigator.onLine) return;
     try {
-      var p = await sb.from('partners').select('name,role,price_city').eq('id', session.user.id).maybeSingle();
+      var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token').eq('id', session.user.id).maybeSingle();
       var before = profile.role;
-      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville' }; save('profile', profile); }
+      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '' }; save('profile', profile); }
       if (before !== profile.role && current && current !== 'login') setTimeout(function () { go(isOwner() ? 'omeetups' : 'home'); }, 0);
-      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city'); if (pl && !pl.error) { partnersList = pl.data; save('partners', partnersList); } }
+      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city,city_name,timezone'); if (pl && !pl.error) { partnersList = pl.data; save('partners', partnersList); } }
       var s = await sb.from('app_settings').select('key,value');
       if (!s.error && s.data) { var o = {}; s.data.forEach(function (x) { o[x.key] = x.value; }); settings = o; save('settings', o); }
     } catch (e) { /* offline, or settings not set up yet */ }
@@ -220,13 +247,17 @@
       if (p.batch_id && posted[p.batch_id]) p.status = 'shipped';
       return p;
     });
-    return out.sort(function (a, b) { return new Date(b.bought_at) - new Date(a.bought_at); });
+    out = out.sort(function (a, b) { return new Date(b.bought_at) - new Date(a.bought_at); });
+    if (manyPartners()) { var vp = viewingPartner(); out = out.filter(function (p) { return !p.partner_id || (vp && p.partner_id === vp.id); }); }
+    return out;
   }
-  // Meetups with Declan's unsent answers (bought / no sale / no show) applied on top.
+  // Meetups with a partner's unsent answers (bought / no sale / no show) applied on top.
   function allMeetups() {
     var patches = {};
     queue.forEach(function (i) { if (i.kind === 'meetup') patches[i.id] = Object.assign(patches[i.id] || {}, i.patch); });
-    return meetups.map(function (m) { return patches[m.id] ? Object.assign({}, m, patches[m.id], { _pending: true }) : m; });
+    var list = meetups.map(function (m) { return patches[m.id] ? Object.assign({}, m, patches[m.id], { _pending: true }) : m; });
+    if (manyPartners()) { var vp = viewingPartner(); list = list.filter(function (m) { return vp && m.partner_id === vp.id; }); }
+    return list;
   }
   function readyToShip() { return allPhones().filter(function (p) { return p.type === 'damaged' && p.status === 'bought' && !p.batch_id && !p._failed; }); }
   // Where a shipment is up to: waiting (for Ethan's label) -> label (ready to post) -> posted -> received.
@@ -235,7 +266,9 @@
     queue.forEach(function (i) { if (i.kind === 'posted') posted[i.id] = i.at; });
     var out = serverBatches.map(function (b) { return posted[b.id] && !b.posted_at ? Object.assign({}, b, { posted_at: posted[b.id], _pending: true }) : b; });
     queue.forEach(function (i) { if (i.kind === 'batch' && !out.some(function (b) { return b.id === i.batch.id; })) out.unshift(Object.assign({ _pending: true, created_at: i.batch.shipped_at }, i.batch)); });
-    return out.sort(function (a, b) { return new Date(b.created_at || b.shipped_at) - new Date(a.created_at || a.shipped_at); });
+    out = out.sort(function (a, b) { return new Date(b.created_at || b.shipped_at) - new Date(a.created_at || a.shipped_at); });
+    if (manyPartners()) { var vp = viewingPartner(); out = out.filter(function (b) { return !b.partner_id || (vp && b.partner_id === vp.id); }); }
+    return out;
   }
   function batchStage(b) { return b.received_at ? 'received' : b.posted_at ? 'posted' : b.label_sent_at ? 'label' : 'waiting'; }
   var STAGE_TEXT = { waiting: ['bought', '⏳ Waiting for label'], label: ['shipped', '🏷️ Label ready'], posted: ['shipped', '📦 On its way'], received: ['received', '✓ Received'] };
@@ -266,7 +299,11 @@
     renderTabs();
   }
   var noAnim = false;
-  function shell(html) { $app.innerHTML = '<div class="view"' + (noAnim ? ' style="animation:none"' : '') + '>' + html + '</div>'; }
+  function shell(html) {
+    if (PARTNER_VIEWS.indexOf(current) > -1 && manyPartners()) html = html.replace('</h1>', '</h1>' + partnerBar());
+    $app.innerHTML = '<div class="view"' + (noAnim ? ' style="animation:none"' : '') + '>' + html + '</div>';
+    all('[data-vp]').forEach(function (b) { b.onclick = function () { viewing = b.getAttribute('data-vp'); save('viewing', viewing); go(current, undefined, true); }; });
+  }
   function renderTabs() {
     var hide = !session || current === 'login' || current === 'log' || current === 'edit' || current === 'sold' || current === 'fbdesc' || !current;
     $tabs.hidden = hide;
@@ -289,7 +326,7 @@
 
   // ---------- login ----------
   VIEWS.login = function (msg) {
-    shell('<div class="brand"><img src="icons/logo.png" alt="Cash for Phones Townsville"><h1>Cash for Phones</h1><div class="sub">Townsville partner app</div></div>' +
+    shell('<div class="brand"><img src="' + logoSrc() + '" alt="Cash for Phones ' + esc(cityName()) + '"><h1>Cash for Phones</h1><div class="sub">' + esc(cityName()) + ' partner app</div></div>' +
       installTip() +
       '<div class="card"><label>Email</label><input id="em" type="email" autocomplete="username" autocapitalize="none" autocorrect="off">' +
       '<label>Password</label><input id="pw" type="password" autocomplete="current-password"><div class="gap"></div><button id="go">Log in</button><div class="err" id="err">' + esc(msg || '') + '</div>' +
@@ -314,7 +351,7 @@
     var inProgress = draft && draft.model;
     var name = profile.name ? 'Hey ' + esc(profile.name) : 'Hey';
     var tel = phoneForLinks();
-    shell('<div class="greet"><img src="icons/logo.png" alt=""><div><h1>' + name + ' 👋</h1><div id="sentstatus" style="font-weight:600;font-size:14px"></div></div></div>' +
+    shell('<div class="greet"><img src="' + logoSrc() + '" alt=""><div><h1>' + name + ' 👋</h1><div id="sentstatus" style="font-weight:600;font-size:14px"></div></div></div>' +
       installTip() +
       (inProgress ? '<div class="card"><b>Phone in progress</b><div class="muted">' + esc(draft.model) + ' — saved, pick up where you left off.</div><div class="row" style="margin-top:12px"><button id="cont">Continue</button><button class="secondary" id="discard">Discard</button></div></div>' : '') +
       nextMeetupCard() + '<div id="pushcard"></div>' +
@@ -606,7 +643,7 @@
       var s = phoneSearch.toLowerCase();
       return !s || (p.model + ' ' + (p.colour || '') + ' ' + (p.notes || '')).toLowerCase().indexOf(s) > -1;
     });
-    shell('<h1>' + (isOwner() ? 'Declan’s phones' : 'My phones') + '</h1><input id="search" type="search" placeholder="Search model or colour" value="' + esc(phoneSearch) + '" style="margin-bottom:10px">' +
+    shell('<h1>' + (isOwner() ? pn() + '’s phones' : 'My phones') + '</h1><input id="search" type="search" placeholder="Search model or colour" value="' + esc(phoneSearch) + '" style="margin-bottom:10px">' +
       '<div class="chips" style="margin-bottom:14px">' + filters.map(function (f) { return '<button type="button" class="chip' + (phoneFilter === f[0] ? ' on' : '') + '" data-filter="' + f[0] + '">' + f[1] + '</button>'; }).join('') + '</div>' +
       (shown.length ? shown.map(function (p) {
         var st = statusLabel(p), canEdit = !isOwner() && p.status === 'bought' && !p._failed, track = p.batch_id ? batchTracking(p.batch_id) : '';
@@ -782,14 +819,14 @@
     var batches = allBatches();
     shell('<h1>Shipments</h1><div id="pushcard"></div>' + (batches.length ? batches.map(function (b) {
       var st = batchStage(b), ph = batchPhones(b.id), t = STAGE_TEXT[st], pay = paymentFor(b.id), total = ph.reduce(function (a, p) { return a + (p.price_paid_cents || 0); }, 0);
-      var action = st === 'waiting' ? '<label>Tracking number from your label</label><input data-trk="' + b.id + '" autocapitalize="characters" autocomplete="off" placeholder="e.g. 34ABC123456"><div class="gap"></div><button data-label="' + b.id + '">Label sent to Declan</button>'
-        : st !== 'received' ? '<div class="muted" style="margin-top:6px">Tracking ' + esc(b.tracking_number || '') + (st === 'posted' ? ' · posted ' + fmtDate(b.posted_at) : ' · waiting for Declan to post') + '</div><div class="gap"></div><button data-recv="' + b.id + '">Mark received</button>'
+      var action = st === 'waiting' ? '<label>Tracking number from your label</label><input data-trk="' + b.id + '" autocapitalize="characters" autocomplete="off" placeholder="e.g. 34ABC123456"><div class="gap"></div><button data-label="' + b.id + '">Label sent to ' + esc(pn()) + '</button>'
+        : st !== 'received' ? '<div class="muted" style="margin-top:6px">Tracking ' + esc(b.tracking_number || '') + (st === 'posted' ? ' · posted ' + fmtDate(b.posted_at) : ' · waiting for ' + esc(pn()) + ' to post') + '</div><div class="gap"></div><button data-recv="' + b.id + '">Mark received</button>'
         : '<div class="muted" style="margin-top:6px">Tracking ' + esc(b.tracking_number || '') + ' · received ' + fmtDate(b.received_at) + '</div>';
-      return '<div class="card"><div class="row between"><b>' + ph.length + ' phones · ' + money(total) + ' paid by Declan</b><span class="pill ' + t[0] + ' fixed">' + t[1] + '</span></div>' +
+      return '<div class="card"><div class="row between"><b>' + ph.length + ' phones · ' + money(total) + ' paid by ' + esc(pn()) + '</b><span class="pill ' + t[0] + ' fixed">' + t[1] + '</span></div>' +
         '<div class="muted" style="margin:6px 0">' + ph.map(function (p) { return esc(p.model) + (p.storage_gb ? ' ' + storageText(p.storage_gb) : ''); }).join(' · ') + '</div>' + action +
         '<h2 style="margin-top:18px">What you’ve paid</h2><div class="row"><div><label>On shipping ($)</label><input type="number" inputmode="decimal" data-pship="' + b.id + '" value="' + (pay.paid_on_ship_cents != null ? pay.paid_on_ship_cents / 100 : '') + '"></div>' +
         '<div><label>On arrival ($)</label><input type="number" inputmode="decimal" data-parr="' + b.id + '" value="' + (pay.paid_on_arrival_cents != null ? pay.paid_on_arrival_cents / 100 : '') + '"></div></div><div class="gap"></div><button class="secondary" data-savepay="' + b.id + '">Save payments</button><div class="err" data-err="' + b.id + '"></div></div>';
-    }).join('') : '<div class="empty">No shipments yet. When Declan asks for a label it shows up here.</div>'));
+    }).join('') : '<div class="empty">No shipments yet. When ' + esc(pn()) + ' asks for a label it shows up here.</div>'));
     function fail(id, msg) { var e = document.querySelector('[data-err="' + id + '"]'); if (e) e.textContent = msg; }
     all('[data-label]').forEach(function (btn) {
       btn.onclick = async function () {
@@ -840,8 +877,8 @@
   function statementText(st) {
     var L = [fmtPeriod(st.period), ''];
     st.damaged.forEach(function (d) { L.push('Damaged shipment (' + d.lines.length + ' phones): reimburse ' + money(d.reimburse) + ' + fees ' + money(d.fees) + ' = ' + money(d.owed) + ', paid ' + money(d.paid) + ', still owed ' + money(d.remaining)); });
-    if (st.mint.length) L.push('Mint commission owed by Declan: ' + money(st.declanOwes) + ' (' + st.mint.length + ' phones)');
-    L.push('', st.net > 0 ? 'Net: Ethan pays Declan ' + money(st.net) : st.net < 0 ? 'Net: Declan pays Ethan ' + money(-st.net) : 'Net: even');
+    if (st.mint.length) L.push('Mint commission owed by ' + pn() + ': ' + money(st.declanOwes) + ' (' + st.mint.length + ' phones)');
+    L.push('', st.net > 0 ? 'Net: Ethan pays ' + pn() + ' ' + money(st.net) : st.net < 0 ? 'Net: ' + pn() + ' pays Ethan ' + money(-st.net) : 'Net: even');
     return L.join('\n');
   }
   // "Damaged phones bought this month: 31 of 35 before the fee steps up" (this calendar month, Brisbane time).
@@ -854,11 +891,11 @@
   VIEWS.ostatement = function () {
     if (stmtK === null) stmtK = S.currentPeriodIndex(Date.now());
     var st = buildStatement(stmtK), noData = !(ownerData.ff && ownerData.ff.length);
-    var netHtml = st.net > 0 ? '<div class="big" style="color:#8ff0ab">You pay Declan ' + money(st.net) + '</div>' : st.net < 0 ? '<div class="big" style="color:#ffd27a">Declan pays you ' + money(-st.net) + '</div>' : '<div class="big">Even</div>';
+    var netHtml = st.net > 0 ? '<div class="big" style="color:#8ff0ab">You pay ' + esc(pn()) + ' ' + money(st.net) + '</div>' : st.net < 0 ? '<div class="big" style="color:#ffd27a">' + esc(pn()) + ' pays you ' + money(-st.net) + '</div>' : '<div class="big">Even</div>';
     shell('<h1>Statement</h1><div class="row between" style="margin-bottom:12px"><button class="secondary small fixed" id="prevk">‹</button><b style="text-align:center">' + fmtPeriod(st.period) + '</b><button class="secondary small fixed" id="nextk">›</button></div>' +
       (noData ? '<div class="tip">The price table hasn’t loaded yet. Open this once with signal.</div>' : '') + stepUpNote() +
       '<div class="card" style="text-align:center"><div class="muted">Net for this fortnight</div>' + netHtml + (st.missing ? '<div style="color:var(--amber);margin-top:6px">⚠ ' + st.missing + (st.missing === 1 ? ' phone needs' : ' phones need') + ' a price from you — see below</div>' : '') + '</div>' +
-      '<h2>You owe Declan · damaged phones</h2>' + (st.damaged.length ? st.damaged.map(function (d) {
+      '<h2>You owe ' + esc(pn()) + ' · damaged phones</h2>' + (st.damaged.length ? st.damaged.map(function (d) {
         return '<div class="card"><div class="row between"><b>' + d.lines.length + ' phones</b><span class="muted fixed">received ' + fmtDate(d.batch.received_at) + '</span></div>' + d.lines.map(function (l) {
           var ph = l.phone;
           return '<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="row between"><span>' + esc(ph.model) + (ph.storage_gb ? ' ' + storageText(ph.storage_gb) : '') + '</span><b class="fixed">fee ' + money(l.fee) + '</b></div>' +
@@ -868,7 +905,7 @@
           '<div class="row between" style="margin-top:10px"><span>Reimburse what he paid</span><b class="fixed">' + money(d.reimburse) + '</b></div><div class="row between"><span>Fees</span><b class="fixed">' + money(d.fees) + '</b></div>' +
           '<div class="row between"><span>Already paid</span><b class="fixed">−' + money(d.paid) + '</b></div><div class="row between"><b>Still to pay</b><b class="fixed">' + money(d.remaining) + '</b></div></div>';
       }).join('') : '<div class="empty">No damaged shipments received in this fortnight.</div>') +
-      '<h2>Declan owes you · mint phones</h2>' + (st.mint.length ? '<div class="card">' + st.mint.map(function (l) {
+      '<h2>' + esc(pn()) + ' owes you · mint phones</h2>' + (st.mint.length ? '<div class="card">' + st.mint.map(function (l) {
         var ph = l.phone;
         return '<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="row between"><span>' + esc(ph.model) + (ph.storage_gb ? ' ' + storageText(ph.storage_gb) : '') + '</span><b class="fixed">' + (l.fee === null ? '—' : money(l.fee)) + '</b></div>' +
           '<div class="muted">Paid ' + money(ph.price_paid_cents) + ' · price sheet ' + (l.sheet === null ? '<span style="color:var(--amber)">needs a price</span>' : money(l.sheet)) + (l.spread === null ? '' : ' · spread ' + money(l.spread)) + '</div>' +
@@ -961,7 +998,7 @@
   // ---------- meetups ----------
   function sortedMeetups() { return allMeetups().slice().sort(function (a, b) { return new Date(a.starts_at) - new Date(b.starts_at); }); }
   function calendarCard() {
-    var tok = settings.calendar_token;
+    var tok = profile.calendar_token || settings.calendar_token;
     if (!tok || isOwner()) return '';
     var url = window.CONFIG.SUPABASE_URL.replace(/^https?:\/\//, 'webcal://') + '/functions/v1/calendar?token=' + tok;
     return '<div class="card"><b>📅 Apple Calendar</b><div class="muted">Add this once. Every meetup Ethan books then appears in your calendar by itself, with a reminder. Changes can take a little while to show up, so check this list for anything last-minute.</div><div class="gap"></div><a class="btnlink green" href="' + url + '">Add to Apple Calendar</a></div>';
@@ -972,7 +1009,7 @@
     var overdue = mine.filter(function (m) { return new Date(m.starts_at) < now; }).length;
     var html = '';
     if (overdue) html += '<div class="tip" id="nextm"><b>' + overdue + (overdue === 1 ? ' meetup needs' : ' meetups need') + ' an answer.</b> Log the phone you bought, or mark it No sale / No show. Tap here.</div>';
-    if (next) html += '<div class="card" id="nextm" style="cursor:pointer"><div class="muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:12px">Next meetup</div><div class="name" style="font-size:18px;font-weight:800;margin-top:4px">' + fmtWhen(next.starts_at) + '</div><div>' + esc(next.seller_name) + ' · ' + esc(next.model) + '</div>' + (next.location ? '<div class="muted">📍 ' + esc(next.location) + '</div>' : '') + '</div>';
+    if (next) html += '<div class="card" id="nextm" style="cursor:pointer"><div class="muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:12px">Next meetup</div><div class="name" style="font-size:18px;font-weight:800;margin-top:4px">' + fmtWhen(next.starts_at, next.partner_id) + '</div><div>' + esc(next.seller_name) + ' · ' + esc(next.model) + '</div>' + (next.location ? '<div class="muted">📍 ' + esc(next.location) + '</div>' : '') + '</div>';
     return html;
   }
   function meetupCard(m) {
@@ -980,7 +1017,7 @@
     var acts = '';
     if (owner && booked) acts = '<div class="acts"><button class="secondary small" data-medit="' + m.id + '">Edit</button><button class="secondary small" data-mcancel="' + m.id + '" style="color:var(--red)">Cancel meetup</button></div>';
     if (!owner && booked) acts = '<div class="acts"><button class="small" data-mlog="' + m.id + '">Log this phone</button><button class="secondary small" data-mans="no_sale" data-id="' + m.id + '">No sale</button><button class="secondary small" data-mans="no_show" data-id="' + m.id + '">No show</button></div>';
-    return '<div class="card phonecard"><div class="top"><div><div class="name">' + fmtWhen(m.starts_at) + '</div><div class="meta">' + (late ? '<span style="color:var(--amber)">Did this happen? </span>' : '') + esc(m.model) + '</div></div><span class="pill ' + st[0] + '">' + st[1] + '</span></div>' +
+    return '<div class="card phonecard"><div class="top"><div><div class="name">' + fmtWhen(m.starts_at, m.partner_id) + '</div><div class="meta">' + (late ? '<span style="color:var(--amber)">Did this happen? </span>' : '') + esc(m.model) + '</div></div><span class="pill ' + st[0] + '">' + st[1] + '</span></div>' +
       '<div style="margin-top:8px"><b>' + esc(m.seller_name) + '</b> · Quote ' + money(m.quoted_min_cents) + (m.quoted_max_cents !== m.quoted_min_cents ? '–' + money(m.quoted_max_cents) : '') + '</div>' +
       (m.issues ? '<div class="muted">' + esc(m.issues) + '</div>' : '') +
       (m.location ? '<div style="margin-top:6px"><a class="maplink" href="' + mapsLink(m.location) + '">📍 ' + esc(m.location) + '</a></div>' : '') +
@@ -1008,7 +1045,7 @@
     all('[data-medit]').forEach(function (b) { b.onclick = function () { go('obook', b.getAttribute('data-medit')); }; });
     all('[data-mcancel]').forEach(function (b) {
       b.onclick = async function () {
-        if (!confirm('Cancel this meetup? It disappears from Declan’s calendar.')) return;
+        if (!confirm('Cancel this meetup? It disappears from their calendar.')) return;
         if (!navigator.onLine) { alert('You need signal to do that.'); return; }
         var r = await sb.from('partner_meetups').update({ status: 'cancelled' }).eq('id', b.getAttribute('data-mcancel')).select('id');
         if (r.error) { alert('Couldn’t cancel: ' + r.error.message); return; }
@@ -1032,7 +1069,7 @@
 
   // owner side: book Declan's meetups
   VIEWS.omeetups = function () {
-    shell('<h1>Declan’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview Declan’s guides</a><div id="pushcard"></div><button id="book">＋ Book a meetup</button>' + meetupSections() +
+    shell('<h1>' + pn() + '’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview the guides</a><div id="pushcard"></div><button id="book">＋ Book a meetup</button>' + meetupSections() +
       '<div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { go('obook'); };
     renderPushCard();
@@ -1042,24 +1079,27 @@
   function toLocalInput(iso) { var d = new Date(iso), p = function (n) { return (n < 10 ? '0' : '') + n; }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); }
   VIEWS.obook = function (id) {
     var m = id ? meetups.filter(function (x) { return x.id === id; })[0] : null;
+    var who = m ? partnerById(m.partner_id) : viewingPartner(), tz = who ? (who.timezone || 'Australia/Brisbane') : 'Australia/Brisbane';
     shell('<h1>' + (m ? 'Edit meetup' : 'Book a meetup') + '</h1><div class="card">' +
+      (!m && partnerOptions().length > 1 ? '<label>Booking for</label><select id="sp">' + partnerOptions().map(function (p) { return '<option value="' + p.id + '"' + (who && who.id === p.id ? ' selected' : '') + '>' + esc(p.name) + (p.city_name ? ' · ' + esc(p.city_name) : '') + '</option>'; }).join('') + '</select>' : '') +
       '<label>Seller’s name</label><input id="sn" autocomplete="off" value="' + esc(m ? m.seller_name : '') + '">' +
       '<label>Phone model</label><input id="sm" list="modellist" autocomplete="off" placeholder="e.g. iPhone 14 Pro 256GB" value="' + esc(m ? m.model : '') + '"><datalist id="modellist">' + catalogue.models.map(function (x) { return '<option value="' + esc(x.name) + '">'; }).join('') + '</datalist>' +
       '<label>Issues</label><textarea id="si" rows="2" placeholder="e.g. cracked screen, battery 82%">' + esc(m ? m.issues || '' : '') + '</textarea>' +
       '<label>Quote ($)</label><input id="sq" inputmode="text" placeholder="e.g. 230-260" value="' + esc(m ? quoteText(m.quoted_min_cents, m.quoted_max_cents) : '') + '">' +
-      '<label>Date and time</label><input id="sw" type="datetime-local" value="' + (m ? toLocalInput(m.starts_at) : '') + '">' +
+      '<label>Date and time' + (who && who.city_name && tz !== Intl.DateTimeFormat().resolvedOptions().timeZone ? ' (' + esc(who.city_name) + ' time)' : '') + '</label><input id="sw" type="datetime-local" value="' + (m ? toZonedInput(m.starts_at, tz) : '') + '">' +
       '<label>Where are they meeting?</label><input id="sl" autocomplete="off" placeholder="e.g. Stockland Aitkenvale, food court" value="' + esc(m ? m.location || '' : '') + '">' +
-      '<label>Notes for Declan (optional)</label><textarea id="sx" rows="2">' + esc(m ? m.notes || '' : '') + '</textarea>' +
+      '<label>Notes for ' + esc(who ? who.name : 'them') + ' (optional)</label><textarea id="sx" rows="2">' + esc(m ? m.notes || '' : '') + '</textarea>' +
       '<div class="err" id="err"></div></div><button id="save">' + (m ? 'Save changes' : 'Book it') + '</button><div class="gap"></div><button class="secondary" id="cancel">Cancel</button>');
     $('cancel').onclick = function () { go('omeetups'); };
     $('save').onclick = async function () {
-      var q = parseQuote($('sq').value), when = $('sw').value ? new Date($('sw').value) : null, declan = partnersList.filter(function (p) { return p.role === 'partner'; })[0], err = '';
+      var picked = $('sp') ? partnerById($('sp').value) : who, ptz = picked ? (picked.timezone || 'Australia/Brisbane') : tz;
+      var q = parseQuote($('sq').value), when = $('sw').value ? zonedToUtc($('sw').value, ptz) : null, declan = picked, err = '';
       if (!$('sn').value.trim()) err = 'Enter the seller’s name.';
       else if (!$('sm').value.trim()) err = 'Enter the phone model.';
       else if (!q) err = 'Enter the quote, like 230-260.';
       else if (!when || isNaN(when)) err = 'Pick the date and time.';
       else if (!$('sl').value.trim()) err = 'Enter where they’re meeting.';
-      else if (!declan) err = 'Declan’s login isn’t set up yet.';
+      else if (!declan) err = 'Their login isn’t set up yet.';
       else if (!navigator.onLine) err = 'You need signal to book a meetup.';
       if (err) { $('err').textContent = err; return; }
       $('save').disabled = true;

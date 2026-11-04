@@ -1,4 +1,4 @@
-// Builds the Apple Calendar feed ("Declan Meetups") from the meetup rows. Pure function so it can be tested.
+// Builds one partner's Apple Calendar feed ("<Name> Meetups") from their meetup rows. Pure function so it can be tested.
 const esc = (t) => String(t == null ? '' : t).replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 const stamp = (d) => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 // Calendar lines must be folded at 75 bytes; fold on characters with headroom for multi-byte ones.
@@ -11,10 +11,10 @@ function fold(line) {
 }
 const dollars = (c) => '$' + (c / 100).toLocaleString('en-AU', { maximumFractionDigits: 2 });
 
-export function buildIcs(meetups, nowMs) {
+export function buildIcs(meetups, nowMs, who = { name: 'Declan', city: 'Townsville', tz: 'Australia/Brisbane' }) {
   const lines = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cash for Phones Townsville//Declan Meetups//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
-    'X-WR-CALNAME:Declan Meetups', 'X-WR-TIMEZONE:Australia/Brisbane', 'REFRESH-INTERVAL;VALUE=DURATION:PT15M', 'X-PUBLISHED-TTL:PT15M',
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cash for Phones ' + who.city + '//' + who.name + ' Meetups//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'X-WR-CALNAME:' + esc(who.name + ' Meetups'), 'X-WR-TIMEZONE:' + who.tz, 'REFRESH-INTERVAL;VALUE=DURATION:PT15M', 'X-PUBLISHED-TTL:PT15M',
   ];
   for (const m of meetups) {
     if (m.status === 'cancelled') continue;
@@ -22,7 +22,7 @@ export function buildIcs(meetups, nowMs) {
     const quote = m.quoted_min_cents === m.quoted_max_cents ? dollars(m.quoted_max_cents) : dollars(m.quoted_min_cents) + '-' + dollars(m.quoted_max_cents);
     const desc = ['Seller: ' + m.seller_name, 'Phone: ' + m.model, 'Quote: ' + quote, m.issues ? 'Issues: ' + m.issues : '', m.notes ? 'Notes: ' + m.notes : ''].filter(Boolean).join('\n');
     lines.push(
-      'BEGIN:VEVENT', 'UID:' + m.id + '@cashforphones.townsville', 'DTSTAMP:' + stamp(m.updated_at || m.created_at || nowMs),
+      'BEGIN:VEVENT', 'UID:' + m.id + '@cashforphones.' + who.city.toLowerCase().replace(/[^a-z]/g, ''), 'DTSTAMP:' + stamp(m.updated_at || m.created_at || nowMs),
       'DTSTART:' + stamp(start), 'DTEND:' + stamp(end),
       'SUMMARY:' + esc('Meetup: ' + m.model + ' (' + m.seller_name + ')'),
       ...(m.location ? ['LOCATION:' + esc(m.location)] : []),

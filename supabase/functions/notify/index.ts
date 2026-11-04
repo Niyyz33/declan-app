@@ -4,7 +4,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
 
-const when = (iso: string) => new Date(iso).toLocaleString('en-AU', { timeZone: 'Australia/Brisbane', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+const when = (iso: string, tz: string) => new Date(iso).toLocaleString('en-AU', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
@@ -28,6 +28,9 @@ Deno.serve(async (req: Request) => {
     return sent;
   }
 
+  // Who each partner is (name + time zone), so alerts use their own clock and name.
+  const { data: people } = await db.from('partners').select('id,name,timezone');
+  const who = (id: string) => (people ?? []).find((p: { id: string }) => p.id === id) as { name: string; timezone: string } | undefined;
   async function ownerIds() { const { data } = await db.from('partners').select('id').eq('role', 'owner'); return (data ?? []).map((o: { id: string }) => o.id); }
   async function sendOwners(payload: Record<string, string>) { let n = 0; for (const id of await ownerIds()) n += await send(id, payload); return n; }
 
@@ -42,7 +45,7 @@ Deno.serve(async (req: Request) => {
   // 1. brand-new bookings
   const { data: fresh } = await db.from('partner_meetups').select('*').eq('status', 'booked').is('notified_new_at', null).gt('created_at', new Date(now - 86400000).toISOString());
   for (const m of fresh ?? []) {
-    sentNew += await send(m.partner_id, { title: 'New meetup booked', body: `${when(m.starts_at)} — ${m.model} (${m.seller_name})${m.location ? ' at ' + m.location : ''}`, url: './?go=meetups', tag: 'new-' + m.id });
+    sentNew += await send(m.partner_id, { title: 'New meetup booked', body: `${when(m.starts_at, who(m.partner_id)?.timezone ?? 'Australia/Brisbane')} — ${m.model} (${m.seller_name})${m.location ? ' at ' + m.location : ''}`, url: './?go=meetups', tag: 'new-' + m.id });
     await db.from('partner_meetups').update({ notified_new_at: new Date().toISOString() }).eq('id', m.id);
   }
   // 2. one hour to go (or less, if it was booked at short notice)
@@ -51,7 +54,7 @@ Deno.serve(async (req: Request) => {
     const mins = Math.max(1, Math.round((new Date(m.starts_at).getTime() - now) / 60000));
     const title = mins >= 55 ? 'Meetup in 1 hour' : `Meetup in ${mins} minutes`, body = `${m.model} with ${m.seller_name}${m.location ? ' — ' + m.location : ''}`;
     sentSoon += await send(m.partner_id, { title, body, url: './?go=meetups', tag: 'soon-' + m.id });
-    await sendOwners({ title: 'Declan: ' + title.toLowerCase(), body, url: './?go=meetups', tag: 'osoon-' + m.id });
+    await sendOwners({ title: (who(m.partner_id)?.name ?? 'Partner') + ': ' + title.toLowerCase(), body, url: './?go=meetups', tag: 'osoon-' + m.id });
     await db.from('partner_meetups').update({ reminded_at: new Date().toISOString() }).eq('id', m.id);
   }
   // 3. shipping: Ethan sent the label -> tell Declan; Declan posted it -> tell Ethan
@@ -65,7 +68,7 @@ Deno.serve(async (req: Request) => {
   }
   const { data: posted } = await db.from('partner_batches').select('*').not('posted_at', 'is', null).is('notified_posted_at', null);
   for (const b of posted ?? []) {
-    ship += await sendOwners({ title: 'Declan posted a batch', body: `${await count(b.id)} phones · tracking ${b.tracking_number ?? ''}`, url: './?go=ship', tag: 'posted-' + b.id });
+    ship += await sendOwners({ title: (who(b.partner_id)?.name ?? 'Partner') + ' posted a batch', body: `${await count(b.id)} phones · tracking ${b.tracking_number ?? ''}`, url: './?go=ship', tag: 'posted-' + b.id });
     await db.from('partner_batches').update({ notified_posted_at: new Date().toISOString() }).eq('id', b.id);
   }
   return Response.json({ newBookings: sentNew, oneHour: sentSoon, shipping: ship });

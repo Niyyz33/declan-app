@@ -1,0 +1,13 @@
+{
+  "name": "Cash for Phones Melbourne",
+  "short_name": "Cash for Phones",
+  "start_url": "melbourne.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#00091a",
+  "theme_color": "#00091a",
+  "icons": [
+    { "src": "icons/mel-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/mel-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
