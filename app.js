@@ -1163,6 +1163,17 @@
     return html;
   }
   function telFor(n) { var d = String(n || '').replace(/[^\d+]/g, ''); if (d.charAt(0) === '0') d = '+61' + d.slice(1); return d; }
+  // Drafted texts for the seller: one to confirm the time (the app alerts Declan an hour before) and one for when he arrives
+  function sellerButtons(m) {
+    var tel = telFor(m.seller_contact), me = profile.name || 'Declan', first = String(m.seller_name || '').split(' ')[0] || 'there';
+    if (isOwner()) return '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink green" href="sms:' + tel + '">💬 Message ' + esc(first) + '</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
+    var d = new Date(m.starts_at), clock = d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }), isToday = d.toDateString() === new Date().toDateString(),
+      day = isToday ? ' today' : ' on ' + d.toLocaleDateString('en-AU', { weekday: 'long' });
+    var confirmTxt = 'Hey ' + first + ', it’s ' + me + ' from Cash for Phones. Just checking you’re still good for our ' + clock + ' meetup' + day + ' for your ' + m.model + '?';
+    var arriveTxt = 'Hey ' + first + ', it’s ' + me + '. I’ve just arrived' + (m.location ? ' at ' + m.location : '') + '.';
+    return '<div style="margin-top:8px"><a class="btnlink green" href="sms:' + tel + '&body=' + encodeURIComponent(confirmTxt) + '">💬 Confirm with ' + esc(first) + '</a></div>' +
+      '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink" href="sms:' + tel + '&body=' + encodeURIComponent(arriveTxt) + '">📍 I’ve arrived</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
+  }
   function meetupCard(m) {
     var st = MEETUP_STATUS[m.status] || ['bought', m.status], owner = isOwner(), booked = m.status === 'booked', late = booked && new Date(m.starts_at) < new Date();
     var acts = '';
@@ -1171,7 +1182,7 @@
     return '<div class="card phonecard"><div class="top"><div><div class="name">' + fmtWhen(m.starts_at, m.partner_id) + '</div><div class="meta">' + (late ? '<span style="color:var(--amber)">Did this happen? </span>' : '') + esc(m.model) + '</div></div><span class="pill ' + st[0] + '">' + st[1] + '</span></div>' +
       '<div style="margin-top:8px"><b>' + esc(m.seller_name) + '</b> · Quote ' + money(m.quoted_min_cents) + (m.quoted_max_cents !== m.quoted_min_cents ? '–' + money(m.quoted_max_cents) : '') + '</div>' +
       (m.issues ? '<div class="muted">' + esc(m.issues) + '</div>' : '') +
-      (m.seller_contact ? '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink green" href="sms:' + telFor(m.seller_contact) + '">💬 Message ' + esc(m.seller_name) + '</a><a class="btnlink" href="tel:' + telFor(m.seller_contact) + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>' : '') +
+      (m.seller_contact ? sellerButtons(m) : '') +
       (m.location ? '<div style="margin-top:6px"><a class="maplink" href="' + mapsLink(m.location) + '">📍 ' + esc(m.location) + '</a></div>' : '') +
       (m.notes ? '<div class="muted" style="margin-top:4px">' + esc(m.notes) + '</div>' : '') +
       (m._pending ? '<div class="muted" style="margin-top:6px">waiting to send</div>' : '') + acts + '</div>';

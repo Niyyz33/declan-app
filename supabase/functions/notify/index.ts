@@ -54,7 +54,10 @@ Deno.serve(async (req: Request) => {
   for (const m of soon ?? []) {
     const mins = Math.max(1, Math.round((new Date(m.starts_at).getTime() - now) / 60000));
     const title = mins >= 55 ? 'Meetup in 1 hour' : `Meetup in ${mins} minutes`, body = `${m.model} with ${m.seller_name}${m.location ? ' — ' + m.location : ''}`;
-    sentSoon += await send(m.partner_id, { title, body, url: './?go=meetups', tag: 'soon-' + m.id });
+    const tz = who(m.partner_id)?.timezone ?? 'Australia/Brisbane', clock = new Date(m.starts_at).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' });
+    // with a seller number on the booking: tell the partner to message them and check they're still good
+    const pTitle = m.seller_contact ? `${title}: message ${m.seller_name}` : title, pBody = m.seller_contact ? `Check they’re still good for ${clock}. Tap to open your meetup.` : body;
+    sentSoon += await send(m.partner_id, { title: pTitle, body: pBody, url: './?go=meetups', tag: 'soon-' + m.id });
     await sendOwners({ title: (who(m.partner_id)?.name ?? 'Partner') + ': ' + title.toLowerCase(), body, url: './?go=meetups', tag: 'osoon-' + m.id });
     await db.from('partner_meetups').update({ reminded_at: new Date().toISOString() }).eq('id', m.id);
   }
