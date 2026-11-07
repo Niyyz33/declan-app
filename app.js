@@ -1475,6 +1475,7 @@
     if (deep === 'meetups' && !isOwner()) go('meetups');
     if (deep === 'avail' && !isOwner()) go('avail');
     if (deep === 'ship') go(isOwner() ? 'oship' : 'ship');
+    if (deep === 'agreement' && !isOwner()) loadProfile().then(function () { if (profile.agreement_version) go('agreement'); });
     if (deep) history.replaceState(null, '', location.pathname);
     loadCatalogue(); loadProfile(); refreshPhones(); syncQueue(); ensurePush();
     window.addEventListener('online', function () { loadCatalogue(); loadProfile(); syncQueue(); renderBanner(); });
