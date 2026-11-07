@@ -146,3 +146,5 @@ label.chk input { width:auto; margin-top:3px; flex:none; }
 button.tick { width:30px; height:30px; min-width:30px; padding:0; border-radius:50%; background:transparent; border:2px solid var(--line); box-shadow:none; color:#fff; font-weight:800; font-size:16px; line-height:1; flex:none; margin-top:1px; }
 button.tick.on { background:var(--green); border-color:var(--green); }
 a.onblink { flex:none; align-self:center; color:var(--blue2); font-weight:700; text-decoration:none; padding:8px 10px; border-radius:12px; background:var(--card2); border:1px solid var(--line); }
+
+.agree h3{margin:16px 0 4px;font-size:17px}.agree p{margin:0 0 8px}.agree ol{margin:4px 0 8px;padding-left:22px}.agree li{margin:0 0 6px}.agree .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}

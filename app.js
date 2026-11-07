@@ -34,6 +34,7 @@
   var serverPhones = load('phones', []);
   var serverBatches = load('batches', []);
   var queue = load('queue', []);
+  var agreementRows = load('agreements', []);
   var profile = load('profile', { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '', signed_off_at: null, avail_on: false, avail_start: null, avail_end: null, meet: '', ship: {}, tested: null });
   var meetups = load('meetups', []);
   var payments = load('payments', []);
@@ -59,7 +60,7 @@
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
-  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml', 'onb', 'avail'].forEach(function (k) { save(k, null); }); listPrices = []; pushHtml = ''; onb = { items: [], progress: [] }; avail = []; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml', 'onb', 'avail', 'agreements'].forEach(function (k) { save(k, null); }); agreementRows = []; listPrices = []; pushHtml = ''; onb = { items: [], progress: [] }; avail = []; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
   // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
   function versionText(v) {
     var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
@@ -107,6 +108,74 @@
       profile = Object.assign({}, profile, { meet: v.meet, ship: { name: v.name, phone: v.phone, street: v.street, suburb: v.suburb, state: v.state, postcode: v.postcode } }); save('profile', profile);
       go('home');
     };
+  }
+
+  // ---- agreements: read it, fill in your details and sign by typing your name. Ethan can countersign. ----
+  async function loadAgreements() {
+    if (!sb || !session || !session.user || !navigator.onLine) return;
+    try {
+      var r = await sb.from('agreements').select('id,partner_id,version,body_html,details,signed_name,signed_at,owner_signed_name,owner_signed_at');
+      if (r && !r.error && r.data) { agreementRows = r.data; save('agreements', agreementRows); }
+    } catch (e) { /* offline */ }
+  }
+  function agreementFor(partnerId, version) { return agreementRows.filter(function (r) { return r.partner_id === partnerId && r.version === version; })[0] || null; }
+  function myAgreement() { return profile.agreement_version && session && session.user ? agreementFor(session.user.id, profile.agreement_version) : null; }
+  function fmtStamp(iso) { return new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  function agreementCard() {
+    if (isOwner() || !profile.agreement_version || !(window.AGREEMENTS || {})[profile.agreement_version]) return '';
+    var row = myAgreement();
+    if (row) return '<div class="card"><div class="row between"><b>📝 Your agreement</b><span class="pill sold">Signed</span></div><div class="muted" style="margin:6px 0 10px">Signed ' + esc(fmtStamp(row.signed_at)) + '.</div><button class="secondary small" id="agreego">View it</button></div>';
+    return '<div class="card" style="border-color:var(--amber)"><b>📝 Sign your agreement</b><div class="muted" style="margin:6px 0 12px">Read it, fill in your details and sign here in the app. It takes two minutes.</div><button id="agreego">Read and sign</button></div>';
+  }
+  function copyDoc(row) {
+    var d = row.details || {};
+    var rows = [['Full name', d.name], ['Date of birth', d.dob], ['Address', d.address], ['Mobile', d.mobile], ['Email', d.email]].map(function (x) { return '<tr><td>' + x[0] + '</td><td>' + esc(x[1] || '') + '</td></tr>'; }).join('');
+    var html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Trial agreement</title><style>body{font:16px/1.5 -apple-system,system-ui,sans-serif;max-width:720px;margin:24px auto;padding:0 18px;color:#111}h3{margin:20px 0 4px}table{border-collapse:collapse;width:100%;margin:12px 0}td{border:1px solid #bbb;padding:8px}.eyebrow{letter-spacing:.12em;text-transform:uppercase;font-size:13px;color:#555}.sig{margin-top:20px;border-top:2px solid #111;padding-top:8px}@media print{body{margin:0}}</style></head><body><h1>One-week trial agreement</h1>' + row.body_html +
+      '<h3>Quinn’s details</h3><table>' + rows + '</table>' +
+      '<div class="sig"><b>Signed electronically by ' + esc(row.signed_name) + '</b><br>' + esc(fmtStamp(row.signed_at)) + '</div>' +
+      (row.owner_signed_at ? '<div class="sig"><b>Countersigned by ' + esc(row.owner_signed_name) + '</b><br>' + esc(fmtStamp(row.owner_signed_at)) + '</div>' : '<div class="sig">Not yet countersigned by Ethan</div>') + '</body></html>';
+    var url = URL.createObjectURL(new Blob([html], { type: 'text/html' })), w = window.open(url, '_blank'); if (!w) location.href = url;
+  }
+  function viewAgreement() {
+    var A = (window.AGREEMENTS || {})[profile.agreement_version], row = myAgreement();
+    if (!A) { go('home'); return; }
+    if (row) {
+      shell('<h1>Your agreement</h1><div class="card"><b>✓ Signed</b><div class="muted">You signed on ' + esc(fmtStamp(row.signed_at)) + '.' + (row.owner_signed_at ? ' Ethan countersigned on ' + esc(fmtStamp(row.owner_signed_at)) + '.' : ' Ethan will countersign.') + '</div></div><div class="card agree">' + row.body_html + '</div><button id="acopy">Open a copy to save or print</button><div class="gap"></div><button class="secondary" id="aback">Back</button>');
+      $('acopy').onclick = function () { copyDoc(row); }; $('aback').onclick = function () { go('home'); }; return;
+    }
+    var sh = profile.ship || {}, email = session && session.user ? session.user.email || '' : '', addr = [sh.street, sh.suburb, sh.state, sh.postcode].filter(Boolean).join(', ');
+    shell('<h1>' + esc(A.title) + '</h1><div class="card agree">' + A.html + '</div>' +
+      '<div class="card"><b>Your details</b><label>Full name</label><input id="a_name" autocomplete="name" value="' + esc(sh.name || '') + '"><label>Date of birth</label><input id="a_dob" type="date"><label>Address</label><input id="a_addr" autocomplete="street-address" value="' + esc(addr) + '"><label>Mobile</label><input id="a_mob" type="tel" inputmode="tel" autocomplete="tel" value="' + esc(sh.phone || '') + '"><label>Email</label><input id="a_email" type="email" autocomplete="email" value="' + esc(email) + '"></div>' +
+      '<div class="card"><label style="display:flex;gap:10px;align-items:flex-start;color:var(--text)"><input id="a_ok" type="checkbox" style="width:24px;height:24px;flex:none"><span>I am 18 or over, I have read this agreement, and I agree to it.</span></label><label>Type your full name to sign</label><input id="a_sig" autocomplete="off"><div class="hint">Typing your name here is your electronic signature. The date and time are recorded.</div><div class="err" id="err"></div></div>' +
+      '<button id="asign">Sign agreement</button><div class="gap"></div><button class="secondary" id="aback">Back</button>');
+    $('aback').onclick = function () { go('home'); };
+    $('asign').onclick = async function () {
+      var d = { name: $('a_name').value.trim(), dob: $('a_dob').value, address: $('a_addr').value.trim(), mobile: $('a_mob').value.trim(), email: $('a_email').value.trim() }, sig = $('a_sig').value.trim();
+      if (!d.name || !d.dob || !d.address || !d.mobile || !d.email) { $('err').textContent = 'Fill in all of your details.'; return; }
+      if (!$('a_ok').checked) { $('err').textContent = 'Tick the box to confirm you agree.'; return; }
+      if (sig.toLowerCase().replace(/\s+/g, ' ') !== d.name.toLowerCase().replace(/\s+/g, ' ')) { $('err').textContent = 'Type your full name exactly as above to sign.'; return; }
+      if (!navigator.onLine) { $('err').textContent = 'You need signal to sign.'; return; }
+      $('asign').disabled = true;
+      var r = await sb.rpc('sign_agreement', { p_version: profile.agreement_version, p_body: A.html, p_details: d, p_name: sig, p_ua: navigator.userAgent });
+      if (r.error) { $('err').textContent = 'Couldn’t sign: ' + r.error.message; $('asign').disabled = false; return; }
+      await loadAgreements(); go('agreement');
+    };
+  }
+  function agreementOwnerCard() {
+    var v = viewingPartner(); if (!v || !v.agreement_version) return '';
+    var row = agreementFor(v.id, v.agreement_version);
+    if (!row) return '<div class="card"><b>📝 ' + esc(v.name) + '’s agreement</b><div class="muted" style="margin-top:4px">Not signed yet. They sign it in their app (a card on Home).</div></div>';
+    return '<div class="card"><div class="row between"><b>📝 ' + esc(v.name) + '’s agreement</b><span class="pill sold">Signed</span></div><div class="muted" style="margin:6px 0 10px">' + esc(row.signed_name) + ' signed ' + esc(fmtStamp(row.signed_at)) + '.' + (row.owner_signed_at ? ' You countersigned ' + esc(fmtStamp(row.owner_signed_at)) + '.' : ' Not countersigned yet.') + '</div><div class="row" style="gap:8px">' + (row.owner_signed_at ? '' : '<button class="small" data-acounter="' + row.id + '">Countersign</button>') + '<button class="secondary small" data-acopy="' + row.id + '">View signed copy</button></div></div>';
+  }
+  function bindAgreementsOwner() {
+    [].forEach.call(document.querySelectorAll('[data-acopy]'), function (b) { b.onclick = function () { var r = agreementRows.filter(function (x) { return x.id === b.getAttribute('data-acopy'); })[0]; if (r) copyDoc(r); }; });
+    [].forEach.call(document.querySelectorAll('[data-acounter]'), function (b) {
+      b.onclick = async function () {
+        var nm = window.prompt('Type your full name to countersign', 'Ethan Lancuba'); if (!nm || nm.trim().length < 3) return;
+        b.disabled = true; var r = await sb.rpc('countersign_agreement', { p_id: b.getAttribute('data-acounter'), p_name: nm }); if (r.error) { alert('Couldn’t countersign: ' + r.error.message); b.disabled = false; return; }
+        await loadAgreements(); go('omeetups', undefined, true);
+      };
+    });
   }
   // ---- one-time "send me a test alert" (hides for good once he says it arrived) ----
   var testState = '';
@@ -426,13 +495,14 @@
   async function loadProfile() {
     if (!sb || !session || !session.user || !navigator.onLine) return;
     try {
-      var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min,meet_location,ship_name,ship_phone,ship_street,ship_suburb,ship_state,ship_postcode,alerts_tested_at').eq('id', session.user.id).maybeSingle();
+      var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min,meet_location,ship_name,ship_phone,ship_street,ship_suburb,ship_state,ship_postcode,alerts_tested_at,agreement_version').eq('id', session.user.id).maybeSingle();
       var before = profile.role;
-      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '', signed_off_at: p.data.signed_off_at || null, avail_on: !!p.data.default_avail_enabled, avail_start: p.data.default_avail_start_min, avail_end: p.data.default_avail_end_min, meet: p.data.meet_location || '', ship: { name: p.data.ship_name || '', phone: p.data.ship_phone || '', street: p.data.ship_street || '', suburb: p.data.ship_suburb || '', state: p.data.ship_state || '', postcode: p.data.ship_postcode || '' }, tested: p.data.alerts_tested_at || null }; save('profile', profile); routeToMyCity(); }
+      if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '', signed_off_at: p.data.signed_off_at || null, avail_on: !!p.data.default_avail_enabled, avail_start: p.data.default_avail_start_min, avail_end: p.data.default_avail_end_min, meet: p.data.meet_location || '', ship: { name: p.data.ship_name || '', phone: p.data.ship_phone || '', street: p.data.ship_street || '', suburb: p.data.ship_suburb || '', state: p.data.ship_state || '', postcode: p.data.ship_postcode || '' }, tested: p.data.alerts_tested_at || null, agreement_version: p.data.agreement_version || null }; save('profile', profile); routeToMyCity(); }
       if (before !== profile.role && current && current !== 'login') setTimeout(function () { go(isOwner() ? 'omeetups' : 'home'); }, 0);
-      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,price_city,city_name,timezone,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min,meet_location,ship_name,ship_phone,ship_street,ship_suburb,ship_state,ship_postcode'); if (pl && !pl.error) { var plBefore = JSON.stringify(partnersList); partnersList = pl.data; save('partners', partnersList); if (JSON.stringify(partnersList) !== plBefore && ['omeetups', 'phones', 'oship', 'ostatement'].indexOf(current) > -1 && !typingNow()) go(current, undefined, true); } }
+      if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,agreement_version,price_city,city_name,timezone,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min,meet_location,ship_name,ship_phone,ship_street,ship_suburb,ship_state,ship_postcode'); if (pl && !pl.error) { var plBefore = JSON.stringify(partnersList); partnersList = pl.data; save('partners', partnersList); if (JSON.stringify(partnersList) !== plBefore && ['omeetups', 'phones', 'oship', 'ostatement'].indexOf(current) > -1 && !typingNow()) go(current, undefined, true); } }
       var s = await sb.from('app_settings').select('key,value');
       if (!s.error && s.data) { var o = {}; s.data.forEach(function (x) { o[x.key] = x.value; }); settings = o; save('settings', o); }
+      await loadAgreements();
     } catch (e) { /* offline, or settings not set up yet */ }
   }
   // Everything Declan has, with unsent changes applied on top so the screen is always right.
@@ -484,7 +554,7 @@
   var pendingReload = false;
   var VIEWS = {};
   VIEWS.avail = viewAvail;
-  VIEWS.details = viewDetails;
+  VIEWS.details = viewDetails; VIEWS.agreement = viewAgreement;
   function go(view, arg, keepScroll) {
     if (pendingReload && view === 'home') { location.reload(); return; }
     if (isOwner() && (view === 'home' || view === 'log')) view = 'omeetups';
@@ -561,7 +631,7 @@
     shell('<div class="greet"><img src="' + logoSrc() + '" alt=""><div><h1>' + name + ' 👋</h1><div id="sentstatus" style="font-weight:600;font-size:14px"></div></div></div>' +
       installTip() +
       (inProgress ? '<div class="card"><b>Phone in progress</b><div class="muted">' + esc(draft.model) + ' — saved, pick up where you left off.</div><div class="row" style="margin-top:12px"><button id="cont">Continue</button><button class="secondary" id="discard">Discard</button></div></div>' : '') +
-      nextMeetupCard() + '<div id="pushcard"></div>' + testCard() + detailsCard() + availCard() + feeCard() + reviewCard() + onbCard() +
+      agreementCard() + nextMeetupCard() + '<div id="pushcard"></div>' + testCard() + detailsCard() + availCard() + feeCard() + reviewCard() + onbCard() +
       '<button id="log" style="font-size:18px;padding:18px">＋ Log a phone</button>' +
       '<h2>Ready to ship</h2><div class="card"><div class="row between"><b>' + ready + ' damaged ' + (ready === 1 ? 'phone' : 'phones') + '</b><span class="muted fixed">' + (ready >= MIN_SHIP ? 'Ready to ship!' : (MIN_SHIP - ready) + ' more to go') + '</span></div>' +
       '<div class="bar"><i style="width:' + Math.min(100, Math.round(ready / MIN_SHIP * 100)) + '%"></i></div>' +
@@ -571,6 +641,7 @@
       (tel ? '<h2>Need Ethan?</h2><div class="row"><a class="btnlink green" href="sms:' + tel + '">💬 Message Ethan</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div>' : '') +
       '<div class="row" style="margin-top:18px"><button class="link" id="help">Rules &amp; help</button><button class="link" id="mydetails">My details</button><button class="link" id="out" style="text-align:right">Log out</button></div>' +
       '<div class="sync" id="syncline">' + syncLine() + '</div>');
+    if ($('agreego')) $('agreego').onclick = function () { go('agreement'); };
     if ($('nextm')) $('nextm').onclick = function () { go('meetups'); };
     bindOnb();
     if ($('onbmytoggle')) $('onbmytoggle').onclick = function () { onbMyOpen = !onbMyOpen; save('onbopen', onbMyOpen); go('home', undefined, true); };
@@ -1317,10 +1388,10 @@
 
   // owner side: book Declan's meetups
   VIEWS.omeetups = function () {
-    shell('<h1>' + pn() + '’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview the guides</a><div id="pushcard"></div>' + availOwnerCard() + onbOwnerCard() + '<button id="book">＋ Book a meetup</button>' + meetupSections() +
+    shell('<h1>' + pn() + '’s meetups</h1><a class="btnlink" href="guides.html" style="margin-bottom:12px">📖 Preview the guides</a><div id="pushcard"></div>' + availOwnerCard() + agreementOwnerCard() + onbOwnerCard() + '<button id="book">＋ Book a meetup</button>' + meetupSections() +
       '<div class="row" style="margin-top:18px"><span class="muted">' + esc(profile.name || 'Ethan') + ' · owner · ' + esc(versionText(VERSION)) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { go('obook'); };
-    bindOnbOwner();
+    bindOnbOwner(); bindAgreementsOwner();
     renderPushCard();
     $('out').onclick = async function () { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; current = ''; clearCaches(); go('login'); };
     bindMeetupActions();
