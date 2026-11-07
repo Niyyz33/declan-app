@@ -561,7 +561,7 @@
     shell('<div class="greet"><img src="' + logoSrc() + '" alt=""><div><h1>' + name + ' 👋</h1><div id="sentstatus" style="font-weight:600;font-size:14px"></div></div></div>' +
       installTip() +
       (inProgress ? '<div class="card"><b>Phone in progress</b><div class="muted">' + esc(draft.model) + ' — saved, pick up where you left off.</div><div class="row" style="margin-top:12px"><button id="cont">Continue</button><button class="secondary" id="discard">Discard</button></div></div>' : '') +
-      nextMeetupCard() + '<div id="pushcard"></div>' + testCard() + detailsCard() + availCard() + feeCard() + onbCard() +
+      nextMeetupCard() + '<div id="pushcard"></div>' + testCard() + detailsCard() + availCard() + feeCard() + reviewCard() + onbCard() +
       '<button id="log" style="font-size:18px;padding:18px">＋ Log a phone</button>' +
       '<h2>Ready to ship</h2><div class="card"><div class="row between"><b>' + ready + ' damaged ' + (ready === 1 ? 'phone' : 'phones') + '</b><span class="muted fixed">' + (ready >= MIN_SHIP ? 'Ready to ship!' : (MIN_SHIP - ready) + ' more to go') + '</span></div>' +
       '<div class="bar"><i style="width:' + Math.min(100, Math.round(ready / MIN_SHIP * 100)) + '%"></i></div>' +
@@ -1234,6 +1234,19 @@
     if (next) html += '<div class="card" id="nextm" style="cursor:pointer"><div class="muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:12px">Next meetup</div><div class="name" style="font-size:18px;font-weight:800;margin-top:4px">' + fmtWhen(next.starts_at, next.partner_id) + '</div><div>' + esc(next.seller_name) + ' · ' + esc(next.model) + '</div>' + (next.location ? '<div class="muted">📍 ' + esc(next.location) + '</div>' : '') + '</div>';
     return html;
   }
+  // Google review link (Ethan sets it in app_settings). Partners ask every seller once they've been paid.
+  function reviewUrl() { return String(settings.review_url || '').trim(); }
+  function reviewCard() {
+    if (isOwner() || !reviewUrl()) return '';
+    return '<div class="card"><b>⭐ Google review link</b><div class="muted" style="margin-top:2px">Ask every seller once they’ve been paid. Show them this, or send it to them.</div><div class="row" style="margin-top:10px;gap:8px"><button class="small" data-review="share">Share link</button><button class="secondary small" data-review="copy">Copy link</button></div></div>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-review]') : null, u = reviewUrl();
+    if (!b || !u) return;
+    if (b.getAttribute('data-review') === 'copy') { try { navigator.clipboard.writeText(u); b.textContent = 'Copied ✓'; } catch (err) { b.textContent = u; } }
+    else if (navigator.share) navigator.share({ title: 'Leave us a review', url: u }).catch(function () { /* cancelled */ });
+    else window.location.href = u;
+  });
   function telFor(n) { var d = String(n || '').replace(/[^\d+]/g, ''); if (d.charAt(0) === '0') d = '+61' + d.slice(1); return d; }
   // Drafted texts for the seller: one to confirm the time (the app alerts Declan an hour before) and one for when he arrives
   function sellerButtons(m) {
@@ -1250,7 +1263,7 @@
     var st = MEETUP_STATUS[m.status] || ['bought', m.status], owner = isOwner(), booked = m.status === 'booked', late = booked && new Date(m.starts_at) < new Date();
     var acts = '';
     if (owner && booked) acts = '<div class="acts"><button class="secondary small" data-medit="' + m.id + '">Edit</button><button class="secondary small" data-mcancel="' + m.id + '" style="color:var(--red)">Cancel meetup</button></div>';
-    if (!owner && booked) acts = '<div class="acts"><button class="small" data-mlog="' + m.id + '">Log this phone</button><button class="secondary small" data-mans="no_sale" data-id="' + m.id + '">No sale</button><button class="secondary small" data-mans="no_show" data-id="' + m.id + '">No show</button></div>';
+    if (!owner && booked) acts = '<div class="acts"><button class="small" data-mlog="' + m.id + '">Log this phone</button><button class="secondary small" data-mans="no_sale" data-id="' + m.id + '">No sale</button><button class="secondary small" data-mans="no_show" data-id="' + m.id + '">No show</button>' + (reviewUrl() ? '<button class="secondary small" data-review="share">⭐ Review link</button>' : '') + '</div>';
     return '<div class="card phonecard"><div class="top"><div><div class="name">' + fmtWhen(m.starts_at, m.partner_id) + '</div><div class="meta">' + (late ? '<span style="color:var(--amber)">Did this happen? </span>' : '') + esc(m.model) + '</div></div><span class="pill ' + st[0] + '">' + st[1] + '</span></div>' +
       '<div style="margin-top:8px"><b>' + esc(m.seller_name) + '</b> · Quote ' + money(m.quoted_min_cents) + (m.quoted_max_cents !== m.quoted_min_cents ? '–' + money(m.quoted_max_cents) : '') + '</div>' +
       (m.issues ? '<div class="muted">' + esc(m.issues) + '</div>' : '') +
@@ -1298,7 +1311,7 @@
     persistDraft(); go('log');
   }
   VIEWS.meetups = function () {
-    shell('<h1>Meetups</h1><div id="pushcard"></div>' + calendarCard() + meetupSections());
+    shell('<h1>Meetups</h1><div id="pushcard"></div>' + calendarCard() + reviewCard() + meetupSections());
     bindMeetupActions(); renderPushCard();
   };
 
