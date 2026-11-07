@@ -23,6 +23,7 @@ values ('<their auth user id>', 'Quinn', 'partner', 'melbourne', 'Melbourne', 'A
 ```
 3. Quinn opens `https://niyyz33.github.io/declan-app/melbourne.html` in Safari → Add to Home Screen (this gives him the Melbourne icon and name). Declan keeps the normal link.
 4. Ethan's owner screens then show a Declan / Quinn switcher (Meetups, Phones, Shipments, Statement). Bookings use the partner's own time zone (Melbourne has daylight saving).
+**Quinn's time zone (7 Nov 2026):** Quinn lives in Townsville until he moves to Melbourne for uni next year, so his partner row is set to `Australia/Brisbane` (still the Melbourne app and branding). When he actually moves, switch it back: `update partners set timezone='Australia/Melbourne' where name='Quinn';` (and `price_city` if prices differ by then).
 Shared by both: models and deduction table, guides, rates/commission, Ethan's phone number. Per partner: list prices (`list_prices.city`), calendar link, alerts, phones, shipments, meetups. Statement fortnights and monthly counts use Brisbane time for both (Ethan's accounting clock). Declan's spreadsheet export is still Declan-only.
 
 ## How meetups and availability work (4 Nov 2026)

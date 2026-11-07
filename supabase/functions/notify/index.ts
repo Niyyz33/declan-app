@@ -29,8 +29,8 @@ Deno.serve(async (req: Request) => {
   }
 
   // Who each partner is (name + time zone), so alerts use their own clock and name.
-  const { data: people } = await db.from('partners').select('id,name,timezone,role,default_avail_enabled,default_avail_start_min,default_avail_end_min,default_avail_changed_at,default_avail_notified_at,avail_asked_on');
-  type Person = { id: string; name: string; timezone: string; role: string; default_avail_enabled: boolean; default_avail_start_min: number | null; default_avail_end_min: number | null; default_avail_changed_at: string | null; default_avail_notified_at: string | null; avail_asked_on: string | null };
+  const { data: people } = await db.from('partners').select('id,name,timezone,role,default_avail_enabled,default_avail_start_min,default_avail_end_min,default_avail_changed_at,default_avail_notified_at,avail_asked_on,avail_prompts_from');
+  type Person = { id: string; name: string; timezone: string; role: string; default_avail_enabled: boolean; default_avail_start_min: number | null; default_avail_end_min: number | null; default_avail_changed_at: string | null; default_avail_notified_at: string | null; avail_asked_on: string | null; avail_prompts_from: string | null };
   const who = (id: string) => (people ?? []).find((p: { id: string }) => p.id === id) as Person | undefined;
   async function ownerIds() { const { data } = await db.from('partners').select('id').eq('role', 'owner'); return (data ?? []).map((o: { id: string }) => o.id); }
   async function sendOwners(payload: Record<string, string>) { let n = 0; for (const id of await ownerIds()) n += await send(id, payload); return n; }
@@ -39,6 +39,14 @@ Deno.serve(async (req: Request) => {
   if (url.searchParams.get('test')) {
     const n = await send(null, { title: 'Cash for Phones', body: 'Test notification — alerts are working ✓', url: './?go=meetups', tag: 'test' });
     return Response.json({ test: true, sent: n });
+  }
+
+  // Manual message: ?msg=text&to=Quinn[&title=...] sends one custom alert to that partner's phone(s).
+  if (url.searchParams.get('msg')) {
+    const target = (people ?? []).find((p: { name: string }) => p.name.toLowerCase() === (url.searchParams.get('to') ?? '').toLowerCase());
+    if (!target) return Response.json({ error: 'Unknown partner' }, { status: 400 });
+    const n = await send(target.id, { title: url.searchParams.get('title') ?? 'Message from Ethan', body: url.searchParams.get('msg')!, url: './', tag: 'msg-' + Date.now() });
+    return Response.json({ message: true, sent: n });
   }
 
   const now = Date.now();
@@ -109,7 +117,7 @@ Deno.serve(async (req: Request) => {
     }
     // 8. each morning (from 8am their time) ask the partner for today's times, unless they use "same time every day"
     const tz = p.timezone ?? 'Australia/Brisbane', today = new Date().toLocaleDateString('en-CA', { timeZone: tz }), hour = parseInt(new Date().toLocaleString('en-AU', { timeZone: tz, hour: 'numeric', hour12: false }), 10) % 24;
-    if (hour >= 8 && hour < 13 && p.avail_asked_on !== today) {
+    if (hour >= 8 && hour < 13 && p.avail_asked_on !== today && !(p.avail_prompts_from && today < p.avail_prompts_from)) {
       if (!p.default_avail_enabled) {
         const { count: has } = await db.from('partner_availability').select('day', { count: 'exact', head: true }).eq('partner_id', p.id).eq('day', today);
         if (!has) asked += await send(p.id, { title: 'What time are you free today?', body: 'Tap to tell Ethan when you can do meetups.', url: './?go=avail', tag: 'ask-avail-' + today });
