@@ -1,7 +1,7 @@
 // Deduction helper for Declan's inspection. Pure logic (no browser needed) so it can be tested.
 // Ethan's rules (3 Nov 2026): follow Ben's table for every fault, EXCEPT:
 //  - battery under 85%: $50 on iPhone 14 and below, $70 on iPhone 15 and above; always under 80%
-//  - smashed camera lens: $20 per lens; $50 per lens if the camera itself is exposed
+//  - smashed camera lens: $50 per lens; $50 per lens if the camera itself is exposed (7 Nov: every deduction is at least $50, judged by feel)
 //  - scratched or third-party/replaced screen = the full broken-screen deduction
 //  - third-party parts always deduct; frame chips/scratches deduct
 (function (root) {
@@ -21,7 +21,6 @@
     { id: 'speaker', label: 'Speaker / earpiece / buttons issue', ben: 'speaker' },
     { id: 'rearCam', label: 'Rear camera not working', ben: 'rearCam' },
     { id: 'frontCam', label: 'Front camera not working', ben: 'frontCam' },
-    { id: 'board', label: 'Wi-Fi / Bluetooth / cellular issue', ben: 'board' },
     { id: 'parts_other', label: 'Other third-party / replaced parts', ben: 'smallParts' }
   ];
 
@@ -72,7 +71,7 @@
       });
     }
     var cracked = o.lensesCracked || 0, exposed = o.lensesExposed || 0;
-    if (cracked > 0) lines.push({ id: 'lens_cracked', label: 'Smashed camera lens x' + cracked, cents: 2000 * cracked, priced: true, required: false });
+    if (cracked > 0) lines.push({ id: 'lens_cracked', label: 'Smashed camera lens x' + cracked, cents: 5000 * cracked, priced: true, required: false });
     if (exposed > 0) lines.push({ id: 'lens_exposed', label: 'Camera exposed (lens gone) x' + exposed, cents: 5000 * exposed, priced: true, required: false });
     return lines;
   }

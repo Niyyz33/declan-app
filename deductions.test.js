@@ -25,7 +25,7 @@ assert(!b.required && b.cents === 5000);
 assert.equal(D.suggest({ model: 'iPhone 13', deds: [], batteryPct: 90 }).length, 0);
 // lenses
 l = D.suggest({ model: 'iPhone 14', deds, lensesCracked: 2, lensesExposed: 1 });
-assert.deepEqual(l.map(x => x.cents), [4000, 5000]);
+assert.deepEqual(l.map(x => x.cents), [10000, 5000]);
 // unpriced model flagged
 l = D.suggest({ model: 'iPhone 17', deds, faults: ['back_broken'] });
 assert(!l[0].priced && l[0].cents === 0);
