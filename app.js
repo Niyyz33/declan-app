@@ -56,13 +56,14 @@
   function $(id) { return document.getElementById(id); }
   function all(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
   function dollarsToCents(v) { var n = parseFloat(v); return isNaN(n) ? null : Math.round(n * 100); }
-  // Android version of the install / alerts / calendar instructions. Only the Sydney page asks for it, and only on a phone that isn't an iPhone.
+  // Android version of the install / alerts / calendar instructions. Only the Sydney page asks for it.
   function isIOS() { return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
-  function isAndroidMode() { return !!(window.BRAND && window.BRAND.platform === 'android') && !isIOS(); }
+  function isAndroidMode() { return !!(window.BRAND && window.BRAND.platform === 'android'); } // Sydney page: instructions are Android-only, whatever phone is looking at them
+  function androidLinks() { return isAndroidMode() && !isIOS(); } // text and map links must match the phone actually in use
   var installPrompt = null;
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installPrompt = e; });
   // sms: links put the message after "?" on Android and after "&" on iPhone.
-  function smsTo(n, body) { return 'sms:' + n + (body ? (isAndroidMode() ? '?' : '&') + 'body=' + encodeURIComponent(body) : ''); }
+  function smsTo(n, body) { return 'sms:' + n + (body ? (androidLinks() ? '?' : '&') + 'body=' + encodeURIComponent(body) : ''); }
   function isStandalone() { return !!(window.navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)); }
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
@@ -363,7 +364,7 @@
     return d.toLocaleDateString('en-AU', o1) + ' · ' + d.toLocaleTimeString('en-AU', o2) + city;
   }
   function quoteText(min, max) { return min === max ? String(max / 100) : (min / 100) + '-' + (max / 100); }
-  function mapsLink(place) { return isAndroidMode() ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : 'https://maps.apple.com/?q=' + encodeURIComponent(place); }
+  function mapsLink(place) { return androidLinks() ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : 'https://maps.apple.com/?q=' + encodeURIComponent(place); }
   var MEETUP_STATUS = { booked: ['bought', 'Booked'], bought: ['received', '✓ Bought'], no_sale: ['kept', 'No sale'], no_show: ['damaged', 'No show'], cancelled: ['kept', 'Cancelled'] };
 
   var ICON = {

@@ -1,6 +1,6 @@
 // Caches the app itself so it opens with no signal. Data always goes to the network (and the
 // phone queue in app.js covers writes while offline).
-const CACHE = 'declan-app-2026.11.12.1932'; // stamped by release.sh
+const CACHE = 'declan-app-2026.11.12.1943'; // stamped by release.sh
 const SHELL = ['./', 'index.html', 'melbourne.html', 'manifest-melbourne.webmanifest', 'sydney.html', 'manifest-sydney.webmanifest', 'icons/logo-sydney.png', 'icons/syd-180.png', 'icons/syd-192.png', 'icons/syd-512.png', 'icons/logo-melbourne.png', 'icons/mel-180.png', 'icons/mel-192.png', 'icons/mel-512.png', 'styles.css', 'app.js', 'deductions.js', 'statement.js', 'agreements.js', 'ship-guide.html', 'guide/box-small.jpg', 'guides.html', 'guide-start.html', 'guide-getin.html', 'guide-inspect.html', 'guide-safety.html', 'guide-meetup.html', 'guide-mint.html', 'guide-help.html', 'guide-sell.html', 'guide/sell-1-front-on.jpg', 'guide/sell-2-back.jpg', 'guide/sell-3-home.jpg', 'guide/sell-4-battery.jpg', 'guide/sell-5-screen-off.jpg', 'guide/sell-6-case-on.jpg', 'guide/sell-7-case-off.jpg', 'guide.css', 'guide-kit.js', 'config.js', 'manifest.webmanifest', 'vendor/supabase.min.js', 'icons/icon-192.png', 'icons/icon-180.png', 'icons/logo.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
