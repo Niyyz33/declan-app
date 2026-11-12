@@ -56,6 +56,13 @@
   function $(id) { return document.getElementById(id); }
   function all(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
   function dollarsToCents(v) { var n = parseFloat(v); return isNaN(n) ? null : Math.round(n * 100); }
+  // Android version of the install / alerts / calendar instructions. Only the Sydney page asks for it, and only on a phone that isn't an iPhone.
+  function isIOS() { return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+  function isAndroidMode() { return !!(window.BRAND && window.BRAND.platform === 'android') && !isIOS(); }
+  var installPrompt = null;
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installPrompt = e; });
+  // sms: links put the message after "?" on Android and after "&" on iPhone.
+  function smsTo(n, body) { return 'sms:' + n + (body ? (isAndroidMode() ? '?' : '&') + 'body=' + encodeURIComponent(body) : ''); }
   function isStandalone() { return !!(window.navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)); }
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
@@ -182,7 +189,7 @@
   function testCard() {
     if (isOwner() || profile.tested || !(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY) || !('Notification' in window) || Notification.permission !== 'granted') return '';
     if (testState === 'sent') return '<div class="card"><b>Did the alert arrive?</b><div class="muted" style="margin:6px 0 12px">It should have buzzed your phone just now.</div><div class="row" style="gap:8px"><button id="testyes">Yes, it arrived</button><button class="secondary" id="testno">No</button></div></div>';
-    if (testState === 'no') return '<div class="card"><b>Let’s fix that</b><div class="muted" style="margin:6px 0 12px">Open the app from its <b>Home Screen icon</b>, not Safari. Then check Settings › Notifications › Cash for Phones is on, and Focus or Do Not Disturb is off. Then try again.</div><button id="testgo">Send another test</button></div>';
+    if (testState === 'no') return '<div class="card"><b>Let’s fix that</b><div class="muted" style="margin:6px 0 12px">' + (isAndroidMode() ? 'Open the app from its <b>icon on your home screen</b>, not from Chrome. Then press and hold the icon, tap <b>App info</b> › <b>Notifications</b> and make sure they are on, and Do Not Disturb is off. Then try again.' : 'Open the app from its <b>Home Screen icon</b>, not Safari. Then check Settings › Notifications › Cash for Phones is on, and Focus or Do Not Disturb is off. Then try again.') + '</div><button id="testgo">Send another test</button></div>';
     return '<div class="card"><b>Check your alerts</b><div class="muted" style="margin:6px 0 12px">Send yourself one test alert. You only need to do this once.</div><button id="testgo">Send me a test alert</button><div class="err" id="testerr"></div></div>';
   }
   function bindTest() {
@@ -312,18 +319,17 @@
       go(current, undefined, true);
     };
   }
-  // ---- more than one partner (Declan in Townsville, Quinn in Melbourne) ----
-  var LOGOS = { Townsville: 'icons/logo.png', Melbourne: 'icons/logo-melbourne.png' };
+  // ---- more than one partner (Declan in Townsville, Quinn in Melbourne, Harry in Sydney) ----
+  var LOGOS = { Townsville: 'icons/logo.png', Melbourne: 'icons/logo-melbourne.png', Sydney: 'icons/logo-sydney.png' };
   function cityName() { return profile.city_name || (window.BRAND && window.BRAND.city) || 'Townsville'; }
   function logoSrc() { return LOGOS[cityName()] || 'icons/logo.png'; }
   // Each partner lives in their own city's version (own icon, name and logo): Declan on the main address, Quinn on melbourne.html.
   // If someone opens the wrong one, send them to theirs. Ethan (owner) can use either.
   function cityRedirect(path, city) {
-    var m = /(^|\/)(index\.html|melbourne\.html)?$/.exec(path); if (!m) return null; // only the two real entry pages, never a test page
-    var onMel = /melbourne\.html$/.test(path);
-    if (city === 'Melbourne' && !onMel) return 'melbourne.html';
-    if (city === 'Townsville' && onMel) return './';
-    return null;
+    var m = /(^|\/)(index\.html|melbourne\.html|sydney\.html)?$/.exec(path); if (!m) return null; // only the real entry pages, never a test page
+    var on = /melbourne\.html$/.test(path) ? 'Melbourne' : /sydney\.html$/.test(path) ? 'Sydney' : 'Townsville';
+    var page = { Townsville: './', Melbourne: 'melbourne.html', Sydney: 'sydney.html' }[city];
+    return page && on !== city ? page : null;
   }
   function routeToMyCity() { if (profile.role !== 'partner' || !profile.city_name) return; var to = cityRedirect(location.pathname, profile.city_name); if (to) location.replace(to + location.search); }
   var viewing = load('viewing', '');
@@ -357,7 +363,7 @@
     return d.toLocaleDateString('en-AU', o1) + ' · ' + d.toLocaleTimeString('en-AU', o2) + city;
   }
   function quoteText(min, max) { return min === max ? String(max / 100) : (min / 100) + '-' + (max / 100); }
-  function mapsLink(place) { return 'https://maps.apple.com/?q=' + encodeURIComponent(place); }
+  function mapsLink(place) { return isAndroidMode() ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : 'https://maps.apple.com/?q=' + encodeURIComponent(place); }
   var MEETUP_STATUS = { booked: ['bought', 'Booked'], bought: ['received', '✓ Bought'], no_sale: ['kept', 'No sale'], no_show: ['damaged', 'No show'], cancelled: ['kept', 'Cancelled'] };
 
   var ICON = {
@@ -619,6 +625,7 @@
   async function afterLogin() { await Promise.all([loadCatalogue(), loadProfile()]); await refreshPhones(); await syncQueue(); go(isOwner() ? 'omeetups' : 'home'); }
   function installTip() {
     if (isStandalone() || load('hideinstall', false)) return '';
+    if (isAndroidMode()) return '<div class="tip"><b>Do this first:</b> open this page in <b>Chrome</b> (not inside WhatsApp, Messenger or another app). Tap the <b>⋮</b> menu at the top right, then <b>Install app</b> (or <b>Add to Home screen</b>, then <b>Install</b>). Then open the app from its icon and log in there. That way it keeps you logged in and never loses a phone you logged.' + (installPrompt ? '<div style="margin-top:8px"><button class="small" id="doinstall" type="button">Install the app</button></div>' : '') + '<div style="margin-top:8px"><button class="link" id="hideinstall" type="button" onclick="localStorage.setItem(\'declan_hideinstall\',\'true\');this.closest(\'.tip\').remove()">Already done</button></div></div>';
     return '<div class="tip"><b>Do this first:</b> tap the Share button <b>⬆︎</b> in Safari, choose <b>Add to Home Screen</b>, then open the app from your Home Screen and log in there. That way it keeps you logged in and never loses a phone you logged.<div style="margin-top:8px"><button class="link" id="hideinstall" type="button" onclick="localStorage.setItem(\'declan_hideinstall\',\'true\');this.closest(\'.tip\').remove()">Already done</button></div></div>';
   }
 
@@ -1054,7 +1061,7 @@
     return 'Hey Ethan, it\'s ' + (profile.name || 'Declan') + ' 👋\n\nI\'ve got ' + n + ' damaged phone' + (n === 1 ? '' : 's') + ' ready to ship:\n\n' + lines.join('\n') +
       '\n\nTotal I\'ve paid: ' + money(total) + '\n\nCan you send me the postage label please? I\'ll pack them in ' + (n >= 10 ? 'a medium' : 'a small') + ' box with bubble wrap and post them as soon as I\'ve got it.\n\nThanks!';
   }
-  function smsHref(body) { var n = phoneForLinks(); return n ? 'sms:' + n + '&body=' + encodeURIComponent(body) : '#'; }
+  function smsHref(body) { var n = phoneForLinks(); return n ? smsTo(n, body) : '#'; }
   function copyText(t) { try { if (navigator.clipboard) navigator.clipboard.writeText(t); } catch (e) { /* the message still opens in Messages */ } }
   VIEWS.ship = function () {
     var ready = readyToShip(), sel = {}; ready.forEach(function (p) { sel[p.id] = true; });
@@ -1268,8 +1275,8 @@
     if (!el || !(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY)) return;
     if (pushHtml && !el.innerHTML) { el.innerHTML = pushHtml; bindPush(); }
     var what = isOwner() ? 'when Declan asks for a label or posts a batch, and an hour before each meetup' : 'the moment Ethan books a meetup, and another one an hour before';
-    if (!pushSupported() || !isStandalone()) { paintPush(el, '<div class="tip"><b>Want alerts?</b> Add the app to your Home Screen first (Share ⬆︎ → Add to Home Screen), open it from the icon, then turn alerts on here.</div>'); return; }
-    if (Notification.permission === 'denied') { paintPush(el, '<div class="tip">Alerts are blocked. Turn them on in <b>Settings › Notifications › Cash for Phones</b>.</div>'); return; }
+    if (!pushSupported() || !isStandalone()) { paintPush(el, '<div class="tip"><b>Want alerts?</b> ' + (isAndroidMode() ? 'Install the app first (Chrome ⋮ menu › Install app), open it from its icon, then turn alerts on here.' : 'Add the app to your Home Screen first (Share ⬆︎ → Add to Home Screen), open it from the icon, then turn alerts on here.') + '</div>'); return; }
+    if (Notification.permission === 'denied') { paintPush(el, '<div class="tip">Alerts are blocked. ' + (isAndroidMode() ? 'Press and hold the app icon, tap <b>App info</b> › <b>Notifications</b> and turn them on.' : 'Turn them on in <b>Settings › Notifications › Cash for Phones</b>.') + '</div>'); return; }
     var on = false;
     try { var reg = await navigator.serviceWorker.ready; on = Notification.permission === 'granted' && !!(await reg.pushManager.getSubscription()); } catch (e) { /* ignore */ }
     if (on) { paintPush(el, '<div class="muted" style="margin:0 2px 12px">🔔 Alerts are on — you’ll get one ' + what + '.</div>'); return; }
@@ -1281,7 +1288,7 @@
       $('pusherr').textContent = '';
       try {
         var perm = await Notification.requestPermission();
-        if (perm !== 'granted') { $('pusherr').textContent = 'Alerts weren’t allowed. You can change this in Settings › Notifications.'; return; }
+        if (perm !== 'granted') { $('pusherr').textContent = (isAndroidMode() ? 'Alerts weren’t allowed. Press and hold the app icon, tap App info › Notifications to change this.' : 'Alerts weren’t allowed. You can change this in Settings › Notifications.'); return; }
         if (!(await pushSubscribe())) { $('pusherr').textContent = 'Couldn’t save that. Check your signal and try again.'; return; }
         renderPushCard();
       } catch (e) { $('pusherr').textContent = 'Couldn’t turn alerts on: ' + (e && e.message ? e.message : 'try again'); }
@@ -1294,6 +1301,10 @@
     var tok = profile.calendar_token || settings.calendar_token;
     if (!tok || isOwner()) return '';
     var url = window.CONFIG.SUPABASE_URL.replace(/^https?:\/\//, 'webcal://') + '/functions/v1/calendar?token=' + tok;
+    if (isAndroidMode()) {
+      var https = window.CONFIG.SUPABASE_URL + '/functions/v1/calendar?token=' + tok;
+      return '<div class="card"><b>📅 Google Calendar (optional)</b><div class="muted">Your meetups can show up in Google Calendar too. On a computer, open calendar.google.com, click <b>+</b> next to <b>Other calendars</b>, choose <b>From URL</b>, paste the link below and click <b>Add calendar</b>. It then appears in the Google Calendar app on your phone. Google can take a few hours to show changes, so rely on the alerts and the list below for anything last-minute. Reminders come from the Google Calendar settings for this calendar.</div><div class="gap"></div><button class="small" data-calcopy="' + esc(https) + '">Copy calendar link</button></div>';
+    }
     return '<div class="card"><b>📅 Apple Calendar</b><div class="muted">Add this once. Every meetup Ethan books then appears in your calendar by itself, with a reminder. Changes can take a little while to show up, so check this list for anything last-minute.</div><div class="gap"></div><a class="btnlink green" href="' + url + '">Add to Apple Calendar</a></div>';
   }
   function nextMeetupCard() {
@@ -1312,6 +1323,14 @@
     return '<div class="card"><b>⭐ Google review link</b><div class="muted" style="margin-top:2px">Ask every seller once they’ve been paid. Show them this, or send it to them.</div><div class="row" style="margin-top:10px;gap:8px"><button class="small" data-review="share">Share link</button><button class="secondary small" data-review="copy">Copy link</button></div></div>';
   }
   document.addEventListener('click', function (e) {
+    var cb = e.target && e.target.closest ? e.target.closest('[data-calcopy]') : null;
+    if (cb) { var link = cb.getAttribute('data-calcopy'); try { navigator.clipboard.writeText(link).then(function () { cb.textContent = 'Copied ✓'; }, function () { cb.textContent = link; }); } catch (err) { cb.textContent = link; } return; }
+  });
+  document.addEventListener('click', function (e) {
+    var ib = e.target && e.target.closest ? e.target.closest('#doinstall') : null;
+    if (ib && installPrompt) { installPrompt.prompt(); installPrompt.userChoice.then(function () { installPrompt = null; ib.closest('.tip').remove(); }).catch(function () { /* ignore */ }); return; }
+  });
+  document.addEventListener('click', function (e) {
     var b = e.target && e.target.closest ? e.target.closest('[data-review]') : null, u = reviewUrl();
     if (!b || !u) return;
     if (b.getAttribute('data-review') === 'copy') { try { navigator.clipboard.writeText(u); b.textContent = 'Copied ✓'; } catch (err) { b.textContent = u; } }
@@ -1327,8 +1346,8 @@
       day = isToday ? ' today' : ' on ' + d.toLocaleDateString('en-AU', { weekday: 'long' });
     var confirmTxt = 'Hey ' + first + ', it’s ' + me + ' from Cash for Phones. Just checking you’re still good for our ' + clock + ' meetup' + (m.location ? ' at ' + m.location : '') + day + ' for your ' + m.model + '?';
     var arriveTxt = 'Hey ' + first + ', it’s ' + me + '. I’ve just arrived' + (m.location ? ' at ' + m.location : '') + '.';
-    return '<div style="margin-top:8px"><a class="btnlink green" href="sms:' + tel + '&body=' + encodeURIComponent(confirmTxt) + '">💬 Confirm with ' + esc(first) + '</a></div>' +
-      '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink" href="sms:' + tel + '&body=' + encodeURIComponent(arriveTxt) + '">📍 I’ve arrived</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
+    return '<div style="margin-top:8px"><a class="btnlink green" href="' + smsTo(tel, confirmTxt) + '">💬 Confirm with ' + esc(first) + '</a></div>' +
+      '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink" href="' + smsTo(tel, arriveTxt) + '">📍 I’ve arrived</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
   }
   function meetupCard(m) {
     var st = MEETUP_STATUS[m.status] || ['bought', m.status], owner = isOwner(), booked = m.status === 'booked', late = booked && new Date(m.starts_at) < new Date();

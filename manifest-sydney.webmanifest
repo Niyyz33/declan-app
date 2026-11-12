@@ -1,0 +1,13 @@
+{
+  "name": "Cash for Phones Sydney",
+  "short_name": "Cash for Phones Sydney",
+  "start_url": "sydney.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#130b0d",
+  "theme_color": "#130b0d",
+  "icons": [
+    { "src": "icons/syd-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/syd-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
