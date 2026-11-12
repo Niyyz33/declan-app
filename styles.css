@@ -148,3 +148,34 @@ button.tick.on { background:var(--green); border-color:var(--green); }
 a.onblink { flex:none; align-self:center; color:var(--blue2); font-weight:700; text-decoration:none; padding:8px 10px; border-radius:12px; background:var(--card2); border:1px solid var(--line); }
 
 .agree h3{margin:16px 0 4px;font-size:17px}.agree p{margin:0 0 8px}.agree ol{margin:4px 0 8px;padding-left:22px}.agree li{margin:0 0 6px}.agree .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+/* Professional pass (12 Nov 2026): flat surfaces, no glow, tighter corners, calmer colour. Same layout and sizes, so nothing moves or overflows. */
+:root { --bg:#070d1a; --bg2:#0a1428; --card:#0e1830; --card2:#132042; --line:#223460; --green:#2fae5f; --green2:#2fae5f; --blue:#2f6fd0; --blue2:#5b94ea; --red:#e5484d; --amber:#e3a82f; }
+body { background:var(--bg); }
+h1 { font-weight:700; letter-spacing:-.015em; }
+h2 { font-weight:600; letter-spacing:.1em; }
+.card { background:var(--card); border-radius:12px; box-shadow:none; }
+input, select, textarea { border-radius:10px; background:#091224; }
+input:focus, select:focus, textarea:focus { box-shadow:0 0 0 2px rgba(91,148,234,.3); }
+button { border-radius:10px; background:var(--green); box-shadow:none; font-weight:600; }
+button:active { transform:none; filter:brightness(.88); }
+button.secondary { background:var(--card2); box-shadow:none; }
+button.blue { background:var(--blue); box-shadow:none; }
+button.danger { background:var(--red); box-shadow:none; }
+button.link { background:none; }
+button.small { border-radius:9px; }
+.chip { border-radius:10px; font-weight:500; border-width:1px; }
+.seg { border-radius:11px; background:#091224; }
+.seg button { border-radius:8px; }
+.seg button.on { background:var(--blue); }
+.seg button.on.mint { background:var(--green); }
+.seg button.on.damaged { background:var(--red); }
+.stepper { border-radius:11px; background:#091224; }
+.stepper button { border-radius:8px; }
+.pill { border-radius:6px; font-weight:600; letter-spacing:.02em; }
+#banner { font-weight:600; }
+#tabs { background:rgba(7,13,26,.97); }
+#tabs .tab.log svg { background:var(--green); box-shadow:none; }
+.brand img, .greet img { box-shadow:none; border:1px solid var(--line); }
+.bar > i { background:var(--green); }
+a.btnlink.green { background:var(--green); box-shadow:none; }
