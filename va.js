@@ -76,35 +76,27 @@
     return '<div class="hero"><div><div class="heroh">Welcome ' + esc(name) + ',</div><div class="herosub">let’s close some deals.</div></div><button type="button" class="secondary small" data-go="vahelp">Guide</button></div>' + stats();
   }
   var STEPS = [
-    { id: 'bookmark', laptop: true, t: 'Bookmark this page on your laptop', d: 'So it is one click away, or opens by itself when you start your browser.' },
-    { id: 'homescreen', phone: true, t: 'Add the app to your Home Screen', d: 'Open it from its icon from now on.' },
-    { id: 'alerts', t: 'Turn on alerts', d: 'So a follow-up or a missing outcome finds you. Use the Alerts box below.' },
-    { id: 'keys', t: 'Set up your keyboard shortcuts', d: 'Type a short code and the whole message appears.', go: 'vakeys', goLabel: 'Show me' },
-    { id: 'invite', t: 'Accept the Business Suite invite', d: 'Ethan sends it to your email. Accept it so you can reply to sellers.' },
-    { id: 'practice', t: 'Price a practice phone', d: 'Pick a model, tick a fault, tap Copy on the message.' }
+    { id: 'bookmark', dev: 'laptop', t: 'Bookmark this page' },
+    { id: 'startup', dev: 'laptop', t: 'Open it when your browser starts' },
+    { id: 'homescreen', dev: 'phone', t: 'Add the app to your Home Screen' },
+    { id: 'alerts', dev: 'both', t: 'Turn on alerts' },
+    { id: 'keys', dev: 'both', t: 'Set up your keyboard shortcuts' },
+    { id: 'invite', dev: 'both', t: 'Accept the Business Suite invite' },
+    { id: 'practice', dev: 'both', t: 'Price a practice phone' }
   ];
+  function stepsFor(dev) { return STEPS.filter(function (x) { return x.dev === 'both' || x.dev === dev; }); }
+  function myDev() { return isPhone() ? 'phone' : 'laptop'; }
   function setupState() { var st = A.load('vasetup', { done: {}, hidden: false }); st.done = st.done || {}; return st; }
   function setupCard() {
     var st = setupState();
     if (st.hidden) return '<div class="setuplink"><button type="button" class="link" id="showsetup">Show the setup guide</button></div>';
-    var steps = STEPS.filter(function (x) { return isPhone() ? !x.laptop : !x.phone; }), n = steps.filter(function (x) { return st.done[x.id]; }).length;
-    var open = st.open === undefined ? !isPhone() : !!st.open; // phones start collapsed so the price tool is on screen
-    var h = '<div class="card setup"><div class="row between"><b>Getting started</b><span class="muted">' + n + ' of ' + steps.length + ' done</span></div><div class="bar" style="margin:8px 0 4px"><i style="width:' + Math.round(n / steps.length * 100) + '%"></i></div>';
-    h += '<button type="button" class="link" id="toggsetup" style="text-align:left;padding:4px 0">' + (open ? 'Hide the steps' : 'Show the steps') + '</button>';
-    if (open) h += '<div class="steps">';
-    if (open) steps.forEach(function (x) {
-      var on = !!st.done[x.id];
-      h += '<div class="step' + (on ? ' on' : '') + '"><button type="button" class="tick' + (on ? ' on' : '') + '" data-sdone="' + x.id + '" aria-label="' + esc(x.t) + (on ? ' (done)' : ' (not done)') + '">' + (on ? '✓' : '') + '</button><div class="steptext"><b>' + esc(x.t) + '</b><div class="muted">' + esc(x.d) + (x.laptop ? ' <i>Laptop only: ignore this on an iPhone.</i>' : '') + '</div>' +
-        '<div class="acts"><button type="button" class="secondary small" data-go="' + (x.go || 'vahelp') + '">' + esc(x.goLabel || 'How to do it') + '</button></div></div></div>';
-    });
-    if (open) h += '</div>';
-    h += '<button type="button" class="link" id="hidesetup" style="text-align:left;padding:4px 0">' + (n === steps.length ? 'All done. Hide this guide' : 'Hide this guide for now') + '</button></div>';
-    return h;
+    var steps = stepsFor(myDev()), n = steps.filter(function (x) { return st.done[x.id]; }).length, next = steps.filter(function (x) { return !st.done[x.id]; })[0];
+    return '<div class="card setup"><div class="row between"><b>Getting started</b><span class="muted">' + n + ' of ' + steps.length + ' done</span></div><div class="bar" style="margin:8px 0 8px"><i style="width:' + Math.round(n / steps.length * 100) + '%"></i></div>' +
+      '<div class="muted" style="margin-bottom:10px">' + (next ? 'Next: <b style="color:var(--text)">' + esc(next.t) + '</b>' : 'All set. Nice work.') + '</div>' +
+      '<div class="acts"><button type="button" class="small" data-go="vahelp">' + (n ? 'Continue the guide' : 'Open the guide') + '</button><button type="button" class="link" id="hidesetup" style="width:auto">' + (n === steps.length ? 'Hide this' : 'Hide for now') + '</button></div></div>';
   }
   function bindWelcome() {
     all('[data-go]').forEach(function (b) { b.onclick = function () { go(b.getAttribute('data-go')); }; });
-    all('[data-sdone]').forEach(function (b) { b.onclick = function () { var st = setupState(), k = b.getAttribute('data-sdone'); st.done[k] = !st.done[k]; A.save('vasetup', st); VIEWS.vaprice(); }; });
-    var tg = $('toggsetup'); if (tg) tg.onclick = function () { var st = setupState(); st.open = !(st.open === undefined ? !isPhone() : st.open); A.save('vasetup', st); VIEWS.vaprice(); };
     var h = $('hidesetup'); if (h) h.onclick = function () { var st = setupState(); st.hidden = true; A.save('vasetup', st); VIEWS.vaprice(); };
     var sh = $('showsetup'); if (sh) sh.onclick = function () { var st = setupState(); st.hidden = false; A.save('vasetup', st); VIEWS.vaprice(); };
   }
@@ -180,16 +172,19 @@
   // ---------- MESSAGES ----------
   VIEWS.vamsgs = function () {
     var q = quinn(), spot = (q && q.meet_location) || '', review = ((A.settings() || {}).review_url) || '';
-    var vals = { time: MSG.time, price: MSG.price ? '$' + MSG.price.replace(/^\$/, '') : '', spot: MSG.spot !== undefined ? MSG.spot : spot, review: review };
+    var vals = { time: MSG.time, price: MSG.price ? '$' + MSG.price.replace(/^\$/, '') : '', offer: MSG.offer ? '$' + MSG.offer.replace(/^\$/, '') : '', spot: MSG.spot !== undefined ? MSG.spot : spot, review: review };
     var tab = MSG.tab || 'Start', term = (MSG.q || '').trim().toLowerCase(); COPY = [];
     function card(it, grp) {
       var miss = C.missing(it, vals), text = C.fill(it.t, vals);
-      return '<div class="msg"><div class="msghead"><b>' + esc(it.l || '') + '</b>' + (term && grp ? '<span class="muted">' + esc(grp) + '</span>' : '') + '</div><div class="msgtext">' + esc(text) + '</div>' + (it.note ? '<div class="muted msgnote">' + esc(it.note) + '</div>' : '') + '<div class="acts">' + (miss.length ? '<button type="button" class="small" disabled>Fill in ' + esc(miss.join(' and ')) + ' first</button>' : copyBtn(text)) + '</div></div>';
+      return '<div class="msg"><div class="msghead"><b>' + esc(it.l || '') + '</b>' + (term && grp ? '<span class="muted">' + esc(grp) + '</span>' : '') + '</div><div class="msgtext">' + esc(text) + '</div>' + (it.note ? '<div class="muted msgnote">' + esc(it.note) + '</div>' : '') + '<div class="acts">' + (miss.length ? '<button type="button" class="small" disabled>Add ' + esc(miss.map(function (k) { return { time: 'a time', offer: 'your new offer', price: 'the price', spot: 'the meetup spot' }[k] || k; }).join(' and ')) + ' first</button>' : copyBtn(text)) + '</div></div>';
     }
     function fills(g) {
       var need = {}; g.items.forEach(function (it) { (it.need || []).forEach(function (k) { need[k] = 1; }); });
-      if (!need.time && !need.price && !need.spot) return '';
-      return '<div class="card"><b>Fill in</b><div class="fillrow">' + (need.time ? '<div><label>Time</label><input id="f_time" placeholder="e.g. 4:15PM" value="' + esc(MSG.time) + '"></div>' : '') + (need.price ? '<div><label>Price</label><input id="f_price" inputmode="numeric" placeholder="e.g. 250" value="' + esc(MSG.price) + '"></div>' : '') +
+      if (!need.time && !need.price && !need.offer && !need.spot) return '';
+      var px = pricing(), useMax = px && px.p ? '<button type="button" class="link" id="usemax" style="padding:6px 0">Use “Most you can say” for ' + esc(phoneLine(px)) + ' ($' + px.p.max + ')</button>' : '';
+      return '<div class="card"><b>Fill in</b><div class="fillrow">' + (need.time ? '<div><label>Time you are offering</label><input id="f_time" placeholder="e.g. 4:15PM" value="' + esc(MSG.time) + '"></div>' : '') +
+        (need.offer ? '<div class="wide"><label>Your new offer ($)</label><input id="f_offer" inputmode="numeric" placeholder="e.g. 220" value="' + esc(MSG.offer || '') + '"><div class="muted" style="font-size:14px;margin-top:4px">The price you are now offering them, after your first quote. It can be higher than the quote, but never above “Most you can say” on the Price tab.</div>' + useMax + '</div>' : '') +
+        (need.price ? '<div class="wide"><label>Price for this phone ($)</label><input id="f_price" inputmode="numeric" placeholder="e.g. 80" value="' + esc(MSG.price) + '"><div class="muted" style="font-size:14px;margin-top:4px">What you are offering for this older phone. Use the price from the Price tab.</div></div>' : '') +
         (need.spot ? '<div class="wide"><label>Meetup spot</label><input id="f_spot" value="' + esc(vals.spot) + '"></div>' : '') + '</div></div>';
     }
     var html = head('Messages', 'Ethan’s own wording, in the order a chat goes. Tap Copy, then paste into Business Suite.') +
@@ -207,8 +202,9 @@
     html += '<div class="card" style="margin-top:16px"><b>Faster on your phone</b><div class="muted">Set up iPhone keyboard shortcuts so a short code types the whole message.</div><div class="gap"></div><button type="button" class="secondary small" id="keys">Set up keyboard shortcuts</button></div>' +
       '<div class="card" style="margin-top:12px"><b>Something not here?</b><div class="muted">Scam, deposit, shipping, a seller who is rude, or a price question. Text Ethan.</div><div class="gap"></div><div class="acts">' + (ethanPhone() ? '<a class="btnlink small" href="' + textEthan('') + '">💬 Text Ethan</a>' : '') + '<button type="button" class="secondary small" id="rules">Rules and when to text Ethan</button></div></div>';
     shell(html); bindCopy();
-    function upd() { if ($('f_time')) MSG.time = $('f_time').value.trim(); if ($('f_price')) MSG.price = $('f_price').value.replace(/[^\d]/g, ''); if ($('f_spot')) MSG.spot = $('f_spot').value; }
-    ['f_time', 'f_price', 'f_spot'].forEach(function (id) { var el = $(id); if (el) el.onchange = function () { upd(); VIEWS.vamsgs(); }; });
+    function upd() { if ($('f_time')) MSG.time = $('f_time').value.trim(); if ($('f_offer')) MSG.offer = $('f_offer').value.replace(/[^\d]/g, ''); if ($('f_price')) MSG.price = $('f_price').value.replace(/[^\d]/g, ''); if ($('f_spot')) MSG.spot = $('f_spot').value; }
+    if ($('usemax')) $('usemax').onclick = function () { var px = pricing(); if (px && px.p) { MSG.offer = String(px.p.max); VIEWS.vamsgs(); } };
+    ['f_time', 'f_offer', 'f_price', 'f_spot'].forEach(function (id) { var el = $(id); if (el) el.onchange = function () { upd(); VIEWS.vamsgs(); }; });
     all('[data-mtab]').forEach(function (b) { b.onclick = function () { MSG.tab = b.getAttribute('data-mtab'); MSG.q = ''; VIEWS.vamsgs(); }; });
     var ms = $('msearch'); ms.oninput = function () { MSG.q = ms.value; clearTimeout(ms._t); ms._t = setTimeout(function () { var pos = ms.selectionStart; VIEWS.vamsgs(); var n = $('msearch'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* ignore */ } } }, 250); };
     if ($('goprice')) $('goprice').onclick = function () { go('vaprice'); };
@@ -392,23 +388,45 @@
     A.bindMeetupActions(); A.renderPushCard && A.renderPushCard();
   };
 
-  // ---------- GUIDE ----------
+  // ---------- GUIDE (same look as the partner guides: big numbered steps, cards, tips) ----------
+  var GV = { dev: null };
+  function gmini(items) { return items.map(function (t, i) { return '<div class="gmini"><div class="gbadge">' + (i + 1) + '</div><div>' + t + '</div></div>'; }).join(''); }
+  function guideSteps(dev) {
+    var link = location.origin + location.pathname.replace(/[^/]*$/, '') + 'va.html', out = [];
+    if (dev === 'laptop') {
+      out.push({ id: 'bookmark', t: 'Bookmark this page', body: '<div class="gcard">' + gmini(['Open the link Ethan sent you in your browser.', 'Press <b>⌘ + D</b> on a Mac (<b>Ctrl + D</b> on Windows).', 'Click <b>Done</b>.']) + '</div><div class="gtip"><b>Want it always on screen?</b> Press <b>⌘ + Shift + B</b> (Ctrl + Shift + B on Windows) in Chrome to show the bookmarks bar. In Safari use <b>View, Show Favorites Bar</b>.</div>' });
+      out.push({ id: 'startup', t: 'Open it when your browser starts', body: '<div class="gcard"><h3>Chrome</h3>' + gmini(['Click the three dots at the top right, then <b>Settings</b>.', 'Click <b>On startup</b> and choose <b>Open a specific page or set of pages</b>.', 'Click <b>Add a new page</b>, paste your link, click <b>Add</b>.']) + '</div><div class="gcard"><h3>Safari</h3>' + gmini(['Open the link, then <b>Safari, Settings, General</b>.', 'Click <b>Set to Current Page</b> next to Homepage.', 'Set <b>New windows open with</b> to <b>Homepage</b>.']) + '</div><div class="gtip"><b>Extra:</b> right-click the tab and choose <b>Pin tab</b> so it never gets lost. On a Mac in Safari you can also use <b>File, Add to Dock</b>.</div>' });
+    } else {
+      out.push({ id: 'homescreen', t: 'Add the app to your Home Screen', body: '<div class="gcard">' + gmini(['Open the link Ethan sent you in <b>Safari</b>.', 'Tap the <b>Share</b> button (the square with an arrow).', 'Scroll down, tap <b>Add to Home Screen</b>, then <b>Add</b>.']) + '</div><div class="gwarn"><b>From now on, open the app from its icon</b>, never from Safari. That keeps you logged in.</div>' });
+    }
+    out.push({ id: 'alerts', t: 'Turn on alerts', body: '<div class="gcard">' + gmini(['Go to the <b>Price</b> tab (the first page).', 'Tap <b>Turn on alerts</b> in the box near the top, then <b>Allow</b>.']) + '</div><div class="gtip">You get an alert when a follow-up is due, when Quinn sets his free times, and when a meetup has no result. ' + (dev === 'laptop' ? 'On a Mac, alerts work best if you also use Safari’s <b>File, Add to Dock</b>.' : 'Alerts only work from the Home Screen icon.') + '</div><div class="gact"><button type="button" class="secondary" data-go="vaprice">Go to the first page</button></div>' });
+    out.push({ id: 'keys', t: 'Set up your keyboard shortcuts', body: '<div class="gcard">' + gmini(['Open <b>Settings</b>, <b>General</b>, <b>Keyboard</b>, <b>Text Replacement</b> (on a Mac: <b>System Settings, Keyboard, Text Replacements</b>).', 'Tap the <b>+</b>.', 'Paste the message into <b>Phrase</b> and the code into <b>Shortcut</b>, then <b>Save</b>.']) + '</div><div class="gtip">Then in any chat, type <b>zzany</b> and press space, and “Sweet any issues?” appears. The full list has a Copy button for each.</div><div class="gact"><button type="button" class="secondary" data-go="vakeys">Open the shortcut list</button></div>' });
+    out.push({ id: 'invite', t: 'Accept the Business Suite invite', body: '<div class="gcard">' + gmini(['Ethan sends an invite to your email from Meta Business Suite.', 'Open it and click <b>Accept</b>.', 'Go to <b>business.facebook.com/latest/inbox</b> and check you can see the chats.']) + '</div><div class="gtip"><b>Best setup:</b> Business Suite on one half of the screen, this app on the other half.</div>' });
+    out.push({ id: 'practice', t: 'Price a practice phone', body: '<div class="gcard">' + gmini(['On the <b>Price</b> tab tap a model, then a storage size.', 'Tap a fault or two, pick a tone, and tap <b>Copy</b>.', 'Paste it into a note to see it work. Nothing is sent to anyone.']) + '</div><div class="gact"><button type="button" class="secondary" data-go="vaprice">Try it now</button></div>' });
+    return out;
+  }
   VIEWS.vahelp = function () {
-    COPY = []; var link = location.origin + location.pathname.replace(/[^/]*$/, '') + 'va.html';
-    var sec = function (t, body) { return '<div class="card"><b>' + esc(t) + '</b><div class="howto">' + body + '</div></div>'; };
-    shell(head('Guide', 'Everything you need to get set up. Nothing here is permanent: tick things off on the first page when you are done.') +
-      '<div class="card"><b>Your link</b><div class="muted" style="margin:4px 0 8px;overflow-wrap:anywhere">' + esc(link) + '</div>' + copyBtn(link, 'Copy link') + '</div>' +
-      '<h2>On your laptop <span class="muted" style="text-transform:none;letter-spacing:0">(ignore this part on an iPhone)</span></h2>' +
-      sec('1. Bookmark it', '<ol><li>Open the link above in your browser.</li><li>Press <b>Cmd + D</b> on a Mac (<b>Ctrl + D</b> on Windows) and click <b>Done</b>.</li><li>To see it all the time, show the bookmarks bar: <b>Cmd + Shift + B</b> (Ctrl + Shift + B on Windows) in Chrome, or <b>View, Show Favorites Bar</b> in Safari.</li></ol>') +
-      sec('2. Open it automatically when you start your browser', '<div class="muted" style="margin-bottom:6px"><b>Chrome:</b></div><ol><li>Click the three dots at the top right, then <b>Settings</b>.</li><li>Click <b>On startup</b>, choose <b>Open a specific page or set of pages</b>.</li><li>Click <b>Add a new page</b>, paste your link, and click <b>Add</b>.</li></ol><div class="muted" style="margin:8px 0 6px"><b>Safari:</b></div><ol><li>Open the link, then <b>Safari, Settings, General</b>.</li><li>Click <b>Set to Current Page</b> next to Homepage.</li><li>Set <b>New windows open with</b> to <b>Homepage</b>.</li></ol>') +
-      sec('3. Optional: keep it as its own tab', '<ol><li>Right-click the tab and choose <b>Pin tab</b> (Chrome) so it never gets lost.</li><li>On a Mac in Safari you can also use <b>File, Add to Dock</b>. That also makes alerts work like a normal app.</li></ol>') +
-      '<h2>On your iPhone</h2>' +
-      sec('Add it to your Home Screen', '<ol><li>Open the link in <b>Safari</b>.</li><li>Tap the <b>Share</b> button, then <b>Add to Home Screen</b>.</li><li>Open it from the icon from now on, then tap <b>Turn on alerts</b> in the box on the first page.</li></ol>') +
-      '<h2>Both</h2>' +
-      sec('Keyboard shortcuts', '<div class="muted">Type a short code and the whole message appears, in any app including Business Suite.</div><div class="gap"></div><button type="button" class="secondary small" id="gokeys">Set up keyboard shortcuts</button>') +
-      sec('A normal chat', '<ol><li>Business Suite on one side, this app on the other.</li><li>First reply: <b>Hey, which model is it and any issues?</b> If they only give the model, send <b>Sweet any issues?</b></li><li><b>Price</b> tab: pick the model, tap the faults, pick a tone, tap <b>Copy</b>, paste the quote.</li><li>If they say yes, agree a <b>time at the meetup spot</b>, then ask for their <b>number</b>.</li><li><b>Book</b> it into Quinn’s calendar, and send “easy as booked in see you then”.</li><li>If they go quiet, tap <b>Start 1-day follow-up</b> so you are reminded tomorrow.</li></ol>') +
-      '<div class="gap"></div><button id="back">Back to Price</button>');
-    bindCopy(); $('gokeys').onclick = function () { go('vakeys'); }; $('back').onclick = function () { go('vaprice'); };
+    COPY = []; if (!GV.dev) GV.dev = myDev();
+    var st = setupState(), steps = guideSteps(GV.dev), n = steps.filter(function (x) { return st.done[x.id]; }).length, link = location.origin + location.pathname.replace(/[^/]*$/, '') + 'va.html';
+    var h = '<div class="vg"><div class="gtop"><button type="button" class="link" id="gback" style="width:auto">‹ Back to the app</button><span class="muted">Cash for Phones VA</span></div>' +
+      '<section class="ghero"><img src="icons/logo-parent.png" alt="Cash for Phones"><h1>Welcome aboard, ' + esc(A.profile().name || 'Aston') + '</h1><p class="gsub">Set up in about 10 minutes. You only do this once.</p>' +
+      '<div class="gprog"><div class="bar"><i style="width:' + Math.round(n / steps.length * 100) + '%"></i></div><span class="muted">' + n + ' of ' + steps.length + ' steps done</span></div>' +
+      '<div class="gseg"><button type="button" class="chip' + (GV.dev === 'laptop' ? ' on' : '') + '" data-gdev="laptop">On a laptop</button><button type="button" class="chip' + (GV.dev === 'phone' ? ' on' : '') + '" data-gdev="phone">On an iPhone</button></div>' +
+      '<div class="gtip" style="text-align:left"><b>Your link:</b> <span style="overflow-wrap:anywhere">' + esc(link) + '</span><div class="gap"></div>' + copyBtn(link, 'Copy link') + '</div></section>';
+    steps.forEach(function (x, i) {
+      var on = !!st.done[x.id];
+      h += '<section class="gstep"><div class="gsh"><div class="gnum' + (on ? ' on' : '') + '">' + (on ? '✓' : (i + 1)) + '</div><h2>' + esc(x.t) + '</h2></div>' + x.body +
+        '<div class="gdone"><button type="button" class="' + (on ? 'gdonebtn on' : 'gdonebtn') + '" data-sdone="' + x.id + '">' + (on ? '✓ Done (tap to undo)' : 'I have done this') + '</button></div></section>';
+    });
+    h += '<section class="gstep"><div class="gsh"><div class="gnum">★</div><h2>How a chat goes</h2></div><div class="gcard">' + gmini([
+      'Reply to the chat with <b>Hey, which model is it and any issues?</b> If they only give the model, send <b>Sweet any issues?</b>', '<b>Price</b> tab: pick the model, tap the faults, pick a tone, tap <b>Copy</b>, paste the quote.', 'If they say yes, agree a <b>time at the meetup spot</b>, then ask for their <b>number</b>.',
+      '<b>Book</b> it into Quinn’s calendar, then send <b>easy as booked in see you then</b>.', 'If they go quiet, tap <b>Start 1-day follow-up</b>. You get reminded tomorrow.']) + '</div></section>' +
+      '<div class="gact"><button id="gfinish">Back to the first page</button></div></div>';
+    shell(h); bindCopy();
+    all('[data-go]').forEach(function (b) { b.onclick = function () { go(b.getAttribute('data-go')); }; });
+    all('[data-gdev]').forEach(function (b) { b.onclick = function () { GV.dev = b.getAttribute('data-gdev'); VIEWS.vahelp(); }; });
+    all('[data-sdone]').forEach(function (b) { b.onclick = function () { var s2 = setupState(), k = b.getAttribute('data-sdone'); s2.done[k] = !s2.done[k]; A.save('vasetup', s2); var y = window.scrollY; VIEWS.vahelp(); window.scrollTo(0, y); }; });
+    $('gback').onclick = function () { go('vaprice'); }; $('gfinish').onclick = function () { go('vaprice'); };
   };
 
   // ---------- KEYBOARD SHORTCUTS (iPhone / Mac text replacement) ----------

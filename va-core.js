@@ -89,7 +89,7 @@
     { group: 'Pushback', items: [
       { l: 'Ask what they had in mind', t: 'no worries what price did you have in mind?', note: 'First reply when they say it is too low.' },
       { l: 'Ask what they had in mind (2)', t: 'no worries did you have a different price in mind?', note: 'Same idea, other wording.' },
-      { l: 'Small step up', t: 'Happy to do ${price} if the battery health is above 80%?', need: ['price'], note: 'Only if Ethan has said a small step up is OK. Otherwise text Ethan.' },
+      { l: 'Offer a little more', t: 'Happy to do ${offer} if the battery health is above 80%?', need: ['offer'], note: 'Your new, higher offer. Never above “Most you can say”. If they want more than that, text Ethan.' },
       { l: 'Let it go', t: 'No worries get back to me for quick and easy cash', note: 'When they will not move.' } ] },
     { group: 'Time & place', items: [
       { l: 'Offer today at the spot', t: 'happy to meet you today at ${spot} if that works for you?', need: ['spot'], note: 'Offer today at the usual spot.' },
