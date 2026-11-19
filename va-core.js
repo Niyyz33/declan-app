@@ -80,40 +80,43 @@
   // ---- message library (Ethan's real wording). need: names of fill-ins the text uses ----
   var LIB = [
     { group: 'Start', items: [
-      { t: 'Sweet any issues?', note: 'After they say the model.' },
-      { t: 'sweet how much are you looking for?', note: 'On a good phone, to hear their number first.' },
-      { t: 'no worries, what do you mean by glitches?', note: 'When the fault is vague.' },
-      { t: 'No worries happy to check with the technician for current pricing on that one, in the mean time did you have a price in mind?', note: 'Model or phone not on the price list.' } ] },
-    { group: 'Price pushback', items: [
-      { t: 'no worries what price did you have in mind?', note: 'First reply when they say it is too low.' },
-      { t: 'no worries did you have a different price in mind?', note: 'Same idea, other wording.' },
-      { t: 'Happy to do ${price} if the battery health is above 80%?', need: ['price'], note: 'Only if Ethan has said a small step up is OK. Otherwise text Ethan.' },
-      { t: 'No worries get back to me for quick and easy cash', note: 'When they will not move. Let it go.' } ] },
+      { l: 'First message', t: 'Hey, which model is it and any issues?', note: 'The very first reply to a new chat.' },
+      { l: 'They gave the model only', t: 'Sweet any issues?', note: 'They said the model but not the condition.' },
+      { l: 'Ask their price', t: 'sweet how much are you looking for?', note: 'On a good phone, to hear their number first.' },
+      { l: 'Vague fault', t: 'no worries, what do you mean by glitches?', note: 'When the fault is not clear.' },
+      { l: 'Model not on the list', t: 'No worries happy to check with the technician for current pricing on that one, in the mean time did you have a price in mind?', note: 'Model or phone not on the price list.' } ] },
+    { group: 'Quote', quote: true, items: [] },
+    { group: 'Pushback', items: [
+      { l: 'Ask what they had in mind', t: 'no worries what price did you have in mind?', note: 'First reply when they say it is too low.' },
+      { l: 'Ask what they had in mind (2)', t: 'no worries did you have a different price in mind?', note: 'Same idea, other wording.' },
+      { l: 'Small step up', t: 'Happy to do ${price} if the battery health is above 80%?', need: ['price'], note: 'Only if Ethan has said a small step up is OK. Otherwise text Ethan.' },
+      { l: 'Let it go', t: 'No worries get back to me for quick and easy cash', note: 'When they will not move.' } ] },
+    { group: 'Time & place', items: [
+      { l: 'Offer today at the spot', t: 'happy to meet you today at ${spot} if that works for you?', need: ['spot'], note: 'Offer today at the usual spot.' },
+      { l: 'Offer a time', t: 'No worries happy to do ${time} does that work for you?', need: ['time'], note: 'Use the suggested times on the Book tab.' },
+      { l: 'Tomorrow instead', t: 'Happy to do tomorrow instead. What time works for you?', note: 'They cannot do today.' },
+      { l: 'Tomorrow is busy', t: 'No worries mostly busy tomorrow, does a time today work for you?', note: 'They ask for a day that is full.' },
+      { l: 'They ask for another spot', t: 'Sorry, but all my customers always come to me as I have many meetups at my spot, so I need to be available for everyone, and it’s just the way we have always done it', note: 'Then offer another time.' } ] },
+    { group: 'Number', items: [
+      { l: 'Ask for their number', t: 'what was your contact number for this booking?', note: 'After a time is agreed. Needed before every booking.' } ] },
+    { group: 'Booked', items: [
+      { l: 'Confirm the booking', t: 'easy as booked in see you then', note: 'Ethan’s confirmation.' },
+      { l: 'Still good?', t: 'Just checking that still works for you?', note: 'If they go quiet before the meetup.' } ] },
     { group: 'Not a fit', items: [
-      { t: 'Unfortunately will need it to turn on.', note: 'It does not turn on.' },
-      { t: 'No worries unfortunately mainly buying 13s and above, however due to the age of the model and current condition would be at about ${price} cash. Does that work for you', need: ['price'], note: 'iPhone 12 and older, only if the table gives a price.' },
-      { t: 'Mainly iphones at this moment in time.', note: 'Asked about iPads or other devices.' },
-      { t: 'Sorry but unfortunately we do not unlock phones.', note: 'Asked to unlock or remove a lock.' } ] },
-    { group: 'Book the meetup', items: [
-      { t: 'happy to meet you today at ${spot} if that works for you?', need: ['spot'], note: 'Offer today at the usual spot.' },
-      { t: 'No worries happy to do ${time} does that work for you?', need: ['time'], note: 'Offer an exact time (use the suggested times on the Book tab).' },
-      { t: 'Happy to do tomorrow instead. What time works for you?', note: 'They cannot do today.' },
-      { t: 'No worries mostly busy tomorrow, does a time today work for you?', note: 'They ask for a day that is full.' },
-      { t: 'Sorry, but all my customers always come to me as I have many meetups at my spot, so I need to be available for everyone, and it’s just the way we have always done it', note: 'They ask us to meet somewhere else. Then offer another time.' },
-      { t: 'what was your contact number for this booking?', note: 'Ethan\u2019s wording. Needed before every booking.' } ] },
-    { group: 'After booking', items: [
-      { t: 'easy as booked in see you then', note: 'Ethan’s confirmation.' },
-      { t: 'Just checking that still works for you?', note: 'If they go quiet before the meetup.' } ] },
+      { l: 'Does not turn on', t: 'Unfortunately will need it to turn on.', note: 'It does not turn on.' },
+      { l: 'iPhone 12 or older', t: 'No worries unfortunately mainly buying 13s and above, however due to the age of the model and current condition would be at about ${price} cash. Does that work for you', need: ['price'], note: 'Only if the table gives a price.' },
+      { l: 'iPads and others', t: 'Mainly iphones at this moment in time.', note: 'Asked about iPads or other devices.' },
+      { l: 'Asked to unlock', t: 'Sorry but unfortunately we do not unlock phones.', note: 'Asked to unlock or remove a lock.' } ] },
     { group: 'Follow up', items: [
-      { t: 'Hey, just following up with you if you’re still looking to sell your iPhone?', note: 'One day after the quote, if they seem interested.' },
-      { t: 'Hey ! did you end up selling your phone!', note: 'Friendly check-in.' },
-      { t: 'No worries at all, do let me know the second you want to get some cash for it and can book you in. Cheers', note: 'They decided to keep it.' } ] },
-    { group: 'After the sale', items: [
-      { t: 'Sell My Phone Townsville would love your feedback ${review}', need: ['review'], note: 'Review link (only after they have been paid).' } ] }
+      { l: 'One day later', t: 'Hey, just following up with you if you’re still looking to sell your iPhone?', note: 'One day after the quote, if they seem interested.' },
+      { l: 'Friendly check-in', t: 'Hey ! did you end up selling your phone!', note: 'Another way to ask.' },
+      { l: 'They kept it', t: 'No worries at all, do let me know the second you want to get some cash for it and can book you in. Cheers', note: 'They decided to keep it.' } ] },
+    { group: 'After sale', items: [
+      { l: 'Ask for a review', t: 'Sell My Phone Townsville would love your feedback ${review}', need: ['review'], note: 'Only after they have been paid.' } ] }
   ];
   // text-replacement shortcuts for the iPhone keyboard (and Mac): the messages that never need a fill-in
   var KEYS = [
-    ['zzany', 'Sweet any issues?'], ['zzhow', 'sweet how much are you looking for?'], ['zzmind', 'no worries what price did you have in mind?'], ['zzdiff', 'no worries did you have a different price in mind?'],
+    ['zzfirst', 'Hey, which model is it and any issues?'],     ['zzany', 'Sweet any issues?'], ['zzhow', 'sweet how much are you looking for?'], ['zzmind', 'no worries what price did you have in mind?'], ['zzdiff', 'no worries did you have a different price in mind?'],
     ['zztom', 'Happy to do tomorrow instead. What time works for you?'], ['zzon', 'Unfortunately will need it to turn on.'], ['zznum', 'what was your contact number for this booking?'],
     ['zzbook', 'easy as booked in see you then'], ['zzstill', 'Just checking that still works for you?'], ['zzfu', 'Hey, just following up with you if you\u2019re still looking to sell your iPhone?'],
     ['zzsold', 'Hey ! did you end up selling your phone!'], ['zzclose', 'No worries at all, do let me know the second you want to get some cash for it and can book you in. Cheers'],

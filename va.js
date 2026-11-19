@@ -181,21 +181,37 @@
   VIEWS.vamsgs = function () {
     var q = quinn(), spot = (q && q.meet_location) || '', review = ((A.settings() || {}).review_url) || '';
     var vals = { time: MSG.time, price: MSG.price ? '$' + MSG.price.replace(/^\$/, '') : '', spot: MSG.spot !== undefined ? MSG.spot : spot, review: review };
-    COPY = [];
-    var html = head('Messages', 'Ethan’s own wording. Tap Copy, then paste into Business Suite.') +
-      '<div class="card"><b>Fill in</b><div class="muted">Only the messages that need them use these.</div><div class="fillrow"><div><label>Time</label><input id="f_time" placeholder="e.g. 4:15PM" value="' + esc(MSG.time) + '"></div><div><label>Price</label><input id="f_price" inputmode="numeric" placeholder="e.g. 250" value="' + esc(MSG.price) + '"></div><div><label>Meetup spot</label><input id="f_spot" value="' + esc(vals.spot) + '"></div></div></div>';
-    C.LIB.forEach(function (g) {
-      html += '<h2>' + esc(g.group) + '</h2>';
-      g.items.forEach(function (it) {
-        var miss = C.missing(it, vals), text = C.fill(it.t, vals);
-        html += '<div class="msg"><div class="msgtext">' + esc(text) + '</div>' + (it.note ? '<div class="muted msgnote">' + esc(it.note) + '</div>' : '') + '<div class="acts">' + (miss.length ? '<button type="button" class="small" disabled>Fill in ' + esc(miss.join(' and ')) + ' first</button>' : copyBtn(text)) + '</div></div>';
-      });
-    });
-    html += '<div class="card" style="margin-top:16px"><b>Faster on your phone</b><div class="muted">Set up iPhone keyboard shortcuts so you can type a short code and the whole message appears.</div><div class="gap"></div><button type="button" class="secondary small" id="keys">Set up keyboard shortcuts</button></div>';
-    html += '<div class="card" style="margin-top:16px"><b>Something not here?</b><div class="muted">Scam, deposit, shipping, a seller who is rude, or a price question. Text Ethan.</div><div class="gap"></div><div class="acts">' + (ethanPhone() ? '<a class="btnlink small" href="' + textEthan('') + '">💬 Text Ethan</a>' : '') + '<button type="button" class="secondary small" id="rules">Rules and when to text Ethan</button></div></div>';
+    var tab = MSG.tab || 'Start', term = (MSG.q || '').trim().toLowerCase(); COPY = [];
+    function card(it, grp) {
+      var miss = C.missing(it, vals), text = C.fill(it.t, vals);
+      return '<div class="msg"><div class="msghead"><b>' + esc(it.l || '') + '</b>' + (term && grp ? '<span class="muted">' + esc(grp) + '</span>' : '') + '</div><div class="msgtext">' + esc(text) + '</div>' + (it.note ? '<div class="muted msgnote">' + esc(it.note) + '</div>' : '') + '<div class="acts">' + (miss.length ? '<button type="button" class="small" disabled>Fill in ' + esc(miss.join(' and ')) + ' first</button>' : copyBtn(text)) + '</div></div>';
+    }
+    function fills(g) {
+      var need = {}; g.items.forEach(function (it) { (it.need || []).forEach(function (k) { need[k] = 1; }); });
+      if (!need.time && !need.price && !need.spot) return '';
+      return '<div class="card"><b>Fill in</b><div class="fillrow">' + (need.time ? '<div><label>Time</label><input id="f_time" placeholder="e.g. 4:15PM" value="' + esc(MSG.time) + '"></div>' : '') + (need.price ? '<div><label>Price</label><input id="f_price" inputmode="numeric" placeholder="e.g. 250" value="' + esc(MSG.price) + '"></div>' : '') +
+        (need.spot ? '<div class="wide"><label>Meetup spot</label><input id="f_spot" value="' + esc(vals.spot) + '"></div>' : '') + '</div></div>';
+    }
+    var html = head('Messages', 'Ethan’s own wording, in the order a chat goes. Tap Copy, then paste into Business Suite.') +
+      '<div class="msgbar"><input id="msearch" type="search" autocomplete="off" placeholder="Search all messages" value="' + esc(MSG.q || '') + '"><div class="msgchips">' +
+      C.LIB.map(function (g, i) { return '<button type="button" class="chip' + (!term && g.group === tab ? ' on' : '') + '" data-mtab="' + esc(g.group) + '">' + (i < 6 ? (i + 1) + ' ' : '') + esc(g.group) + '</button>'; }).join('') + '</div></div>';
+    if (term) {
+      var hits = 0;
+      C.LIB.forEach(function (g) { g.items.forEach(function (it) { if ((it.l + ' ' + it.t + ' ' + (it.note || '')).toLowerCase().indexOf(term) > -1) { hits++; html += card(it, g.group); } }); });
+      if (!hits) html += '<div class="empty">Nothing matches “' + esc(MSG.q) + '”. Try a different word, or text Ethan.</div>';
+    } else {
+      var g = C.LIB.filter(function (x) { return x.group === tab; })[0] || C.LIB[0];
+      if (g.quote) html += '<div class="card"><b>The quote comes from the Price tab</b><div class="muted" style="margin-top:4px">Pick the model and faults there and it writes the quote for you, in the tone you choose.</div><div class="gap"></div><button type="button" id="goprice">Open the Price tab</button></div>';
+      html += fills(g) + g.items.map(function (it) { return card(it); }).join('');
+    }
+    html += '<div class="card" style="margin-top:16px"><b>Faster on your phone</b><div class="muted">Set up iPhone keyboard shortcuts so a short code types the whole message.</div><div class="gap"></div><button type="button" class="secondary small" id="keys">Set up keyboard shortcuts</button></div>' +
+      '<div class="card" style="margin-top:12px"><b>Something not here?</b><div class="muted">Scam, deposit, shipping, a seller who is rude, or a price question. Text Ethan.</div><div class="gap"></div><div class="acts">' + (ethanPhone() ? '<a class="btnlink small" href="' + textEthan('') + '">💬 Text Ethan</a>' : '') + '<button type="button" class="secondary small" id="rules">Rules and when to text Ethan</button></div></div>';
     shell(html); bindCopy();
-    function upd() { MSG.time = $('f_time').value.trim(); MSG.price = $('f_price').value.replace(/[^\d]/g, ''); MSG.spot = $('f_spot').value; }
-    ['f_time', 'f_price', 'f_spot'].forEach(function (id) { var el = $(id); el.onchange = function () { upd(); VIEWS.vamsgs(); }; });
+    function upd() { if ($('f_time')) MSG.time = $('f_time').value.trim(); if ($('f_price')) MSG.price = $('f_price').value.replace(/[^\d]/g, ''); if ($('f_spot')) MSG.spot = $('f_spot').value; }
+    ['f_time', 'f_price', 'f_spot'].forEach(function (id) { var el = $(id); if (el) el.onchange = function () { upd(); VIEWS.vamsgs(); }; });
+    all('[data-mtab]').forEach(function (b) { b.onclick = function () { MSG.tab = b.getAttribute('data-mtab'); MSG.q = ''; VIEWS.vamsgs(); }; });
+    var ms = $('msearch'); ms.oninput = function () { MSG.q = ms.value; clearTimeout(ms._t); ms._t = setTimeout(function () { var pos = ms.selectionStart; VIEWS.vamsgs(); var n = $('msearch'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* ignore */ } } }, 250); };
+    if ($('goprice')) $('goprice').onclick = function () { go('vaprice'); };
     $('rules').onclick = function () { go('varules'); };
     $('keys').onclick = function () { go('vakeys'); };
     A.renderPushCard && A.renderPushCard();
@@ -390,7 +406,7 @@
       sec('Add it to your Home Screen', '<ol><li>Open the link in <b>Safari</b>.</li><li>Tap the <b>Share</b> button, then <b>Add to Home Screen</b>.</li><li>Open it from the icon from now on, then tap <b>Turn on alerts</b> in the box on the first page.</li></ol>') +
       '<h2>Both</h2>' +
       sec('Keyboard shortcuts', '<div class="muted">Type a short code and the whole message appears, in any app including Business Suite.</div><div class="gap"></div><button type="button" class="secondary small" id="gokeys">Set up keyboard shortcuts</button>') +
-      sec('A normal chat', '<ol><li>Business Suite on one side, this app on the other.</li><li><b>Price</b>: pick the model, tap the faults, pick a tone, tap <b>Copy</b>, paste it in the chat.</li><li>If they are quiet, tap <b>Start 1-day follow-up</b> so you are reminded tomorrow.</li><li>Get their number, then <b>Book</b> into Quinn’s calendar.</li></ol>') +
+      sec('A normal chat', '<ol><li>Business Suite on one side, this app on the other.</li><li>First reply: <b>Hey, which model is it and any issues?</b> If they only give the model, send <b>Sweet any issues?</b></li><li><b>Price</b> tab: pick the model, tap the faults, pick a tone, tap <b>Copy</b>, paste the quote.</li><li>If they say yes, agree a <b>time at the meetup spot</b>, then ask for their <b>number</b>.</li><li><b>Book</b> it into Quinn’s calendar, and send “easy as booked in see you then”.</li><li>If they go quiet, tap <b>Start 1-day follow-up</b> so you are reminded tomorrow.</li></ol>') +
       '<div class="gap"></div><button id="back">Back to Price</button>');
     bindCopy(); $('gokeys').onclick = function () { go('vakeys'); }; $('back').onclick = function () { go('vaprice'); };
   };

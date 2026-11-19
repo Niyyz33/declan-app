@@ -84,3 +84,12 @@ button:focus-visible, .chip:focus-visible, a:focus-visible, input:focus-visible,
 .lg { display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:middle; }
 .lg.free { background:rgba(227,191,106,.35); }
 .lg.blk { background:var(--gold); margin-left:8px; }
+
+/* messages: find things fast */
+.msgbar { position:sticky; top:0; z-index:6; background:var(--bg); padding:8px 0 10px; margin-bottom:6px; border-bottom:1px solid var(--line); }
+.msgbar input { margin-bottom:8px; }
+.msgchips { display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+.msgchips .chip { flex:none; white-space:nowrap; }
+.msghead { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-bottom:4px; }
+.msghead b { font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); }
+.fillrow .wide { grid-column:1 / -1; }
