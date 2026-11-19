@@ -61,13 +61,17 @@
 
   // ---------- WELCOME, TODAY STRIP, SETUP GUIDE ----------
   function isPhone() { return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''); }
+  function shortRange(a, b) { // 840, 1140 -> 2–7pm ; 540, 840 -> 9am–2pm
+    function p(m) { var h = Math.floor(m / 60), mi = m % 60; return { n: (h % 12 === 0 ? 12 : h % 12) + (mi ? ':' + (mi < 10 ? '0' : '') + mi : ''), ap: h >= 12 ? 'pm' : 'am' }; }
+    var x = p(a), y = p(b); return x.ap === y.ap ? x.n + '–' + y.n + y.ap : x.n + x.ap + '–' + y.n + y.ap;
+  }
   function stats() {
     var q = quinn(), tz = (q && q.timezone) || 'Australia/Brisbane', now = Date.now(), out = [];
     var mine = A.allMeetups().filter(function (m) { return m.status === 'booked'; }), next = mine.filter(function (m) { return new Date(m.starts_at).getTime() >= now; }).sort(function (a, b) { return new Date(a.starts_at) - new Date(b.starts_at); })[0];
     var missing = mine.filter(function (m) { return now - new Date(m.starts_at).getTime() >= 30 * 60000; }).length, due = dueLeads().length, av = q ? A.availFor(q, A.dayKey(0, tz)) : null;
     out.push('<button type="button" class="stat' + (due ? ' hot' : '') + '" data-go="vafollow"><b>' + due + '</b><span>follow-up' + (due === 1 ? '' : 's') + ' due</span></button>');
     out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (next ? new Date(next.starts_at).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).replace(' ', '').toUpperCase() : '–') + '</b><span>' + (next ? 'next meetup' : 'no meetups booked') + '</span></button>');
-    out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (av && av.ok ? esc(av.text.replace(' (every day)', '')) : av ? 'Off' : 'Not set') + '</b><span>' + esc(q ? q.name : 'Quinn') + ' today</span></button>');
+    out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (av && av.ok ? esc(shortRange(av.start, av.end)) : av ? 'Off' : 'Not set') + '</b><span>' + esc(q ? q.name : 'Quinn') + ' today</span></button>');
     if (missing) out.push('<button type="button" class="stat hot" data-go="vameetups"><b>' + missing + '</b><span>outcome' + (missing === 1 ? '' : 's') + ' missing</span></button>');
     return '<div class="stats">' + out.join('') + '</div>';
   }

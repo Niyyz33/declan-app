@@ -121,3 +121,7 @@ button:focus-visible, .chip:focus-visible, a:focus-visible, input:focus-visible,
 .gdone { margin-top:10px; }
 .gdonebtn { background:var(--card2); color:var(--text); border:1px solid var(--line); box-shadow:none; }
 .gdonebtn.on { background:#0d3a1f; border-color:#2e9c58; color:#b9f5c9; }
+
+.row.between { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.setup .acts { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+.setup .acts .link { padding:10px 0; }
