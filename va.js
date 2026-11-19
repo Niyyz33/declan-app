@@ -88,18 +88,23 @@
     var st = setupState();
     if (st.hidden) return '<div class="setuplink"><button type="button" class="link" id="showsetup">Show the setup guide</button></div>';
     var steps = STEPS.filter(function (x) { return isPhone() ? !x.laptop : !x.phone; }), n = steps.filter(function (x) { return st.done[x.id]; }).length;
+    var open = st.open === undefined ? !isPhone() : !!st.open; // phones start collapsed so the price tool is on screen
     var h = '<div class="card setup"><div class="row between"><b>Getting started</b><span class="muted">' + n + ' of ' + steps.length + ' done</span></div><div class="bar" style="margin:8px 0 4px"><i style="width:' + Math.round(n / steps.length * 100) + '%"></i></div>';
-    steps.forEach(function (x) {
+    h += '<button type="button" class="link" id="toggsetup" style="text-align:left;padding:4px 0">' + (open ? 'Hide the steps' : 'Show the steps') + '</button>';
+    if (open) h += '<div class="steps">';
+    if (open) steps.forEach(function (x) {
       var on = !!st.done[x.id];
       h += '<div class="step' + (on ? ' on' : '') + '"><button type="button" class="tick' + (on ? ' on' : '') + '" data-sdone="' + x.id + '" aria-label="' + esc(x.t) + (on ? ' (done)' : ' (not done)') + '">' + (on ? '✓' : '') + '</button><div class="steptext"><b>' + esc(x.t) + '</b><div class="muted">' + esc(x.d) + (x.laptop ? ' <i>Laptop only: ignore this on an iPhone.</i>' : '') + '</div>' +
         '<div class="acts"><button type="button" class="secondary small" data-go="' + (x.go || 'vahelp') + '">' + esc(x.goLabel || 'How to do it') + '</button></div></div></div>';
     });
-    h += '<div class="gap"></div><button type="button" class="link" id="hidesetup">' + (n === steps.length ? 'All done. Hide this guide' : 'Hide this guide for now') + '</button></div>';
+    if (open) h += '</div>';
+    h += '<button type="button" class="link" id="hidesetup" style="text-align:left;padding:4px 0">' + (n === steps.length ? 'All done. Hide this guide' : 'Hide this guide for now') + '</button></div>';
     return h;
   }
   function bindWelcome() {
     all('[data-go]').forEach(function (b) { b.onclick = function () { go(b.getAttribute('data-go')); }; });
     all('[data-sdone]').forEach(function (b) { b.onclick = function () { var st = setupState(), k = b.getAttribute('data-sdone'); st.done[k] = !st.done[k]; A.save('vasetup', st); VIEWS.vaprice(); }; });
+    var tg = $('toggsetup'); if (tg) tg.onclick = function () { var st = setupState(); st.open = !(st.open === undefined ? !isPhone() : st.open); A.save('vasetup', st); VIEWS.vaprice(); };
     var h = $('hidesetup'); if (h) h.onclick = function () { var st = setupState(); st.hidden = true; A.save('vasetup', st); VIEWS.vaprice(); };
     var sh = $('showsetup'); if (sh) sh.onclick = function () { var st = setupState(); st.hidden = false; A.save('vasetup', st); VIEWS.vaprice(); };
   }

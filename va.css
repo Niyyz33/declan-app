@@ -63,3 +63,9 @@ h2 { margin:22px 0 8px; font-size:15px; letter-spacing:.06em; text-transform:upp
 button:focus-visible, .chip:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
 .card, .msg { box-shadow:0 1px 0 rgba(255,255,255,.03) inset; }
 .bar > i { background:var(--gold); }
+
+.setup .steps { margin-top:4px; }
+@media (min-width: 1000px) {
+  .setup .steps { display:grid; grid-template-columns:1fr 1fr; gap:0 28px; }
+  .setup .step:nth-child(2) { border-top:0; }
+}
