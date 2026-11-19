@@ -43,6 +43,20 @@
     return { within: false, price: p.max, text: 'no worries unfortunately those models aren’t worth that price anymore with the new release of the 18 series. id be happy to assess in person to see if i can do $' + p.max + ' cash does that work for you?' };
   }
 
+  // ---- phone numbers: paste anything (+61 412 345 678, 0412-345-678), get 0412 345 678 ----
+  function auMobile(str) {
+    var d = String(str || '').replace(/\D/g, '');
+    if (/^61\d{9}$/.test(d)) d = '0' + d.slice(2);        // +61 412 345 678 -> 0412 345 678
+    else if (/^610\d{9}$/.test(d)) d = d.slice(2);        // +61 0412... typed by mistake
+    var mobile = /^04\d{8}$/.test(d), f;
+    if (d.length >= 10 && d.charAt(1) === '4') f = d.slice(0, 4) + ' ' + d.slice(4, 7) + ' ' + d.slice(7, 10) + d.slice(10);
+    else if (d.length >= 10) f = d.slice(0, 2) + ' ' + d.slice(2, 6) + ' ' + d.slice(6, 10) + d.slice(10);
+    else if (d.length > 7) f = d.slice(0, 4) + ' ' + d.slice(4, 7) + ' ' + d.slice(7);
+    else if (d.length > 4) f = d.slice(0, 4) + ' ' + d.slice(4);
+    else f = d;
+    return { digits: d, formatted: f, mobile: mobile };
+  }
+
   // ---- time suggestions ----
   // day's free window (minutes from midnight), existing meetups that day (start minutes), now (minutes, only for today)
   // returns up to n start times in minutes. A meetup takes ~30 min plus a 15 min gap.
@@ -109,6 +123,6 @@
   function fill(text, vals) { return text.replace(/\$\{(\w+)\}/g, function (m, k) { return vals[k] ? vals[k] : m; }); }
   function missing(item, vals) { return (item.need || []).filter(function (k) { return !vals[k]; }); }
 
-  var api = { price: price, joinFaults: joinFaults, faultWords: faultWords, quoteMessage: quoteMessage, TONES: TONES, faultNames: faultNames, KEYS: KEYS, counter: counter, suggestSlots: suggestSlots, clock: clock, LIB: LIB, fill: fill, missing: missing, STEP_CENTS: STEP_CENTS };
+  var api = { price: price, joinFaults: joinFaults, faultWords: faultWords, auMobile: auMobile, quoteMessage: quoteMessage, TONES: TONES, faultNames: faultNames, KEYS: KEYS, counter: counter, suggestSlots: suggestSlots, clock: clock, LIB: LIB, fill: fill, missing: missing, STEP_CENTS: STEP_CENTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.VACORE = api;
 })(typeof window !== 'undefined' ? window : this);

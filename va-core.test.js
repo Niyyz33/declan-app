@@ -35,4 +35,14 @@ assert.strictEqual(C.clock(16 * 60 + 15), '4:15PM'); assert.strictEqual(C.clock(
 var it = { t: 'happy to do ${time}', need: ['time'] };
 assert.deepStrictEqual(C.missing(it, {}), ['time']); assert.strictEqual(C.fill(it.t, { time: '4:15PM' }), 'happy to do 4:15PM');
 C.LIB.forEach(function (g) { g.items.forEach(function (i) { assert.ok(i.t.length > 5); }); });
+// phone numbers
+assert.deepStrictEqual(C.auMobile('+61 412 345 678'), { digits: '0412345678', formatted: '0412 345 678', mobile: true });
+assert.strictEqual(C.auMobile('0412-345-678').formatted, '0412 345 678');
+assert.strictEqual(C.auMobile('61412345678').formatted, '0412 345 678');
+assert.strictEqual(C.auMobile('0412 345 678').mobile, true);
+assert.strictEqual(C.auMobile('0747 123 456').mobile, false);
+assert.strictEqual(C.auMobile('0747123456').formatted, '07 4712 3456');
+assert.strictEqual(C.auMobile('0412 34').mobile, false);
+assert.strictEqual(C.auMobile('0412345').formatted, '0412 345');
+assert.strictEqual(C.auMobile('').formatted, '');
 console.log('va-core tests passed');

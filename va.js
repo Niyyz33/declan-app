@@ -203,6 +203,37 @@
 
   // ---------- BOOK ----------
   var BK = { day: null, time: '' };
+  // ---- Quinn's calendar: a day as a bar from morning to night. Gold wash = free, solid = booked, red line = now ----
+  function pctOf(m, lo, hi) { return Math.max(0, Math.min(100, (m - lo) / (hi - lo) * 100)); }
+  function dayBlocks(q, key, tz, excludeId) {
+    return A.meetups().filter(function (x) { return x.partner_id === q.id && x.status === 'booked' && x.id !== excludeId && dayOf(x.starts_at, tz) === key; })
+      .map(function (x) { return { min: minutesOf(x.starts_at, tz), label: C.clock(minutesOf(x.starts_at, tz)), who: x.seller_name }; });
+  }
+  function weekRange(q, tz) {
+    var lo = 480, hi = 1260;
+    for (var i = 0; i < 7; i++) {
+      var k = A.dayKey(i, tz), av = A.availFor(q, k); if (av && av.ok) { lo = Math.min(lo, Math.floor(av.start / 60) * 60); hi = Math.max(hi, Math.ceil(av.end / 60) * 60); }
+      dayBlocks(q, k, tz).forEach(function (b) { lo = Math.min(lo, Math.floor(b.min / 60) * 60); hi = Math.max(hi, Math.ceil((b.min + 30) / 60) * 60); });
+    }
+    return { lo: lo, hi: hi };
+  }
+  function timeline(key, tz, av, blocks, rg, cls) {
+    var now = A.dayKey(0, tz) === key ? minutesOf(new Date().toISOString(), tz) : null, h = '<div class="tl ' + (cls || '') + '" data-tl="' + key + '" data-lo="' + rg.lo + '" data-hi="' + rg.hi + '">';
+    if (av && av.ok) h += '<div class="free" style="left:' + pctOf(av.start, rg.lo, rg.hi) + '%;width:' + (pctOf(av.end, rg.lo, rg.hi) - pctOf(av.start, rg.lo, rg.hi)) + '%"></div>';
+    blocks.forEach(function (b) { h += '<div class="blk" title="' + esc(b.label + ' ' + b.who) + '" style="left:' + pctOf(b.min, rg.lo, rg.hi) + '%;width:' + (pctOf(b.min + 30, rg.lo, rg.hi) - pctOf(b.min, rg.lo, rg.hi)) + '%">' + (cls === 'tall' ? esc(b.label) : '') + '</div>'; });
+    if (now !== null && now >= rg.lo && now <= rg.hi) h += '<div class="now" style="left:' + pctOf(now, rg.lo, rg.hi) + '%"></div>';
+    return h + '</div>';
+  }
+  function axis(rg) { var h = '<div class="tlaxis">'; for (var m = rg.lo; m <= rg.hi; m += 180) h += '<span>' + C.clock(m).replace(':00', '').toLowerCase() + '</span>'; return h + '</div>'; }
+  function weekView(q) {
+    if (!q) return '';
+    var tz = q.timezone || 'Australia/Brisbane', rg = weekRange(q, tz), h = '<div class="card"><div class="row between"><b>' + esc(q.name) + '’s week</b><span class="muted legend"><i class="lg free"></i> free <i class="lg blk"></i> booked</span></div>';
+    for (var i = 0; i < 7; i++) {
+      var k = A.dayKey(i, tz), av = A.availFor(q, k);
+      h += '<div class="wkrow"><button type="button" class="wkday" data-wkday="' + k + '">' + esc(dayLabel(k, i)) + '</button><div class="wkbar">' + timeline(k, tz, av, dayBlocks(q, k, tz), rg) + '</div></div>';
+    }
+    return h + '<div class="wkrow"><span class="wkday"></span><div class="wkbar">' + axis(rg) + '</div></div><div class="muted" style="margin-top:6px">Tap a day to book into it.</div></div>';
+  }
   function parseRange(str) { var m = /(\d+)\D+(\d+)/.exec(str || ''); if (m) return { min: Math.min(+m[1], +m[2]) * 100, max: Math.max(+m[1], +m[2]) * 100 }; m = /^\s*\$?(\d+)\s*$/.exec(str || ''); return m ? { min: +m[1] * 100, max: +m[1] * 100 } : null; }
   function minutesOf(iso, tz) { var p = A.tzParts(new Date(iso).getTime(), tz); return (+p.hour % 24) * 60 + +p.minute; }
   function dayOf(iso, tz) { var p = A.tzParts(new Date(iso).getTime(), tz); return p.year + '-' + p.month + '-' + p.day; }
@@ -218,6 +249,9 @@
     var av = A.availFor(q, BK.day), nowMin = BK.day === days[0] ? minutesOf(new Date().toISOString(), tz) : null;
     var bookedMin = A.meetups().filter(function (x) { return x.partner_id === q.id && x.status === 'booked' && x.id !== id && dayOf(x.starts_at, tz) === BK.day; }).map(function (x) { return minutesOf(x.starts_at, tz); });
     var slots = av && av.ok ? C.suggestSlots({ window: { start: av.start, end: av.end }, booked: bookedMin, now: nowMin, n: 5 }) : [];
+    var bookedBlocks = dayBlocks(q, BK.day, tz, id), dayRg = { lo: 480, hi: 1260 };
+    if (av && av.ok) { dayRg.lo = Math.min(dayRg.lo, Math.floor(av.start / 60) * 60); dayRg.hi = Math.max(dayRg.hi, Math.ceil(av.end / 60) * 60); }
+    bookedBlocks.forEach(function (b) { dayRg.lo = Math.min(dayRg.lo, Math.floor(b.min / 60) * 60); dayRg.hi = Math.max(dayRg.hi, Math.ceil((b.min + 30) / 60) * 60); });
     var html = head(m ? 'Edit meetup' : 'Book a meetup', 'Into ' + esc(q.name) + '’s calendar. ' + esc(q.name) + ' gets an alert straight away.') + '<div class="card">' +
       '<label>Seller’s name</label><input id="sn" autocomplete="off" value="' + esc(dr.name !== undefined ? dr.name : m ? m.seller_name : fill.name || '') + '">' +
       '<label>Seller’s phone number (needed to book)</label><input id="sc" type="tel" inputmode="tel" autocomplete="off" placeholder="e.g. 0412 345 678" value="' + esc(dr.phone !== undefined ? dr.phone : m ? m.seller_contact || '' : '') + '">' +
@@ -226,6 +260,7 @@
       '<label>Price you told them ($)</label><input id="sq" inputmode="text" placeholder="e.g. 230-290, or one number if agreed" value="' + esc(dr.quote !== undefined ? dr.quote : m ? (m.quoted_min_cents === m.quoted_max_cents ? m.quoted_min_cents / 100 : m.quoted_min_cents / 100 + '-' + m.quoted_max_cents / 100) : fill.quote || '') + '">' +
       '<label>Day</label><div class="chips">' + days.map(function (k, i) { return '<button type="button" class="chip' + (k === BK.day ? ' on' : '') + '" data-day="' + k + '">' + esc(dayLabel(k, i)) + '</button>'; }).join('') + '</div>' +
       '<div class="hint" id="avline">' + (av ? (av.ok ? '<span style="color:var(--green)">✓ ' + esc(q.name) + ' is free ' + esc(av.text) + '</span>' : '<span style="color:var(--amber)">⚠ ' + esc(q.name) + ' is not available this day</span>') : '<span class="muted">' + esc(q.name) + ' hasn’t said when he is free this day.</span>') + '</div>' +
+      '<div class="gap"></div>' + timeline(BK.day, tz, av, bookedBlocks, dayRg, 'tall') + axis(dayRg) + '<div class="muted" style="margin-top:4px">Tap the bar to pick a time.</div>' +
       (slots.length ? '<label>Suggested times</label><div class="chips">' + slots.map(function (t) { var v = (t < 600 ? '0' : '') + Math.floor(t / 60) + ':' + (t % 60 < 10 ? '0' : '') + (t % 60); return '<button type="button" class="chip' + (BK.time === v ? ' on' : '') + '" data-time="' + v + '">' + C.clock(t) + '</button>'; }).join('') + '</div>' : '') +
       '<label>Or pick a time</label><input id="st" type="time" value="' + esc(BK.time) + '">' +
       '<label>Where?</label><input id="sl" autocomplete="off" placeholder="Meetup spot" value="' + esc(dr.loc !== undefined ? dr.loc : m ? m.location || '' : q.meet_location || '') + '">' +
@@ -234,6 +269,14 @@
     shell(html);
     all('[data-day]').forEach(function (b) { b.onclick = function () { keepFields(); BK.day = b.getAttribute('data-day'); BK.time = ''; VIEWS.vabook(id); }; });
     all('[data-time]').forEach(function (b) { b.onclick = function () { keepFields(); BK.time = b.getAttribute('data-time'); VIEWS.vabook(id); }; });
+    var tlEl = w_tl();
+    function w_tl() { return document.querySelector('.tl.tall'); }
+    if (tlEl) tlEl.onclick = function (e) {
+      var r = tlEl.getBoundingClientRect(); if (!r.width) return;
+      var lo = +tlEl.getAttribute('data-lo'), hi = +tlEl.getAttribute('data-hi'), mm = Math.round((lo + (e.clientX - r.left) / r.width * (hi - lo)) / 5) * 5;
+      keepFields(); BK.time = (mm < 600 ? '0' : '') + Math.floor(mm / 60) + ':' + (mm % 60 < 10 ? '0' : '') + (mm % 60); VIEWS.vabook(id);
+    };
+    $('sc').oninput = function () { var f = C.auMobile($('sc').value).formatted; if (f !== $('sc').value) $('sc').value = f; };
     $('pickm').onclick = function () { var l = $('mlist'); l.hidden = !l.hidden; };
     all('[data-bm]').forEach(function (b) { b.onclick = function () { var x = modelByCode(b.getAttribute('data-bm')); $('sm').value = x.name; $('mlist').hidden = true; }; });
     $('st').onchange = function () { BK.time = $('st').value; };
@@ -244,13 +287,15 @@
       BK.time = $('st').value || BK.time;
       var rng = parseRange($('sq').value), err = '', when = BK.time ? A.zonedToUtc(BK.day + 'T' + BK.time, tz) : null;
       if (!$('sn').value.trim()) err = 'Enter the seller’s name.';
-      else if (String($('sc').value).replace(/\D/g, '').length < 8) err = 'Enter the seller’s phone number. A meetup can’t be booked without it.';
+      else if (C.auMobile($('sc').value).digits.length < 8) err = 'Enter the seller’s phone number. A meetup can’t be booked without it.';
       else if (!$('sm').value.trim()) err = 'Enter the phone model.';
       else if (!rng) err = 'Enter the price, like 230-290.';
       else if (!when || isNaN(when)) err = 'Pick a day and a time.';
       else if (!$('sl').value.trim()) err = 'Enter where they’re meeting.';
       else if (!navigator.onLine) err = 'You need signal to book.';
       if (err) { $('err').textContent = err; return; }
+      var num = C.auMobile($('sc').value); $('sc').value = num.formatted;
+      if (!num.mobile && !confirm('That doesn’t look like a mobile number (it should be 04xx xxx xxx), and Quinn needs to text it. Check it with the seller. Book anyway?')) return;
       var mins = BK.time.split(':'); mins = +mins[0] * 60 + +mins[1];
       var outside = !av || !av.ok || mins < av.start || mins + 15 > av.end;
       if (outside && !confirm((!av ? q.name + ' hasn’t said when he is free that day. ' : 'That’s outside ' + q.name + '’s free times (' + (av.text || 'not available') + '). ') + 'Check with him first. Book it anyway?')) return;
@@ -312,10 +357,11 @@
   // ---------- MEETUPS ----------
   VIEWS.vameetups = function () {
     var q = quinn();
-    shell(head((q ? q.name + '’s' : '') + ' meetups') + A.availOwnerCard() + '<button id="book">＋ Book a meetup</button>' + A.meetupSections() +
+    shell(head((q ? q.name + '’s' : '') + ' meetups') + weekView(q) + '<button id="book">＋ Book a meetup</button>' + A.meetupSections() +
       '<div class="row" style="margin-top:18px"><span class="muted">' + esc(A.profile().name || 'Aston') + ' · ' + esc(A.versionText()) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { BOOKFILL = null; BK.editing = null; go('vabook'); };
     $('out').onclick = function () { A.logout(); };
+    all('[data-wkday]').forEach(function (b) { b.onclick = function () { BOOKFILL = null; BK.editing = null; BK.draft = null; BK.day = b.getAttribute('data-wkday'); BK.time = ''; go('vabook'); }; });
     A.bindMeetupActions(); A.renderPushCard && A.renderPushCard();
   };
 

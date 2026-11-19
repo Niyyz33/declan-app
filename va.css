@@ -69,3 +69,18 @@ button:focus-visible, .chip:focus-visible, a:focus-visible, input:focus-visible,
   .setup .steps { display:grid; grid-template-columns:1fr 1fr; gap:0 28px; }
   .setup .step:nth-child(2) { border-top:0; }
 }
+
+/* Quinn's calendar */
+.tl { position:relative; height:28px; background:#0e0e10; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+.tl.tall { height:56px; cursor:pointer; margin-top:10px; }
+.tl .free { position:absolute; top:0; bottom:0; background:rgba(227,191,106,.20); }
+.tl .blk { position:absolute; top:3px; bottom:3px; min-width:4px; background:var(--gold); color:#1a1405; border-radius:5px; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap; }
+.tl .now { position:absolute; top:0; bottom:0; width:2px; background:var(--red); }
+.tlaxis { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:3px; }
+.wkrow { display:flex; align-items:center; gap:10px; margin-top:8px; }
+.wkday { width:96px; flex:none; text-align:left; padding:6px 0; background:none; border:0; box-shadow:none; color:var(--text); font-size:14px; font-weight:700; }
+.wkbar { flex:1; min-width:0; }
+.legend { display:flex; align-items:center; gap:6px; font-size:12px; }
+.lg { display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:middle; }
+.lg.free { background:rgba(227,191,106,.35); }
+.lg.blk { background:var(--gold); margin-left:8px; }
