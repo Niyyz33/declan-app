@@ -1,0 +1,29 @@
+/* Cash for Phones VA: black, gold and silver, from the Australia-wide logo (loaded after styles.css, only by va.html). */
+:root { --bg:#0a0a0b; --bg2:#15130e; --card:#141416; --card2:#1c1b1f; --line:#34312a; --text:#eceaf0; --muted:#a4a1ab; --blue:#c9a24a; --blue2:#e3bf6a; --gold:#e3bf6a; --green:#3fbf6a; --green2:#3fbf6a; }
+body { background:radial-gradient(120% 50% at 50% -8%, var(--bg2) 0%, var(--bg) 70%), var(--bg); }
+main { max-width:760px; }
+.brand img { border-radius:50%; width:130px; height:130px; }
+input, select, textarea, .seg, .stepper, .bar, .fbbox { background:#0e0e10; }
+.chip.on { background:#3a2f12; border-color:var(--gold); color:#fff3d0; }
+.chip.bad.on { background:#4a1618; border-color:var(--red); color:#ffb3b5; }
+.tip { background:#241d0b; border-color:var(--gold); }
+#tabs { background:rgba(10,10,11,.97); }
+#tabs .tab.on { color:var(--gold); }
+#tabs .tab { max-width:170px; }
+button, a.btnlink.green { background:var(--gold); color:#1a1405; box-shadow:none; }
+button.secondary, a.btnlink { background:var(--card2); color:var(--text); border:1px solid var(--line); box-shadow:none; }
+button.link { background:none; color:var(--gold); border:0; }
+button:disabled { opacity:.45; }
+a.btnlink.small { padding:9px 12px; font-size:14px; border-radius:11px; display:inline-flex; width:auto; }
+h2 { margin:22px 0 8px; font-size:15px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); }
+.msg { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:10px; }
+.msgtext { font-size:16px; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere; }
+.msgnote { margin-top:6px; font-size:13px; }
+.msg .acts { margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }
+.pricebox { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+.pricebox > div { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; min-width:0; }
+.pricebox .lab { font-size:12px; text-transform:uppercase; letter-spacing:.07em; }
+.pricebox .big { font-size:30px; font-weight:800; margin-top:4px; overflow-wrap:anywhere; }
+.pricebox .gold { color:var(--gold); }
+.fillrow { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+.dot { background:var(--red); }

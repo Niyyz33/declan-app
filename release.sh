@@ -4,7 +4,8 @@
 set -e
 cd "$(dirname "$0")"
 node deductions.test.js
-node --check app.js && node --check sw.js
+node va-core.test.js
+node --check app.js && node --check sw.js && node --check va.js
 V="$(date +%Y.%m.%d.%H%M)"
 sed -i '' "s/APP_VERSION: '[^']*'/APP_VERSION: '$V'/" config.js
 sed -i '' "s/declan-app-[A-Za-z0-9.]*'/declan-app-$V'/" sw.js

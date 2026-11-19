@@ -68,7 +68,7 @@
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
-  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml', 'onb', 'avail', 'agreements'].forEach(function (k) { save(k, null); }); agreementRows = []; listPrices = []; pushHtml = ''; onb = { items: [], progress: [] }; avail = []; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml', 'onb', 'avail', 'agreements', 'vamodels', 'vadeds', 'valeads'].forEach(function (k) { save(k, null); }); agreementRows = []; listPrices = []; pushHtml = ''; onb = { items: [], progress: [] }; avail = []; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
   // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
   function versionText(v) {
     var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
@@ -77,6 +77,9 @@
     return 'App updated ' + d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
   }
   function isOwner() { return profile.role === 'owner'; }
+  function isVA() { return profile.role === 'va'; }
+  function isStaff() { return profile.role === 'owner' || profile.role === 'va'; } // Ethan or the VA: sees every meetup for the partners in scope
+  function homeView() { return isOwner() ? 'omeetups' : isVA() ? 'vaprice' : 'home'; }
   // ---- what a damaged phone pays, and how close to the step-up ($30 -> $35) ----
   function feeCard() {
     if (isOwner() || !session) return '';
@@ -324,7 +327,7 @@
     };
   }
   // ---- more than one partner (Declan in Townsville, Quinn in Melbourne, Harry in Sydney) ----
-  var LOGOS = { Townsville: 'icons/logo.png', Melbourne: 'icons/logo-melbourne.png', Sydney: 'icons/logo-sydney.png' };
+  var LOGOS = { Townsville: 'icons/logo.png', Melbourne: 'icons/logo-melbourne.png', Sydney: 'icons/logo-sydney.png', Australia: 'icons/logo-parent.png' };
   function cityName() { return profile.city_name || (window.BRAND && window.BRAND.city) || 'Townsville'; }
   function logoSrc() { return LOGOS[cityName()] || 'icons/logo.png'; }
   // Each partner lives in their own city's version (own icon, name and logo): Declan on the main address, Quinn on melbourne.html.
@@ -361,7 +364,7 @@
     return listPrices.filter(function (x) { return x.city === city && x.model === p.model && x.storage_gb === p.storage_gb; })[0] || null;
   }
   function fmtWhen(iso, pid) {
-    var d = new Date(iso), tz = isOwner() && pid ? partnerTz(pid) : undefined, o1 = { weekday: 'short', day: 'numeric', month: 'short' }, o2 = { hour: 'numeric', minute: '2-digit' };
+    var d = new Date(iso), tz = isStaff() && pid ? partnerTz(pid) : undefined, o1 = { weekday: 'short', day: 'numeric', month: 'short' }, o2 = { hour: 'numeric', minute: '2-digit' };
     if (tz) { o1.timeZone = tz; o2.timeZone = tz; }
     var city = tz && tz !== Intl.DateTimeFormat().resolvedOptions().timeZone && partnerById(pid) && partnerById(pid).city_name ? ' (' + partnerById(pid).city_name + ' time)' : '';
     return d.toLocaleDateString('en-AU', o1) + ' · ' + d.toLocaleTimeString('en-AU', o2) + city;
@@ -488,6 +491,7 @@
       }
       var mt = await sb.from('partner_meetups').select('*').order('starts_at', { ascending: true }).limit(400);
       if (mt && !mt.error) { meetups = mt.data; save('meetups', meetups); }
+      if (isVA() && window.VA) window.VA.refresh();
       if (dataSig() === before) { var sl = $('syncline'); if (sl) sl.innerHTML = syncLine(); return; }
       if (['home', 'phones', 'ship', 'oship', 'meetups', 'omeetups', 'ostatement'].indexOf(current) > -1 && !typingNow()) go(current, undefined, true);
     } catch (e) { /* offline */ }
@@ -508,7 +512,8 @@
       var p = await sb.from('partners').select('name,role,price_city,city_name,timezone,calendar_token,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min,meet_location,ship_name,ship_phone,ship_street,ship_suburb,ship_state,ship_postcode,alerts_tested_at,agreement_version').eq('id', session.user.id).maybeSingle();
       var before = profile.role;
       if (p.data && p.data.name) { profile = { name: p.data.name, role: p.data.role || '', price_city: p.data.price_city || 'townsville', city_name: p.data.city_name || '', timezone: p.data.timezone || '', calendar_token: p.data.calendar_token || '', signed_off_at: p.data.signed_off_at || null, avail_on: !!p.data.default_avail_enabled, avail_start: p.data.default_avail_start_min, avail_end: p.data.default_avail_end_min, meet: p.data.meet_location || '', ship: { name: p.data.ship_name || '', phone: p.data.ship_phone || '', street: p.data.ship_street || '', suburb: p.data.ship_suburb || '', state: p.data.ship_state || '', postcode: p.data.ship_postcode || '' }, tested: p.data.alerts_tested_at || null, agreement_version: p.data.agreement_version || null }; save('profile', profile); routeToMyCity(); }
-      if (before !== profile.role && current && current !== 'login') setTimeout(function () { go(isOwner() ? 'omeetups' : 'home'); }, 0);
+      if (before !== profile.role && current && current !== 'login') setTimeout(function () { go(homeView()); }, 0);
+      if (profile.role === 'va' && window.VA) { window.VA.refresh(); }
       if (profile.role === 'owner') { var pl = await sb.from('partners').select('id,name,role,agreement_version,price_city,city_name,timezone,signed_off_at,default_avail_enabled,default_avail_start_min,default_avail_end_min,meet_location,ship_name,ship_phone,ship_street,ship_suburb,ship_state,ship_postcode'); if (pl && !pl.error) { var plBefore = JSON.stringify(partnersList); partnersList = pl.data; save('partners', partnersList); if (JSON.stringify(partnersList) !== plBefore && ['omeetups', 'phones', 'oship', 'ostatement'].indexOf(current) > -1 && !typingNow()) go(current, undefined, true); } }
       var s = await sb.from('app_settings').select('key,value');
       if (!s.error && s.data) { var o = {}; s.data.forEach(function (x) { o[x.key] = x.value; }); settings = o; save('settings', o); }
@@ -567,6 +572,8 @@
   VIEWS.details = viewDetails; VIEWS.agreement = viewAgreement;
   function go(view, arg, keepScroll) {
     if (pendingReload && view === 'home') { location.reload(); return; }
+    if (isVA() && ['home', 'log', 'ship', 'oship', 'phones', 'omeetups', 'obook'].indexOf(view) > -1) view = view === 'obook' ? 'vabook' : view === 'omeetups' ? 'vameetups' : 'vaprice';
+    if (isVA() && view === 'meetups') view = 'vameetups';
     if (isOwner() && (view === 'home' || view === 'log')) view = 'omeetups';
     if (isOwner() && view === 'ship') view = 'oship';
     if (!isOwner() && view === 'oship') view = 'ship';
@@ -598,7 +605,8 @@
     var active = current === 'sold' || current === 'fbdesc' ? 'phones' : current === 'avail' || current === 'details' ? 'home' : current === 'orates' ? 'ostatement' : current === 'issues' || current === 'help' ? 'home' : current === 'edit' ? 'phones' : current === 'obook' ? 'obook' : current;
     var ready = readyToShip().length;
     function tab(id, label, icon, extra) { return '<button class="tab ' + id + (active === id ? ' on' : '') + '" data-tab="' + id + '">' + icon + (extra || '') + '<span>' + label + '</span></button>'; }
-    if (isOwner()) {
+    if (isVA() && window.VA) { $tabs.innerHTML = window.VA.tabs(tab, ICON); }
+    else if (isOwner()) {
       var waiting = allBatches().filter(function (b) { return batchStage(b) === 'waiting'; }).length;
       $tabs.innerHTML = tab('omeetups', 'Meetups', ICON.cal) + tab('obook', 'Book', ICON.plus) + tab('oship', 'Shipments', ICON.box, waiting ? '<span class="dot">' + waiting + '</span>' : '') + tab('phones', 'Phones', ICON.list) + tab('ostatement', 'Statement', ICON.doc);
     }
@@ -626,7 +634,7 @@
       session = r.data.session; await afterLogin();
     };
   };
-  async function afterLogin() { await Promise.all([loadCatalogue(), loadProfile()]); await refreshPhones(); await syncQueue(); go(isOwner() ? 'omeetups' : 'home'); }
+  async function afterLogin() { await Promise.all([loadCatalogue(), loadProfile()]); await refreshPhones(); await syncQueue(); go(homeView()); }
   function installTip() {
     if (isStandalone() || load('hideinstall', false)) return '';
     if (isAndroidMode()) return '<div class="tip"><b>Do this first:</b> open this page in <b>Chrome</b> (not inside WhatsApp, Messenger or another app). Tap the <b>⋮</b> menu at the top right, then <b>Install app</b> (or <b>Add to Home screen</b>, then <b>Install</b>). Then open the app from its icon and log in there. That way it keeps you logged in and never loses a phone you logged.' + (installPrompt ? '<div style="margin-top:8px"><button class="small" id="doinstall" type="button">Install the app</button></div>' : '') + '<div style="margin-top:8px"><button class="link" id="hideinstall" type="button" onclick="localStorage.setItem(\'declan_hideinstall\',\'true\');this.closest(\'.tip\').remove()">Already done</button></div></div>';
@@ -1278,7 +1286,7 @@
     var el = $('pushcard');
     if (!el || !(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY)) return;
     if (pushHtml && !el.innerHTML) { el.innerHTML = pushHtml; bindPush(); }
-    var what = isOwner() ? 'when Declan asks for a label or posts a batch, and an hour before each meetup' : 'the moment Ethan books a meetup, and another one an hour before';
+    var what = isOwner() ? 'when Declan asks for a label or posts a batch, and an hour before each meetup' : isVA() ? 'when a quote is due for a follow-up, when a meetup has no outcome, and when Quinn sets his free times' : 'the moment Ethan books a meetup, and another one an hour before';
     if (!pushSupported() || !isStandalone()) { paintPush(el, '<div class="tip"><b>Want alerts?</b> ' + (isAndroidMode() ? 'Install the app first (Chrome ⋮ menu › Install app), open it from its icon, then turn alerts on here.' : 'Add the app to your Home Screen first (Share ⬆︎ → Add to Home Screen), open it from the icon, then turn alerts on here.') + '</div>'); return; }
     if (Notification.permission === 'denied') { paintPush(el, '<div class="tip">Alerts are blocked. ' + (isAndroidMode() ? 'Press and hold the app icon, tap <b>App info</b> › <b>Notifications</b> and turn them on.' : 'Turn them on in <b>Settings › Notifications › Cash for Phones</b>.') + '</div>'); return; }
     var on = false;
@@ -1345,7 +1353,7 @@
   // Drafted texts for the seller: one to confirm the time (the app alerts Declan an hour before) and one for when he arrives
   function sellerButtons(m) {
     var tel = telFor(m.seller_contact), me = profile.name || 'Declan', first = String(m.seller_name || '').split(' ')[0] || 'there';
-    if (isOwner()) return '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink green" href="sms:' + tel + '">💬 Message ' + esc(first) + '</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
+    if (isStaff()) return '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink green" href="sms:' + tel + '">💬 Message ' + esc(first) + '</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
     var d = new Date(m.starts_at), clock = d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }), isToday = d.toDateString() === new Date().toDateString(),
       day = isToday ? ' today' : ' on ' + d.toLocaleDateString('en-AU', { weekday: 'long' });
     var confirmTxt = 'Hey ' + first + ', it’s ' + me + ' from Cash for Phones. Just checking you’re still good for our ' + clock + ' meetup' + (m.location ? ' at ' + m.location : '') + day + ' for your ' + m.model + '?';
@@ -1364,7 +1372,7 @@
     return p && p.ship_phone ? '<a class="btnlink green small" href="' + smsTo(telFor(p.ship_phone), txt) + '">💬 Text ' + esc(first) + '</a>' : '';
   }
   function meetupCard(m) {
-    var st = MEETUP_STATUS[m.status] || ['bought', m.status], owner = isOwner(), booked = m.status === 'booked', late = booked && new Date(m.starts_at) < new Date();
+    var st = MEETUP_STATUS[m.status] || ['bought', m.status], owner = isStaff(), booked = m.status === 'booked', late = booked && new Date(m.starts_at) < new Date();
     if (booked && outcomeMissing(m)) st = ['shipped', 'Outcome missing'];
     var acts = '';
     if (owner && booked) acts = '<div class="acts">' + chaseButton(m) + '<button class="secondary small" data-medit="' + m.id + '">Edit</button><button class="secondary small" data-mcancel="' + m.id + '" style="color:var(--red)">Cancel meetup</button></div>';
@@ -1395,14 +1403,14 @@
         queue.push({ kind: 'meetup', id: id, patch: { status: st } }); setQueue(queue); syncQueue(); go('meetups', undefined, true);
       };
     });
-    all('[data-medit]').forEach(function (b) { b.onclick = function () { go('obook', b.getAttribute('data-medit')); }; });
+    all('[data-medit]').forEach(function (b) { b.onclick = function () { go(isVA() ? 'vabook' : 'obook', b.getAttribute('data-medit')); }; });
     all('[data-mcancel]').forEach(function (b) {
       b.onclick = async function () {
         if (!confirm('Cancel this meetup? It disappears from their calendar.')) return;
         if (!navigator.onLine) { alert('You need signal to do that.'); return; }
         var r = await sb.from('partner_meetups').update({ status: 'cancelled' }).eq('id', b.getAttribute('data-mcancel')).select('id');
         if (r.error) { alert('Couldn’t cancel: ' + r.error.message); return; }
-        await refreshPhones(); go('omeetups', undefined, true);
+        await refreshPhones(); go(isVA() ? 'vameetups' : 'omeetups', undefined, true);
       };
     });
   }
@@ -1487,6 +1495,7 @@
 
   // ---------- boot ----------
   async function boot() {
+    if (window.BRAND && window.BRAND.va && !window.VA) await new Promise(function (r) { var t = setInterval(function () { if (window.VA) { clearInterval(t); r(); } }, 20); }); // the VA page loads va.js after this file
     if ('serviceWorker' in navigator) {
       var had = !!navigator.serviceWorker.controller;
       navigator.serviceWorker.register('sw.js').catch(function () {});
@@ -1507,9 +1516,11 @@
     renderBanner();
     if (!session) return go('login');
     routeToMyCity();
-    go(isOwner() ? 'omeetups' : 'home');
+    go(homeView());
     var deep = new URLSearchParams(location.search).get('go');
-    if (deep === 'meetups' && !isOwner()) go('meetups');
+    if (isVA() && deep === 'followups') go('vafollow');
+    if (isVA() && deep === 'meetups') go('vameetups');
+    if (deep === 'meetups' && !isOwner() && !isVA()) go('meetups');
     if (deep === 'avail' && !isOwner()) go('avail');
     if (deep === 'ship') go(isOwner() ? 'oship' : 'ship');
     if (deep === 'agreement' && !isOwner()) loadProfile().then(function () { if (profile.agreement_version) go('agreement'); });
@@ -1520,5 +1531,15 @@
     document.addEventListener('visibilitychange', function () { if (document.hidden) { if (pendingReload && !(current === 'log' && draft && draft.model)) location.reload(); } else { syncQueue(); refreshPhones(); } });
     setInterval(syncQueue, 30000);
   }
+  // Helpers for va.js (Aston's screens). Getters, because the underlying lists are replaced as data arrives.
+  window.APP = {
+    esc: esc, $: $, all: all, shell: shell, go: go, VIEWS: VIEWS, uuid: uuid, money: money, load: load, save: save, smsTo: smsTo, telFor: telFor, mapsLink: mapsLink,
+    sb: function () { return sb; }, session: function () { return session; }, profile: function () { return profile; }, settings: function () { return settings; },
+    meetups: function () { return meetups; }, allMeetups: allMeetups, partners: function () { return partnersList; }, setPartners: function (l) { partnersList = l; save('partners', l); },
+    avail: function () { return avail; }, availFor: availFor, dayKey: dayKey, hmText: hmText, inputMin: inputMin, partnerById: partnerById, viewingPartner: viewingPartner,
+    zonedToUtc: zonedToUtc, toZonedInput: toZonedInput, tzParts: tzParts, fmtWhen: fmtWhen, meetupSections: meetupSections, bindMeetupActions: bindMeetupActions, availOwnerCard: availOwnerCard,
+    refreshPhones: refreshPhones, renderPushCard: renderPushCard, typingNow: typingNow, current: function () { return current; }, renderBanner: renderBanner, versionText: function () { return versionText(VERSION); },
+    logout: async function () { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; current = ''; clearCaches(); go('login'); }
+  };
   boot();
 })();

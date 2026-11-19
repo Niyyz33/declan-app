@@ -29,11 +29,14 @@ Deno.serve(async (req: Request) => {
   }
 
   // Who each partner is (name + time zone), so alerts use their own clock and name.
-  const { data: people } = await db.from('partners').select('id,name,timezone,role,default_avail_enabled,default_avail_start_min,default_avail_end_min,default_avail_changed_at,default_avail_notified_at,avail_asked_on,avail_prompts_from');
-  type Person = { id: string; name: string; timezone: string; role: string; default_avail_enabled: boolean; default_avail_start_min: number | null; default_avail_end_min: number | null; default_avail_changed_at: string | null; default_avail_notified_at: string | null; avail_asked_on: string | null; avail_prompts_from: string | null };
+  const { data: people } = await db.from('partners').select('id,name,timezone,role,default_avail_enabled,default_avail_start_min,default_avail_end_min,default_avail_changed_at,default_avail_notified_at,avail_asked_on,avail_prompts_from,va_can_book');
+  type Person = { id: string; name: string; timezone: string; role: string; default_avail_enabled: boolean; default_avail_start_min: number | null; default_avail_end_min: number | null; default_avail_changed_at: string | null; default_avail_notified_at: string | null; avail_asked_on: string | null; avail_prompts_from: string | null; va_can_book: boolean };
   const who = (id: string) => (people ?? []).find((p: { id: string }) => p.id === id) as Person | undefined;
   async function ownerIds() { const { data } = await db.from('partners').select('id').eq('role', 'owner'); return (data ?? []).map((o: { id: string }) => o.id); }
   async function sendOwners(payload: Record<string, string>) { let n = 0; for (const id of await ownerIds()) n += await send(id, payload); return n; }
+  // the VA (Aston) gets the alerts for the partners he looks after
+  async function vaIds() { const { data } = await db.from('partners').select('id').eq('role', 'va'); return (data ?? []).map((o: { id: string }) => o.id); }
+  async function sendVAs(payload: Record<string, string>) { let n = 0; for (const id of await vaIds()) n += await send(id, payload); return n; }
 
   // Manual test: ?test=1 sends a test notification to every subscribed phone.
   if (url.searchParams.get('test')) {
@@ -56,6 +59,8 @@ Deno.serve(async (req: Request) => {
   for (const m of fresh ?? []) {
     sentNew += await send(m.partner_id, { title: 'New meetup booked', body: `${when(m.starts_at, who(m.partner_id)?.timezone ?? 'Australia/Brisbane')} — ${m.model} (${m.seller_name})${m.location ? ' at ' + m.location : ''}`, url: './?go=meetups', tag: 'new-' + m.id });
     await db.from('partner_meetups').update({ notified_new_at: new Date().toISOString() }).eq('id', m.id);
+    const by = m.created_by ? who(m.created_by) : undefined;
+    if (by && by.role === 'va') await sendOwners({ title: `${by.name} booked ${who(m.partner_id)?.name ?? 'a partner'}`, body: `${when(m.starts_at, who(m.partner_id)?.timezone ?? 'Australia/Brisbane')} — ${m.model} (${m.seller_name}) quote $${Math.round(m.quoted_min_cents / 100)}${m.quoted_max_cents !== m.quoted_min_cents ? '-$' + Math.round(m.quoted_max_cents / 100) : ''}`, url: './?go=meetups', tag: 'vabook-' + m.id });
   }
   // 2. one hour to go (or less, if it was booked at short notice)
   const { data: soon } = await db.from('partner_meetups').select('*').eq('status', 'booked').is('reminded_at', null).gt('starts_at', new Date(now).toISOString()).lte('starts_at', new Date(now + 3600000).toISOString());
@@ -82,7 +87,9 @@ Deno.serve(async (req: Request) => {
   const { data: stale } = await db.from('partner_meetups').select('*').eq('status', 'booked').is('outcome_alerted_at', null).lte('starts_at', new Date(now - 60 * 60000).toISOString()).gt('starts_at', new Date(now - 86400000).toISOString());
   for (const m of stale ?? []) {
     const w = who(m.partner_id), tz = w?.timezone ?? 'Australia/Brisbane', clock = new Date(m.starts_at).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' });
-    sentChase += await sendOwners({ title: (w?.name ?? 'Partner') + ': outcome missing', body: `${clock} meetup with ${m.seller_name} (${m.model}). Tap to text ${(w?.name ?? 'them').split(' ')[0]}.`, url: './?go=meetups', tag: 'chase-' + m.id });
+    const chase = { title: (w?.name ?? 'Partner') + ': outcome missing', body: `${clock} meetup with ${m.seller_name} (${m.model}). Tap to text ${(w?.name ?? 'them').split(' ')[0]}.`, url: './?go=meetups', tag: 'chase-' + m.id };
+    sentChase += await sendOwners(chase);
+    if (w?.va_can_book) sentChase += await sendVAs(chase);
     await db.from('partner_meetups').update({ outcome_alerted_at: new Date().toISOString() }).eq('id', m.id);
   }
   // 3. shipping: Ethan sent the label -> tell Declan; Declan posted it -> tell Ethan
@@ -114,6 +121,13 @@ Deno.serve(async (req: Request) => {
       }
     }
   }
+  // 6. a quote is a day old and still waiting: tell the VA to send the one follow-up
+  let followUps = 0;
+  const { data: dueLeads } = await db.from('va_leads').select('*').eq('status', 'quoted').is('alerted_at', null).lte('follow_up_due_at', new Date(now).toISOString());
+  for (const l of dueLeads ?? []) {
+    followUps += await sendVAs({ title: 'Follow up: ' + l.label, body: `${l.model ?? 'iPhone'}${l.quote_text ? ' quoted ' + l.quote_text : ''}. Tap to copy the message.`, url: './?go=followups', tag: 'fu-' + l.id });
+    await db.from('va_leads').update({ alerted_at: new Date().toISOString() }).eq('id', l.id);
+  }
   let availPings = 0, asked = 0;
   // 7. availability: the partner said when they're free -> tell Ethan (so he knows when to send leads)
   const hm = (min: number) => { const h = Math.floor(min / 60), m = min % 60, ap = h >= 12 ? 'pm' : 'am', h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + String(m).padStart(2, '0') + ' ' + ap; };
@@ -134,6 +148,7 @@ Deno.serve(async (req: Request) => {
       body = (yes.length ? `Free ${yes.length} of them (${hm(yes[0].start_min!)} to ${hm(yes[0].end_min!)} on ${dayLabel(yes[0].day, tz)}). ` : '') + (no.length ? `Not available on ${no.length}. ` : '') + 'Open the app to see each day.';
     }
     availPings += await sendOwners({ title, body, url: './?go=meetups', tag: 'avail-' + pid + list[0].day });
+    if (w?.va_can_book) availPings += await sendVAs({ title, body, url: './?go=meetups', tag: 'vaavail-' + pid + list[0].day });
     for (const a of list) await db.from('partner_availability').update({ notified_at: new Date().toISOString() }).eq('partner_id', pid).eq('day', a.day);
   }
   for (const p of (people ?? []) as Person[]) {
@@ -152,5 +167,5 @@ Deno.serve(async (req: Request) => {
       await db.from('partners').update({ avail_asked_on: today }).eq('id', p.id);
     }
   }
-  return Response.json({ newBookings: sentNew, oneHour: sentSoon, outcomeReminders: sentOutcome, outcomeChase: sentChase, shipping: ship, checklist, availPings, asked });
+  return Response.json({ newBookings: sentNew, oneHour: sentSoon, outcomeReminders: sentOutcome, outcomeChase: sentChase, followUps, shipping: ship, checklist, availPings, asked });
 });
