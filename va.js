@@ -265,6 +265,7 @@
     var rule = function (h, p) { return '<div class="card"><b>' + esc(h) + '</b><div class="muted" style="margin-top:4px">' + esc(p) + '</div></div>'; };
     shell(head('Rules and when to text Ethan') +
       '<h2>Before you book</h2>' +
+      rule('Reply within 5 minutes', 'Ethan wants a reply inside 5 minutes, 99.67% of the time. Fast first replies win the seller.') +
       rule('Always get the seller’s phone number', 'You can’t book without it. ' + (q ? q.name : 'Quinn') + ' texts them an hour before and when he arrives.') +
       rule('It has to turn on', 'If it does not turn on, do not book. Use “Unfortunately will need it to turn on.”') +
       rule('Mainly iPhone 13 and above', 'The ads say 12 and up, but Ethan is mainly buying 13s and above. Older models only if the price table gives a price.') +

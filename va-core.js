@@ -89,7 +89,7 @@
       { t: 'Happy to do tomorrow instead', note: 'They cannot do today.' },
       { t: 'No worries mostly busy tomorrow, does a time today work for you?', note: 'They ask for a day that is full.' },
       { t: 'Sorry, but all my customers always come to me as I have many meetups at my spot, so I need to be available for everyone, and it’s just the way we have always done it', note: 'They ask us to meet somewhere else. Then offer another time.' },
-      { t: 'Can I grab your number so we can text you before the meetup?', note: 'DRAFT, Ethan has not set wording for this. Needed before every booking.' } ] },
+      { t: 'what was your contact number for this booking?', note: 'Ethan\u2019s wording. Needed before every booking.' } ] },
     { group: 'After booking', items: [
       { t: 'easy as booked in see you then', note: 'Ethan’s confirmation.' },
       { t: 'Just checking that still works for you?', note: 'If they go quiet before the meetup.' } ] },
