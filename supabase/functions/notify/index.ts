@@ -133,8 +133,9 @@ Deno.serve(async (req: Request) => {
   const hm = (min: number) => { const h = Math.floor(min / 60), m = min % 60, ap = h >= 12 ? 'pm' : 'am', h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + String(m).padStart(2, '0') + ' ' + ap; };
   const dayLabel = (day: string, tz: string) => { const today = new Date().toLocaleDateString('en-CA', { timeZone: tz }); return day === today ? 'today' : new Date(day + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }); };
   const { data: avs } = await db.from('partner_availability').select('*').is('notified_at', null).gte('set_at', new Date(now - 86400000).toISOString()).order('day');
-  const byPartner = new Map<string, Array<{ partner_id: string; day: string; available: boolean; start_min: number | null; end_min: number | null }>>();
+  const byPartner = new Map<string, Array<{ partner_id: string; day: string; available: boolean; start_min: number | null; end_min: number | null; extra?: number[][] | null }>>();
   for (const a of avs ?? []) { const l = byPartner.get(a.partner_id) ?? []; l.push(a); byPartner.set(a.partner_id, l); }
+  const wt = (a: { start_min: number | null; end_min: number | null; extra?: number[][] | null }) => [[a.start_min ?? 0, a.end_min ?? 0], ...(a.extra ?? [])].map((w) => `${hm(w[0])} to ${hm(w[1])}`).join(' and ');
   for (const [pid, list] of byPartner) {
     const w = who(pid), tz = w?.timezone ?? 'Australia/Brisbane', name = w?.name ?? 'Partner';
     const yes = list.filter((a) => a.available), no = list.filter((a) => !a.available);
@@ -142,10 +143,10 @@ Deno.serve(async (req: Request) => {
     if (list.length === 1) {
       const a = list[0], day = dayLabel(a.day, tz);
       title = a.available ? `${name} is free ${day}` : `${name} is not available ${day}`;
-      body = a.available ? `${hm(a.start_min!)} to ${hm(a.end_min!)}. Good time to send leads.` : 'No leads for them that day.';
+      body = a.available ? `${wt(a)}. Good time to send leads.` : 'No leads for them that day.';
     } else {
       title = `${name} set ${list.length} days`;
-      body = (yes.length ? `Free ${yes.length} of them (${hm(yes[0].start_min!)} to ${hm(yes[0].end_min!)} on ${dayLabel(yes[0].day, tz)}). ` : '') + (no.length ? `Not available on ${no.length}. ` : '') + 'Open the app to see each day.';
+      body = (yes.length ? `Free ${yes.length} of them (${wt(yes[0])} on ${dayLabel(yes[0].day, tz)}). ` : '') + (no.length ? `Not available on ${no.length}. ` : '') + 'Open the app to see each day.';
     }
     availPings += await sendOwners({ title, body, url: './?go=meetups', tag: 'avail-' + pid + list[0].day });
     if (w?.va_can_book) availPings += await sendVAs({ title, body, url: './?go=meetups', tag: 'vaavail-' + pid + list[0].day });

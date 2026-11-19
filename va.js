@@ -61,6 +61,7 @@
 
   // ---------- WELCOME, TODAY STRIP, SETUP GUIDE ----------
   function isPhone() { return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''); }
+  function fitsWin(av, mins, len) { return !!(av && av.ok && (av.wins || [[av.start, av.end]]).some(function (w) { return mins >= w[0] && mins + len <= w[1]; })); }
   function shortRange(a, b) { // 840, 1140 -> 2–7pm ; 540, 840 -> 9am–2pm
     function p(m) { var h = Math.floor(m / 60), mi = m % 60; return { n: (h % 12 === 0 ? 12 : h % 12) + (mi ? ':' + (mi < 10 ? '0' : '') + mi : ''), ap: h >= 12 ? 'pm' : 'am' }; }
     var x = p(a), y = p(b); return x.ap === y.ap ? x.n + '–' + y.n + y.ap : x.n + x.ap + '–' + y.n + y.ap;
@@ -71,7 +72,7 @@
     var missing = mine.filter(function (m) { return now - new Date(m.starts_at).getTime() >= 30 * 60000; }).length, due = dueLeads().length, av = q ? A.availFor(q, A.dayKey(0, tz)) : null;
     out.push('<button type="button" class="stat' + (due ? ' hot' : '') + '" data-go="vafollow"><b>' + due + '</b><span>follow-up' + (due === 1 ? '' : 's') + ' due</span></button>');
     out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (next ? new Date(next.starts_at).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).replace(' ', '').toUpperCase() : '–') + '</b><span>' + (next ? 'next meetup' : 'no meetups booked') + '</span></button>');
-    out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (av && av.ok ? esc(shortRange(av.start, av.end)) : av ? 'Off' : 'Not set') + '</b><span>' + esc(q ? q.name : 'Quinn') + ' today</span></button>');
+    out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (av && av.ok ? esc((av.wins || [[av.start, av.end]]).map(function (w) { return shortRange(w[0], w[1]); }).join(', ')) : av ? 'Off' : 'Not set') + '</b><span>' + esc(q ? q.name : 'Quinn') + ' today</span></button>');
     if (missing) out.push('<button type="button" class="stat hot" data-go="vameetups"><b>' + missing + '</b><span>outcome' + (missing === 1 ? '' : 's') + ' missing</span></button>');
     return '<div class="stats">' + out.join('') + '</div>';
   }
@@ -244,7 +245,7 @@
   }
   function timeline(key, tz, av, blocks, rg, cls) {
     var now = A.dayKey(0, tz) === key ? minutesOf(new Date().toISOString(), tz) : null, h = '<div class="tl ' + (cls || '') + '" data-tl="' + key + '" data-lo="' + rg.lo + '" data-hi="' + rg.hi + '">';
-    if (av && av.ok) h += '<div class="free" style="left:' + pctOf(av.start, rg.lo, rg.hi) + '%;width:' + (pctOf(av.end, rg.lo, rg.hi) - pctOf(av.start, rg.lo, rg.hi)) + '%"></div>';
+    if (av && av.ok) (av.wins || [[av.start, av.end]]).forEach(function (w) { h += '<div class="free" style="left:' + pctOf(w[0], rg.lo, rg.hi) + '%;width:' + (pctOf(w[1], rg.lo, rg.hi) - pctOf(w[0], rg.lo, rg.hi)) + '%"></div>'; });
     blocks.forEach(function (b) { h += '<div class="blk" title="' + esc(b.label + ' ' + b.who) + '" style="left:' + pctOf(b.min, rg.lo, rg.hi) + '%;width:' + (pctOf(b.min + 30, rg.lo, rg.hi) - pctOf(b.min, rg.lo, rg.hi)) + '%">' + (cls === 'tall' ? esc(b.label.replace(/AM|PM/, '')) : '') + '</div>'; });
     if (now !== null && now >= rg.lo && now <= rg.hi) h += '<div class="now" style="left:' + pctOf(now, rg.lo, rg.hi) + '%"></div>';
     return h + '</div>';
@@ -273,7 +274,7 @@
     var days = [0, 1, 2, 3, 4, 5, 6].map(function (i) { return A.dayKey(i, tz); }); if (!BK.day || days.indexOf(BK.day) < 0 && !m) BK.day = days[0];
     var av = A.availFor(q, BK.day), nowMin = BK.day === days[0] ? minutesOf(new Date().toISOString(), tz) : null;
     var bookedMin = A.meetups().filter(function (x) { return x.partner_id === q.id && x.status === 'booked' && x.id !== id && dayOf(x.starts_at, tz) === BK.day; }).map(function (x) { return minutesOf(x.starts_at, tz); });
-    var slots = av && av.ok ? C.suggestSlots({ window: { start: av.start, end: av.end }, booked: bookedMin, now: nowMin, n: 5 }) : [];
+    var slots = av && av.ok ? C.suggestSlots({ windows: av.wins || [[av.start, av.end]], booked: bookedMin, now: nowMin, n: 5 }) : [];
     var bookedBlocks = dayBlocks(q, BK.day, tz, id), dayRg = { lo: 480, hi: 1260 };
     if (av && av.ok) { dayRg.lo = Math.min(dayRg.lo, Math.floor(av.start / 60) * 60); dayRg.hi = Math.max(dayRg.hi, Math.ceil(av.end / 60) * 60); }
     bookedBlocks.forEach(function (b) { dayRg.lo = Math.min(dayRg.lo, Math.floor(b.min / 60) * 60); dayRg.hi = Math.max(dayRg.hi, Math.ceil((b.min + 30) / 60) * 60); });
@@ -324,7 +325,7 @@
       var num = C.auMobile($('sc').value); $('sc').value = num.formatted;
       if (!num.mobile && !confirm('That doesn’t look like a mobile number (it should be 04xx xxx xxx), and Quinn needs to text it. Check it with the seller. Book anyway?')) return;
       var mins = BK.time.split(':'); mins = +mins[0] * 60 + +mins[1];
-      var outside = !av || !av.ok || mins < av.start || mins + 15 > av.end;
+      var outside = !av || !av.ok || !fitsWin(av, mins, 15);
       if (outside && !confirm((!av ? q.name + ' hasn’t said when he is free that day. ' : 'That’s outside ' + q.name + '’s free times (' + (av.text || 'not available') + '). ') + 'Check with him first. Book it anyway?')) return;
       var clash = bookedMin.some(function (b) { return Math.abs(b - mins) < 30; });
       if (clash && !confirm('That’s within 30 minutes of another meetup that day. Book it anyway?')) return;

@@ -211,18 +211,22 @@
   function hmText(min) { var h = Math.floor(min / 60), m = min % 60, ap = h >= 12 ? 'pm' : 'am', h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + (m < 10 ? '0' : '') + m + ' ' + ap; }
   function hmInput(min) { return (Math.floor(min / 60) < 10 ? '0' : '') + Math.floor(min / 60) + ':' + (min % 60 < 10 ? '0' : '') + (min % 60); }
   function inputMin(v) { var m = /^(\d{1,2}):(\d{2})/.exec(v || ''); return m ? +m[1] * 60 + +m[2] : null; }
+  // a day can have several time slots: the first is in start/end, the rest in extra
+  function winsOf(row) { var w = [[row.start_min, row.end_min]]; (row.extra || []).forEach(function (x) { if (x && x[1] > x[0]) w.push([x[0], x[1]]); }); return w.sort(function (p, q) { return p[0] - q[0]; }); }
+  function winsText(w) { return w.map(function (x) { return hmText(x[0]) + ' – ' + hmText(x[1]); }).join(', '); }
+  function inWins(av, mins) { return !!(av && av.ok && (av.wins || [[av.start, av.end]]).some(function (x) { return mins >= x[0] && mins < x[1]; })); }
   // what a partner has for one day: their own entry, else "same time every day" if it's on, else nothing
   function availFor(p, day) {
     var row = avail.filter(function (r) { return r.partner_id === p.id && r.day === day; })[0];
-    if (row) return row.available ? { text: hmText(row.start_min) + ' – ' + hmText(row.end_min), start: row.start_min, end: row.end_min, ok: true } : { text: 'Not available', ok: false };
-    if (p.default_avail_enabled || p.avail_on) { var st = p.default_avail_start_min != null ? p.default_avail_start_min : p.avail_start, en = p.default_avail_end_min != null ? p.default_avail_end_min : p.avail_end; if (st != null) return { text: hmText(st) + ' – ' + hmText(en) + ' (every day)', start: st, end: en, ok: true }; }
+    if (row) { if (!row.available) return { text: 'Not available', ok: false, wins: [] }; var w = winsOf(row); return { text: winsText(w), start: w[0][0], end: w[w.length - 1][1], wins: w, ok: true }; }
+    if (p.default_avail_enabled || p.avail_on) { var st = p.default_avail_start_min != null ? p.default_avail_start_min : p.avail_start, en = p.default_avail_end_min != null ? p.default_avail_end_min : p.avail_end; if (st != null) return { text: hmText(st) + ' – ' + hmText(en) + ' (every day)', start: st, end: en, wins: [[st, en]], ok: true }; }
     return null;
   }
   function myPartner() { return { id: session && session.user && session.user.id, avail_on: profile.avail_on, avail_start: profile.avail_start, avail_end: profile.avail_end }; }
   async function loadAvailability() {
     if (!sb || !session || !navigator.onLine) return;
     try {
-      var r = await sb.from('partner_availability').select('partner_id,day,available,start_min,end_min').gte('day', dayKey(-1)).order('day');
+      var r = await sb.from('partner_availability').select('partner_id,day,available,start_min,end_min,extra').gte('day', dayKey(-1)).order('day');
       if (r.error) return;
       var before = JSON.stringify(avail); avail = r.data; save('avail', avail);
       if (JSON.stringify(avail) !== before && ['home', 'omeetups', 'avail'].indexOf(current) > -1 && current !== 'avail' && !typingNow()) go(current, undefined, true);
@@ -241,32 +245,63 @@
     return '<div class="card"><b>' + esc(v.name) + ' · free times</b>' + rows + '</div>';
   }
   function viewAvail() {
-    var me = myPartner(), tz = profile.timezone || 'Australia/Brisbane', pick = 0;
+    var me = myPartner(), days = [0, 1, 2, 3, 4, 5, 6].map(function (d) { return dayKey(d); }), every = !!profile.avail_on, ev = { s: profile.avail_start != null ? profile.avail_start : 16 * 60, e: profile.avail_end != null ? profile.avail_end : 20 * 60 };
+    var st = days.map(function (k) {
+      var row = avail.filter(function (r) { return r.partner_id === me.id && r.day === k; })[0];
+      if (row) return row.available ? { mode: 'free', had: true, wins: winsOf(row) } : { mode: 'off', had: true, wins: [[16 * 60, 20 * 60]] };
+      return { mode: 'unset', had: false, wins: [[16 * 60, 20 * 60]] };
+    });
+    function lab(i) { return i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : new Date(days[i] + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'short' }); }
     function draw() {
-      var day = dayKey(pick), cur = availFor(me, day), row = avail.filter(function (r) { return r.partner_id === me.id && r.day === day; })[0];
-      var off = row ? !row.available : false, st = cur && cur.ok ? cur.start : (profile.avail_start != null ? profile.avail_start : 16 * 60), en = cur && cur.ok ? cur.end : (profile.avail_end != null ? profile.avail_end : 20 * 60);
-      shell('<h1>When are you free?</h1><div class="chips" style="margin-bottom:14px">' + [0, 1, 2, 3, 4, 5, 6].map(function (d) { var k = dayKey(d); return '<button type="button" class="chip' + (pick === d ? ' on' : '') + '" data-d="' + d + '">' + (d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : new Date(k + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric' })) + '</button>'; }).join('') + '</div>' +
-        '<div class="card"><label class="chk"><input type="checkbox" id="av_off"' + (off ? ' checked' : '') + '><span>I’m not available this day</span></label>' +
-        '<div id="av_times"' + (off ? ' style="opacity:.4"' : '') + '><label>From</label><input id="av_s" type="time" value="' + hmInput(st) + '"><label>To</label><input id="av_e" type="time" value="' + hmInput(en) + '">' +
-        '<label>Save these times for</label><select id="av_n"><option value="1">Just this day</option><option value="3">This day and the next 2 days</option><option value="7">The next 7 days</option></select><div class="hint">Set your times ahead of time and you won’t be pinged on those days. You only get asked on a day you haven’t set.</div>' +
-        '<label class="chk"><input type="checkbox" id="av_all"' + (profile.avail_on ? ' checked' : '') + '><span>Use these times every day</span></label><div class="hint">You work every day at the same time? Tick this and you won’t be asked at all.</div></div>' +
-        '<div class="err" id="err"></div></div><button id="save">Save and tell Ethan</button><div class="gap"></div><button class="secondary" id="cancel">Back</button>');
-      all('[data-d]').forEach(function (b) { b.onclick = function () { pick = +b.getAttribute('data-d'); draw(); }; });
-      $('av_off').onchange = function () { $('av_times').style.opacity = this.checked ? '.4' : '1'; };
+      var y = window.scrollY, h = '<h1>When are you free?</h1><div class="muted" style="margin:-6px 0 14px">Set as many days as you like, ahead of time. Got a gap in the day? Add another time slot. You are only asked about days you leave as “Not set”.</div>';
+      days.forEach(function (k, i) {
+        var d = st[i];
+        h += '<div class="card avday"><div class="row between"><b>' + esc(lab(i)) + '</b></div><div class="seg" style="margin:8px 0 6px">' +
+          [['unset', 'Not set'], ['free', 'Free'], ['off', 'Off']].map(function (m) { return '<button type="button" class="' + (d.mode === m[0] ? 'on' : '') + '" data-mode="' + m[0] + '" data-i="' + i + '">' + m[1] + '</button>'; }).join('') + '</div>';
+        if (d.mode === 'free') {
+          h += d.wins.map(function (w, j) {
+            return '<div class="winrow"><div><label>From</label><input type="time" data-i="' + i + '" data-j="' + j + '" data-f="0" value="' + hmInput(w[0]) + '"></div><div><label>To</label><input type="time" data-i="' + i + '" data-j="' + j + '" data-f="1" value="' + hmInput(w[1]) + '"></div>' +
+              (d.wins.length > 1 ? '<button type="button" class="link rm" data-rm="' + i + '" data-j="' + j + '">Remove</button>' : '') + '</div>';
+          }).join('') + '<div class="row" style="gap:16px;flex-wrap:wrap"><button type="button" class="link" data-addw="' + i + '" style="width:auto">＋ Add another time slot</button><button type="button" class="link" data-copyall="' + i + '" style="width:auto">Copy to every day</button></div>';
+        } else if (d.mode === 'off') h += '<div class="muted">You won’t be booked this day.</div>';
+        else h += '<div class="muted">Nothing set. You will be asked about this day.</div>';
+        h += '</div>';
+      });
+      h += '<div class="card"><label class="chk"><input type="checkbox" id="av_all"' + (every ? ' checked' : '') + '><span>Same time every day</span></label><div class="hint">Works every day at the same time? Tick this and you will never be asked.</div>' +
+        '<div id="av_ev"' + (every ? '' : ' hidden') + '><div class="winrow"><div><label>From</label><input id="ev_s" type="time" value="' + hmInput(ev.s) + '"></div><div><label>To</label><input id="ev_e" type="time" value="' + hmInput(ev.e) + '"></div></div></div></div>' +
+        '<div class="err" id="err"></div><button id="save">Save and tell Ethan</button><div class="gap"></div><button class="secondary" id="cancel">Back</button>';
+      shell(h); window.scrollTo(0, y);
+      all('[data-mode]').forEach(function (b) { b.onclick = function () { st[+b.getAttribute('data-i')].mode = b.getAttribute('data-mode'); draw(); }; });
+      all('input[data-f]').forEach(function (el) { el.oninput = el.onchange = function () { var m = inputMin(el.value); st[+el.getAttribute('data-i')].wins[+el.getAttribute('data-j')][+el.getAttribute('data-f')] = m; }; });
+      all('[data-addw]').forEach(function (b) { b.onclick = function () { var w = st[+b.getAttribute('data-addw')].wins, last = w[w.length - 1], s0 = Math.min(last[1] + 60, 22 * 60); w.push([s0, Math.min(s0 + 120, 1439)]); draw(); }; });
+      all('[data-rm]').forEach(function (b) { b.onclick = function () { st[+b.getAttribute('data-rm')].wins.splice(+b.getAttribute('data-j'), 1); draw(); }; });
+      all('[data-copyall]').forEach(function (b) { b.onclick = function () { var src = st[+b.getAttribute('data-copyall')].wins; st.forEach(function (d, i) { if (i !== +b.getAttribute('data-copyall')) { d.mode = 'free'; d.wins = src.map(function (x) { return [x[0], x[1]]; }); } }); draw(); }; });
+      $('av_all').onchange = function () { every = this.checked; $('av_ev').hidden = !every; };
+      $('ev_s').onchange = function () { var m = inputMin(this.value); if (m !== null) ev.s = m; }; $('ev_e').onchange = function () { var m = inputMin(this.value); if (m !== null) ev.e = m; };
       $('cancel').onclick = function () { go('home'); };
       $('save').onclick = async function () {
-        var s0 = inputMin($('av_s').value), e0 = inputMin($('av_e').value), isOff = $('av_off').checked, every = $('av_all').checked && !isOff;
-        if (!isOff && (s0 === null || e0 === null || e0 <= s0)) { $('err').textContent = 'Pick a start time that is before the end time.'; return; }
+        var ups = [], dels = [], err = '';
+        st.forEach(function (d, i) {
+          if (err) return;
+          if (d.mode === 'free') {
+            var w = d.wins.filter(function (x) { return x[0] !== null && x[1] !== null; }).map(function (x) { return [x[0], x[1]]; });
+            if (!w.length || w.some(function (x) { return x[1] <= x[0]; })) { err = lab(i) + ': pick a start time that is before the end time.'; return; }
+            w.sort(function (p, q) { return p[0] - q[0]; }); var merged = [];
+            w.forEach(function (x) { var l = merged[merged.length - 1]; if (l && x[0] <= l[1]) l[1] = Math.max(l[1], x[1]); else merged.push(x); }); // overlapping slots become one
+            ups.push({ partner_id: me.id, day: days[i], available: true, start_min: merged[0][0], end_min: merged[0][1], extra: merged.slice(1) });
+          } else if (d.mode === 'off') ups.push({ partner_id: me.id, day: days[i], available: false, start_min: null, end_min: null, extra: [] });
+          else if (d.had) dels.push(days[i]);
+        });
+        if (every && (ev.e <= ev.s)) err = 'For “Same time every day”, pick a start time that is before the end time.';
+        if (err) { $('err').textContent = err; return; }
         if (!navigator.onLine) { $('err').textContent = 'You need signal to send this to Ethan.'; return; }
         $('save').disabled = true;
-        var n = Math.max(1, Math.min(7, +$('av_n').value || 1)), rowsOut = [];
-        for (var i = 0; i < n; i++) { rowsOut.push({ partner_id: me.id, day: dayKey(pick + i), available: !isOff, start_min: isOff ? null : s0, end_min: isOff ? null : e0 }); }
-        var r = await sb.from('partner_availability').upsert(rowsOut, { onConflict: 'partner_id,day' });
-        if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; $('save').disabled = false; return; }
-        if (!isOff && (every !== profile.avail_on || (every && (s0 !== profile.avail_start || e0 !== profile.avail_end)))) { // marking one day off never touches “every day”
-          var rr = await sb.rpc('set_default_availability', { p_enabled: every, p_start: every ? s0 : null, p_end: every ? e0 : null });
-          if (rr.error) { $('err').textContent = 'Saved today, but couldn’t save “every day”: ' + rr.error.message; $('save').disabled = false; return; }
-          profile = Object.assign({}, profile, { avail_on: every, avail_start: every ? s0 : null, avail_end: every ? e0 : null }); save('profile', profile);
+        if (ups.length) { var r = await sb.from('partner_availability').upsert(ups, { onConflict: 'partner_id,day' }); if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; $('save').disabled = false; return; } }
+        if (dels.length) { var r2 = await sb.from('partner_availability').delete().eq('partner_id', me.id).in('day', dels); if (r2.error) { $('err').textContent = 'Couldn’t save: ' + r2.error.message; $('save').disabled = false; return; } }
+        if (every !== !!profile.avail_on || (every && (ev.s !== profile.avail_start || ev.e !== profile.avail_end))) {
+          var rr = await sb.rpc('set_default_availability', { p_enabled: every, p_start: every ? ev.s : null, p_end: every ? ev.e : null });
+          if (rr.error) { $('err').textContent = 'Saved your days, but couldn’t save “same time every day”: ' + rr.error.message; $('save').disabled = false; return; }
+          profile = Object.assign({}, profile, { avail_on: every, avail_start: every ? ev.s : null, avail_end: every ? ev.e : null }); save('profile', profile);
         }
         await loadAvailability(); go('home');
       };
@@ -1467,7 +1502,7 @@
       if (!v) { $('avh').textContent = ''; return null; }
       var a = availFor(p, v.slice(0, 10)), mins = inputMin(v.slice(11)), out = false;
       if (!a) { $('avh').innerHTML = '<span class="muted">' + esc(p.name) + ' hasn’t said when he’s free that day.</span>'; return null; }
-      out = !a.ok || (mins !== null && (mins < a.start || mins >= a.end));
+      out = !a.ok || (mins !== null && !inWins(a, mins));
       var ask = '';
       if (out && p.ship_phone) { var tf = new Date(v).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); ask = ' <a class="maplink" href="' + smsTo(telFor(p.ship_phone), 'Hey ' + String(p.name).split(' ')[0] + ', a seller can only do ' + tf + ' (' + new Date(v.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'long' }) + '). Can you make that time?') + '">💬 Text to ask</a>'; }
       $('avh').innerHTML = (out ? '<span style="color:var(--amber)">⚠ ' : '<span style="color:var(--green)">✓ ') + esc(p.name) + ': ' + esc(a.text) + '</span>' + ask;
@@ -1543,7 +1578,7 @@
     esc: esc, $: $, all: all, shell: shell, go: go, VIEWS: VIEWS, uuid: uuid, money: money, load: load, save: save, smsTo: smsTo, telFor: telFor, mapsLink: mapsLink,
     sb: function () { return sb; }, session: function () { return session; }, profile: function () { return profile; }, settings: function () { return settings; },
     meetups: function () { return meetups; }, allMeetups: allMeetups, partners: function () { return partnersList; }, setPartners: function (l) { partnersList = l; save('partners', l); },
-    avail: function () { return avail; }, availFor: availFor, dayKey: dayKey, hmText: hmText, inputMin: inputMin, partnerById: partnerById, viewingPartner: viewingPartner,
+    avail: function () { return avail; }, availFor: availFor, inWins: inWins, dayKey: dayKey, hmText: hmText, inputMin: inputMin, partnerById: partnerById, viewingPartner: viewingPartner,
     zonedToUtc: zonedToUtc, toZonedInput: toZonedInput, tzParts: tzParts, fmtWhen: fmtWhen, meetupSections: meetupSections, bindMeetupActions: bindMeetupActions, availOwnerCard: availOwnerCard,
     refreshPhones: refreshPhones, renderPushCard: renderPushCard, typingNow: typingNow, current: function () { return current; }, renderBanner: renderBanner, versionText: function () { return versionText(VERSION); },
     logout: async function () { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; current = ''; clearCaches(); go('login'); }

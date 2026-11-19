@@ -45,4 +45,8 @@ assert.strictEqual(C.auMobile('0747123456').formatted, '07 4712 3456');
 assert.strictEqual(C.auMobile('0412 34').mobile, false);
 assert.strictEqual(C.auMobile('0412345').formatted, '0412 345');
 assert.strictEqual(C.auMobile('').formatted, '');
+// several time slots in one day
+var two = C.suggestSlots({ windows: [[14 * 60, 16 * 60], [18 * 60, 20 * 60]], booked: [], n: 8 });
+assert.ok(two.some(function (t) { return t >= 840 && t < 960; }) && two.some(function (t) { return t >= 1080 && t < 1200; }), 'suggests times in both slots');
+assert.ok(two.every(function (t) { return (t >= 840 && t + 30 <= 960) || (t >= 1080 && t + 30 <= 1200); }), 'never suggests a time in the gap');
 console.log('va-core tests passed');

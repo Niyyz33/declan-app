@@ -179,3 +179,9 @@ button.small { border-radius:9px; }
 .brand img, .greet img { box-shadow:none; border:1px solid var(--line); }
 .bar > i { background:var(--green); }
 a.btnlink.green { background:var(--green); box-shadow:none; }
+
+/* availability planner: several days, several slots a day */
+.avday { margin-bottom:12px; }
+.winrow { display:grid; grid-template-columns:1fr 1fr auto; gap:10px; align-items:end; margin-top:6px; }
+.winrow .rm { color:var(--red); padding:0 4px 12px; width:auto; }
+#av_ev .winrow { grid-template-columns:1fr 1fr; }

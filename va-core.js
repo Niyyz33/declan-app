@@ -61,19 +61,19 @@
   // day's free window (minutes from midnight), existing meetups that day (start minutes), now (minutes, only for today)
   // returns up to n start times in minutes. A meetup takes ~30 min plus a 15 min gap.
   function suggestSlots(opts) {
-    var win = opts.window, booked = (opts.booked || []).slice().sort(function (a, b) { return a - b; }), n = opts.n || 4, dur = opts.duration || 30, gap = opts.gap || 15, lead = opts.lead || 45;
-    if (!win) return [];
-    var earliest = win.start;
-    if (opts.now != null) earliest = Math.max(earliest, opts.now + lead);
-    earliest = Math.ceil(earliest / 5) * 5;
-    var out = [];
-    for (var t = earliest; t + dur <= win.end && out.length < n; t += 5) {
-      var clash = booked.some(function (b) { return t < b + dur + gap && b < t + dur + gap; });
-      if (clash) continue;
-      if (out.length && t - out[out.length - 1] < 30) continue; // spread the options out
-      out.push(t);
-    }
-    return out;
+    var wins = opts.windows || (opts.window ? [[opts.window.start, opts.window.end]] : []), booked = (opts.booked || []).slice().sort(function (a, b) { return a - b; }), n = opts.n || 4, dur = opts.duration || 30, gap = opts.gap || 15, lead = opts.lead || 45, out = [];
+    wins.forEach(function (w) {
+      var earliest = w[0];
+      if (opts.now != null) earliest = Math.max(earliest, opts.now + lead);
+      earliest = Math.ceil(earliest / 5) * 5;
+      for (var t = earliest; t + dur <= w[1]; t += 5) {
+        var clash = booked.some(function (b) { return t < b + dur + gap && b < t + dur + gap; });
+        if (clash) continue;
+        if (out.length && t - out[out.length - 1] < 30 && t > out[out.length - 1]) continue; // spread the options out
+        out.push(t);
+      }
+    });
+    return out.sort(function (a, b) { return a - b; }).slice(0, n);
   }
   function clock(min) { var h = Math.floor(min / 60), m = min % 60, ap = h >= 12 ? 'PM' : 'AM', h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + (m < 10 ? '0' : '') + m + ap; }
 
