@@ -343,9 +343,9 @@
   VIEWS.vabooked = function (arg) {
     COPY = []; var f = arg.fields, when = new Date(f.starts_at);
     var day = new Date(f.starts_at).toLocaleDateString('en-AU', { timeZone: arg.tz, weekday: 'long' }), clock = when.toLocaleTimeString('en-AU', { timeZone: arg.tz, hour: 'numeric', minute: '2-digit' }).replace(' ', '').toUpperCase();
-    var mine = 'easy as booked in see you then', draft = 'Booked in for ' + day + ' at ' + clock + ' at ' + f.location + '. ' + arg.qname + ' will be meeting you and will text you before. Any problems just let me know.';
+    var mine = 'easy as booked in see you then';
     shell(head('Booked ✓') + '<div class="card"><b>' + esc(f.seller_name) + '</b> · ' + esc(f.model) + '<div class="muted">' + esc(day + ' ' + clock) + ' · ' + esc(f.location) + '</div><div class="muted">' + esc(arg.qname) + ' has been alerted.</div></div><h2>Tell the seller</h2>' +
-      msgCard(mine, 'Ethan’s confirmation.') + msgCard(draft, 'DRAFT: includes who is meeting them. Ethan has not set this wording yet.') +
+      msgCard(mine, 'Ethan’s confirmation.') +
       '<div class="gap"></div><button id="next">Back to Price</button><div class="gap"></div><button class="secondary" id="mt">See Meetups</button>');
     bindCopy(); $('next').onclick = function () { P = { model: '', storage: null, faults: {}, asked: '', label: '', tone: P.tone }; saveP(); go('vaprice'); }; $('mt').onclick = function () { go('vameetups'); };
   };
