@@ -1307,7 +1307,9 @@
     var reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(window.CONFIG.VAPID_PUBLIC_KEY) });
     var j = sub.toJSON();
-    var r = await sb.from('push_subscriptions').upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_id: session.user.id }, { onConflict: 'endpoint' });
+    // the phone now belongs to whoever is logged in on it (a plain save is blocked when the phone was last used by another login)
+    var r = await sb.rpc('claim_push_subscription', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
+    if (r.error) r = await sb.from('push_subscriptions').upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_id: session.user.id }, { onConflict: 'endpoint' });
     return !r.error;
   }
   // Quietly keeps this phone's saved subscription fresh each time the app opens (only once alerts are on).
