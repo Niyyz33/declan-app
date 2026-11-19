@@ -31,3 +31,35 @@ h2 { margin:22px 0 8px; font-size:15px; letter-spacing:.06em; text-transform:upp
 .chip.dim { opacity:.55; }
 .modelchips { margin-top:6px; }
 .chips .chip { min-height:44px; }
+
+/* welcome, today strip, setup guide, desktop layout */
+.hero { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:20px 22px; margin:4px 0 12px; border:1px solid var(--line); border-radius:20px; background:linear-gradient(135deg, #2a220e 0%, #141416 70%); }
+.heroh { font-size:15px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--gold); }
+.herosub { font-size:30px; font-weight:800; line-height:1.15; margin-top:4px; overflow-wrap:anywhere; }
+.stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:14px; }
+.stat { display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:16px; padding:12px 14px; box-shadow:none; min-width:0; }
+.stat b { font-size:22px; font-weight:800; overflow-wrap:anywhere; }
+.stat span { font-size:13px; color:var(--muted); font-weight:600; }
+.stat.hot { border-color:var(--gold); background:#241d0b; }
+.stat.hot b { color:var(--gold); }
+.setup .step { display:flex; gap:12px; align-items:flex-start; padding:12px 0; border-top:1px solid var(--line); }
+.setup .step:first-of-type { border-top:0; }
+.setup .step.on .steptext b { text-decoration:line-through; color:var(--muted); }
+.setup .steptext { min-width:0; flex:1; }
+.setup .steptext .acts { margin-top:8px; }
+.tick { width:30px; height:30px; flex:none; border-radius:50%; border:2px solid var(--line); background:transparent; padding:0; color:#1a1405; font-size:16px; box-shadow:none; }
+.tick.on { background:var(--gold); border-color:var(--gold); }
+.setuplink { text-align:right; margin-bottom:6px; }
+.howto { margin-top:8px; font-size:16px; line-height:1.5; }
+.howto ol { margin:6px 0 0; padding-left:22px; }
+.howto li { margin-bottom:6px; }
+.vagrid { display:grid; grid-template-columns:1fr; gap:14px; align-items:start; }
+@media (min-width: 1000px) {
+  main { max-width:1100px; }
+  .vagrid { grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); }
+  .vagrid #out { position:sticky; top:14px; }
+  .vagrid #out > h2:first-child { margin-top:0; }
+}
+button:focus-visible, .chip:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+.card, .msg { box-shadow:0 1px 0 rgba(255,255,255,.03) inset; }
+.bar > i { background:var(--gold); }
