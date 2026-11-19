@@ -24,18 +24,15 @@
   var FAULT_WORDS = { badBattery: 'battery', brokenScreen: 'broken screen', brokenBack: 'broken back', badHousing: 'housing', badMidFrame: 'frame', badChargingPort: 'charging port', noFaceID: 'Face ID', loudSpeakerIssue: 'speaker', rearCameraBroken: 'rear camera', frontCameraBroken: 'front camera', perLensSmashed: 'smashed camera lens', boardIssue: 'board issue', smallParts: 'small parts' };
   function faultWords(keys) { return keys.map(function (k) { return FAULT_WORDS[k] || k; }); }
 
-  // ---- the quote messages (Ethan's words) ----
-  function quoteMessages(p, faultKeys) {
-    var range = '$' + p.low + '-$' + p.high, f = faultKeys && faultKeys.length ? joinFaults(faultWords(faultKeys)) : '';
-    var out = [];
-    if (f) {
-      out.push({ label: 'With the faults', text: 'Hi, based on the model and current pricing, we would usually be around ' + range + ', provided taking into account the ' + f + '. Would that work for you?' });
-      out.push({ label: 'Casual', text: 'Hey mate, we’d usually be around ' + range + ' for that model taking into account the ' + f + '. Would that work for you?' });
-    } else {
-      out.push({ label: 'Standard', text: 'Hi, based on the model and current pricing, we would usually be around ' + range + ', provided the rest of the phone is in good condition. Would that work for you?' });
-      out.push({ label: 'Casual', text: 'Hey, we usually pay ' + range + ' for that model if the rest is in good condition, would that work for you?' });
-    }
-    return out;
+  // ---- the quote messages: the same three tones as Ethan's app (Price Calculator) ----
+  var TONES = ['Friendly', 'Direct', 'Professional'];
+  // names as the app words them: lower case, joined with commas; the lens line reads the way a seller would say it
+  function faultNames(names) { return (names || []).map(function (n) { return /per lens smashed/i.test(n) ? 'smashed camera lens' : String(n).toLowerCase(); }); }
+  function quoteMessage(tone, p, names) {
+    var range = '$' + p.low + '-$' + p.high, f = faultNames(names), cond = f.length ? 'taking into account the ' + f.join(', ') : 'if the rest is in good condition';
+    if (tone === 'Direct') return 'Hey, we usually pay ' + range + ' for that model ' + cond + ', would that work for you?';
+    if (tone === 'Professional') return 'Hi, based on the model and current pricing, we would usually be around ' + range + ', provided ' + (f.length ? cond : 'the rest of the phone is in good condition') + '. Would that work for you?';
+    return 'Hey mate, we\u2019d usually be around ' + range + ' for that model ' + cond + '. Would that work for you?';
   }
 
   // the seller says what they want: accept if it is within the most we can say, otherwise offer the most
@@ -86,7 +83,7 @@
     { group: 'Book the meetup', items: [
       { t: 'happy to meet you today at ${spot} if that works for you?', need: ['spot'], note: 'Offer today at the usual spot.' },
       { t: 'No worries happy to do ${time} does that work for you?', need: ['time'], note: 'Offer an exact time (use the suggested times on the Book tab).' },
-      { t: 'Happy to do tomorrow instead', note: 'They cannot do today.' },
+      { t: 'Happy to do tomorrow instead. What time works for you?', note: 'They cannot do today.' },
       { t: 'No worries mostly busy tomorrow, does a time today work for you?', note: 'They ask for a day that is full.' },
       { t: 'Sorry, but all my customers always come to me as I have many meetups at my spot, so I need to be available for everyone, and it’s just the way we have always done it', note: 'They ask us to meet somewhere else. Then offer another time.' },
       { t: 'what was your contact number for this booking?', note: 'Ethan\u2019s wording. Needed before every booking.' } ] },
@@ -100,9 +97,18 @@
     { group: 'After the sale', items: [
       { t: 'Sell My Phone Townsville would love your feedback ${review}', need: ['review'], note: 'Review link (only after they have been paid).' } ] }
   ];
+  // text-replacement shortcuts for the iPhone keyboard (and Mac): the messages that never need a fill-in
+  var KEYS = [
+    ['zzany', 'Sweet any issues?'], ['zzhow', 'sweet how much are you looking for?'], ['zzmind', 'no worries what price did you have in mind?'], ['zzdiff', 'no worries did you have a different price in mind?'],
+    ['zztom', 'Happy to do tomorrow instead. What time works for you?'], ['zzon', 'Unfortunately will need it to turn on.'], ['zznum', 'what was your contact number for this booking?'],
+    ['zzbook', 'easy as booked in see you then'], ['zzstill', 'Just checking that still works for you?'], ['zzfu', 'Hey, just following up with you if you\u2019re still looking to sell your iPhone?'],
+    ['zzsold', 'Hey ! did you end up selling your phone!'], ['zzclose', 'No worries at all, do let me know the second you want to get some cash for it and can book you in. Cheers'],
+    ['zzleave', 'No worries get back to me for quick and easy cash'], ['zzipad', 'Mainly iphones at this moment in time.'], ['zzunlock', 'Sorry but unfortunately we do not unlock phones.'],
+    ['zztech', 'No worries happy to check with the technician for current pricing on that one, in the mean time did you have a price in mind?']
+  ];
   function fill(text, vals) { return text.replace(/\$\{(\w+)\}/g, function (m, k) { return vals[k] ? vals[k] : m; }); }
   function missing(item, vals) { return (item.need || []).filter(function (k) { return !vals[k]; }); }
 
-  var api = { price: price, joinFaults: joinFaults, faultWords: faultWords, quoteMessages: quoteMessages, counter: counter, suggestSlots: suggestSlots, clock: clock, LIB: LIB, fill: fill, missing: missing, STEP_CENTS: STEP_CENTS };
+  var api = { price: price, joinFaults: joinFaults, faultWords: faultWords, quoteMessage: quoteMessage, TONES: TONES, faultNames: faultNames, KEYS: KEYS, counter: counter, suggestSlots: suggestSlots, clock: clock, LIB: LIB, fill: fill, missing: missing, STEP_CENTS: STEP_CENTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.VACORE = api;
 })(typeof window !== 'undefined' ? window : this);

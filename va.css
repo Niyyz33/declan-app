@@ -27,3 +27,7 @@ h2 { margin:22px 0 8px; font-size:15px; letter-spacing:.06em; text-transform:upp
 .pricebox .gold { color:var(--gold); }
 .fillrow { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
 .dot { background:var(--red); }
+
+.chip.dim { opacity:.55; }
+.modelchips { margin-top:6px; }
+.chips .chip { min-height:44px; }

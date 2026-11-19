@@ -7,11 +7,15 @@ assert.strictEqual(C.price(m, 512, []).max, 320);
 assert.strictEqual(C.price(m, 128, [5000, 3000]).max, 200);
 assert.deepStrictEqual(C.price(m, 128, [99999]), { max: 0, low: 0, high: 10 });
 assert.strictEqual(C.price({ storage_gb: [64], max_cents: null }, 64, []), null);
-// messages
-var q = C.quoteMessages(p, []);
-assert.ok(/\$230-\$290/.test(q[0].text) && /good condition/.test(q[0].text));
-var qf = C.quoteMessages(p, ['brokenScreen', 'brokenBack']);
-assert.ok(/taking into account the broken screen and broken back/.test(qf[0].text));
+// messages: the same three tones as the app
+var p0 = p;
+assert.strictEqual(C.quoteMessage('Friendly', p0, []), 'Hey mate, we\u2019d usually be around $230-$290 for that model if the rest is in good condition. Would that work for you?');
+assert.strictEqual(C.quoteMessage('Direct', p0, ['Broken Screen', 'Broken Back']), 'Hey, we usually pay $230-$290 for that model taking into account the broken screen, broken back, would that work for you?');
+assert.ok(/provided the rest of the phone is in good condition/.test(C.quoteMessage('Professional', p0, [])));
+assert.ok(/provided taking into account the smashed camera lens/.test(C.quoteMessage('Professional', p0, ['Per Lens Smashed'])));
+assert.strictEqual(C.TONES.length, 3);
+C.KEYS.forEach(function (k) { assert.ok(/^zz/.test(k[0]) && k[1].length > 8); });
+assert.ok(C.LIB.some(function (g) { return g.items.some(function (i) { return i.t === 'Happy to do tomorrow instead. What time works for you?'; }); }));
 // counter
 assert.strictEqual(C.counter(p, 250).within, true);
 assert.ok(/\$250 cash today/.test(C.counter(p, 250).text));

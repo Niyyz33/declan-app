@@ -4,7 +4,8 @@
   'use strict';
   var A = window.APP, C = window.VACORE, esc = A.esc, $ = A.$, all = A.all, VIEWS = A.VIEWS, go = A.go, shell = A.shell;
   var models = A.load('vamodels', []), deds = A.load('vadeds', []), leads = A.load('valeads', []);
-  var P = { model: '', storage: null, faults: {}, asked: '', label: '' }; // the phone being priced (kept while he moves around)
+  var P = Object.assign({ model: '', storage: null, faults: {}, asked: '', label: '', tone: 'Friendly' }, A.load('vastate', {})); // the phone being priced (kept while he moves around, and across reloads)
+  function saveP() { A.save('vastate', P); }
   var BOOKFILL = null;   // carried from Price / Follow-ups to the Book screen
   var COPY = [];         // text for each Copy button on screen
   var MSG = { time: '', price: '' }; // fill-ins on the Messages screen
@@ -60,6 +61,11 @@
 
   // ---------- PRICE ----------
   function curModel() { return modelByCode(P.model); }
+  // every model as a single tap, like Ethan's app (no drop-down to open or get stuck)
+  function modelChips(selected, attr) {
+    return '<div class="chips modelchips">' + models.map(function (x) { return '<button type="button" class="chip' + (x.code === selected ? ' on' : '') + (x.max_cents == null ? ' dim' : '') + '" data-' + attr + '="' + esc(x.code) + '">' + esc(x.name) + '</button>'; }).join('') + '</div>';
+  }
+  function faultNamesFor(x) { return C.faultNames(dedsFor(x.m.code).filter(function (d) { return x.keys.indexOf(d.issue_key) > -1; }).map(function (d) { return d.issue_name; })); }
   function curStorage(m) { return P.storage && m.storage_gb.indexOf(P.storage) > -1 ? P.storage : m.storage_gb[0]; }
   function pricing() {
     var m = curModel(); if (!m) return null;
@@ -75,10 +81,10 @@
       var nm = 'No worries happy to check with the technician for current pricing on that one, in the mean time did you have a price in mind?';
       return '<div class="tip" style="margin-top:12px"><b>No price set for ' + esc(x.m.name) + '.</b> Use this message, then text Ethan the model and faults.</div>' + msgCard(nm, '', ethanPhone() ? '<a class="btnlink small" href="' + textEthan('Price check: ' + x.m.name) + '">💬 Text Ethan</a>' : '');
     }
-    var q = C.quoteMessages(x.p, x.keys), asked = P.asked && C.counter(x.p, P.asked);
+    var names = dedsFor(x.m.code).filter(function (d) { return x.keys.indexOf(d.issue_key) > -1; }).map(function (d) { return d.issue_name; }), asked = P.asked && C.counter(x.p, P.asked);
     h += '<div class="pricebox"><div><div class="muted lab">Opening range</div><div class="big">$' + x.p.low + '–$' + x.p.high + '</div></div><div><div class="muted lab">Most you can say</div><div class="big gold">$' + x.p.max + '</div></div></div>';
     if (x.ded) h += '<div class="muted" style="margin-top:6px">Faults taken off: −' + dollars(x.ded) + '</div>';
-    h += '<h2>Send the quote</h2>' + q.map(function (m) { return msgCard(m.text, m.label); }).join('');
+    h += '<h2>Send the quote</h2><div class="chips" style="margin-bottom:10px">' + C.TONES.map(function (t) { return '<button type="button" class="chip' + (P.tone === t ? ' on' : '') + '" data-tone="' + t + '">' + t + '</button>'; }).join('') + '</div>' + msgCard(C.quoteMessage(P.tone, x.p, names), '');
     h += '<h2>The seller says a price</h2><div class="row" style="gap:8px"><input id="asked" inputmode="numeric" placeholder="They want $" value="' + esc(P.asked) + '" style="max-width:160px"></div>';
     if (asked) h += msgCard(asked.text, asked.within ? 'Inside your limit, you can say yes.' : 'Above your limit ($' + x.p.max + '). Offer the most you can say. To go higher, text Ethan.', !asked.within && ethanPhone() ? '<a class="btnlink small" href="' + textEthan('Seller wants $' + P.asked + ' for ' + phoneLine(x) + ', max is $' + x.p.max) + '">💬 Ask Ethan</a>' : '');
     h += '<h2>Next</h2><div class="card"><label>Who is it? (name or username)</label><input id="lead" autocomplete="off" placeholder="e.g. Nathan, or the Instagram name" value="' + esc(P.label) + '"><div class="gap"></div><div class="acts"><button type="button" id="startfu" class="small">Start 1-day follow-up</button><button type="button" id="tobook" class="small secondary">Book a meetup</button></div><div class="err" id="err"></div></div>';
@@ -86,7 +92,7 @@
   }
   VIEWS.vaprice = function () {
     var m = curModel(), html = head('Price a phone');
-    html += '<div class="card"><label>Phone model</label><input id="pm" list="pmlist" autocomplete="off" placeholder="Type or pick, e.g. iPhone 14 Pro" value="' + esc(m ? m.name : '') + '"><datalist id="pmlist">' + models.map(function (x) { return '<option value="' + esc(x.name) + '">'; }).join('') + '</datalist>';
+    html += '<div class="card"><label>Phone model</label>' + (models.length ? modelChips(P.model, 'model') : '<div class="muted">Loading the price list…</div>');
     if (m) {
       html += '<label>Storage</label><div class="chips">' + m.storage_gb.map(function (g) { return '<button type="button" class="chip' + (g === curStorage(m) ? ' on' : '') + '" data-st="' + g + '">' + storageText(g) + '</button>'; }).join('') + '</div>';
       var dd = dedsFor(m.code);
@@ -97,17 +103,16 @@
   };
   function paintOut() { COPY = []; var o = $('out'); if (o) o.innerHTML = priceOut(); bindCopy(); bindOut(); }
   function bindPrice() {
-    var pm = $('pm');
-    function pick(e) { if (e && e.type === 'input' && e.inputType && e.inputType !== 'insertReplacementText') return; var m = modelByName(pm.value); var code = m ? m.code : ''; if (code !== P.model) { P.model = code; P.storage = null; P.faults = {}; P.asked = ''; VIEWS.vaprice(); } }
-    pm.onchange = pick; pm.oninput = pick;
-    all('[data-st]').forEach(function (b) { b.onclick = function () { P.storage = +b.getAttribute('data-st'); VIEWS.vaprice(); }; });
-    all('[data-f]').forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-f'); P.faults[k] = !P.faults[k]; VIEWS.vaprice(); }; });
-    $('clear').onclick = function () { P = { model: '', storage: null, faults: {}, asked: '', label: '' }; VIEWS.vaprice(); };
+    all('[data-model]').forEach(function (b) { b.onclick = function () { var c = b.getAttribute('data-model'); if (c !== P.model) { P.model = c; P.storage = null; P.faults = {}; P.asked = ''; saveP(); } VIEWS.vaprice(); }; });
+    all('[data-st]').forEach(function (b) { b.onclick = function () { P.storage = +b.getAttribute('data-st'); saveP(); VIEWS.vaprice(); }; });
+    all('[data-f]').forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-f'); P.faults[k] = !P.faults[k]; saveP(); VIEWS.vaprice(); }; });
+    $('clear').onclick = function () { P = { model: '', storage: null, faults: {}, asked: '', label: '', tone: P.tone }; saveP(); VIEWS.vaprice(); };
     A.renderPushCard && A.renderPushCard();
   }
   function bindOut() {
+    all('[data-tone]').forEach(function (b) { b.onclick = function () { P.tone = b.getAttribute('data-tone'); saveP(); paintOut(); }; });
     var asked = $('asked'); if (asked) asked.oninput = function () { P.asked = asked.value.replace(/[^\d]/g, ''); clearTimeout(asked._t); asked._t = setTimeout(function () { var pos = asked.selectionStart; paintOut(); var n = $('asked'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* ignore */ } } }, 400); };
-    var lead = $('lead'); if (lead) lead.oninput = function () { P.label = lead.value; };
+    var lead = $('lead'); if (lead) lead.oninput = function () { P.label = lead.value; saveP(); };
     var fu = $('startfu'); if (fu) fu.onclick = async function () {
       var x = pricing(); if (!x || !x.p) return; P.label = ($('lead').value || '').trim();
       if (!P.label) { $('err').textContent = 'Type who it is first, so you can find them tomorrow.'; return; }
@@ -135,11 +140,13 @@
         html += '<div class="msg"><div class="msgtext">' + esc(text) + '</div>' + (it.note ? '<div class="muted msgnote">' + esc(it.note) + '</div>' : '') + '<div class="acts">' + (miss.length ? '<button type="button" class="small" disabled>Fill in ' + esc(miss.join(' and ')) + ' first</button>' : copyBtn(text)) + '</div></div>';
       });
     });
+    html += '<div class="card" style="margin-top:16px"><b>Faster on your phone</b><div class="muted">Set up iPhone keyboard shortcuts so you can type a short code and the whole message appears.</div><div class="gap"></div><button type="button" class="secondary small" id="keys">Set up keyboard shortcuts</button></div>';
     html += '<div class="card" style="margin-top:16px"><b>Something not here?</b><div class="muted">Scam, deposit, shipping, a seller who is rude, or a price question. Text Ethan.</div><div class="gap"></div><div class="acts">' + (ethanPhone() ? '<a class="btnlink small" href="' + textEthan('') + '">💬 Text Ethan</a>' : '') + '<button type="button" class="secondary small" id="rules">Rules and when to text Ethan</button></div></div>';
     shell(html); bindCopy();
     function upd() { MSG.time = $('f_time').value.trim(); MSG.price = $('f_price').value.replace(/[^\d]/g, ''); MSG.spot = $('f_spot').value; }
     ['f_time', 'f_price', 'f_spot'].forEach(function (id) { var el = $(id); el.onchange = function () { upd(); VIEWS.vamsgs(); }; });
     $('rules').onclick = function () { go('varules'); };
+    $('keys').onclick = function () { go('vakeys'); };
     A.renderPushCard && A.renderPushCard();
   };
 
@@ -163,7 +170,7 @@
     var html = head(m ? 'Edit meetup' : 'Book a meetup', 'Into ' + esc(q.name) + '’s calendar. ' + esc(q.name) + ' gets an alert straight away.') + '<div class="card">' +
       '<label>Seller’s name</label><input id="sn" autocomplete="off" value="' + esc(dr.name !== undefined ? dr.name : m ? m.seller_name : fill.name || '') + '">' +
       '<label>Seller’s phone number (needed to book)</label><input id="sc" type="tel" inputmode="tel" autocomplete="off" placeholder="e.g. 0412 345 678" value="' + esc(dr.phone !== undefined ? dr.phone : m ? m.seller_contact || '' : '') + '">' +
-      '<label>Phone model</label><input id="sm" list="bmlist" autocomplete="off" placeholder="e.g. iPhone 14 Pro 128GB" value="' + esc(dr.model !== undefined ? dr.model : m ? m.model : fill.model || '') + '"><datalist id="bmlist">' + models.map(function (x) { return '<option value="' + esc(x.name) + '">'; }).join('') + '</datalist>' +
+      '<label>Phone model</label><input id="sm" autocomplete="off" placeholder="e.g. iPhone 14 Pro 128GB" value="' + esc(dr.model !== undefined ? dr.model : m ? m.model : fill.model || '') + '"><div class="gap"></div><button type="button" class="link" id="pickm">Choose from the list</button><div id="mlist" hidden>' + modelChips('', 'bm') + '</div>' +
       '<label>Issues</label><textarea id="si" rows="2" placeholder="e.g. cracked screen, battery 82%">' + esc(dr.issues !== undefined ? dr.issues : m ? m.issues || '' : fill.issues || '') + '</textarea>' +
       '<label>Price you told them ($)</label><input id="sq" inputmode="text" placeholder="e.g. 230-290, or one number if agreed" value="' + esc(dr.quote !== undefined ? dr.quote : m ? (m.quoted_min_cents === m.quoted_max_cents ? m.quoted_min_cents / 100 : m.quoted_min_cents / 100 + '-' + m.quoted_max_cents / 100) : fill.quote || '') + '">' +
       '<label>Day</label><div class="chips">' + days.map(function (k, i) { return '<button type="button" class="chip' + (k === BK.day ? ' on' : '') + '" data-day="' + k + '">' + esc(dayLabel(k, i)) + '</button>'; }).join('') + '</div>' +
@@ -176,6 +183,8 @@
     shell(html);
     all('[data-day]').forEach(function (b) { b.onclick = function () { keepFields(); BK.day = b.getAttribute('data-day'); BK.time = ''; VIEWS.vabook(id); }; });
     all('[data-time]').forEach(function (b) { b.onclick = function () { keepFields(); BK.time = b.getAttribute('data-time'); VIEWS.vabook(id); }; });
+    $('pickm').onclick = function () { var l = $('mlist'); l.hidden = !l.hidden; };
+    all('[data-bm]').forEach(function (b) { b.onclick = function () { var x = modelByCode(b.getAttribute('data-bm')); $('sm').value = x.name; $('mlist').hidden = true; }; });
     $('st').onchange = function () { BK.time = $('st').value; };
     $('st').oninput = function () { BK.time = $('st').value; };
     function keepFields() { BK.draft = { name: $('sn').value, phone: $('sc').value, model: $('sm').value, issues: $('si').value, quote: $('sq').value, loc: $('sl').value, notes: $('sx').value }; BK.rerender = true; }
@@ -214,7 +223,7 @@
     shell(head('Booked ✓') + '<div class="card"><b>' + esc(f.seller_name) + '</b> · ' + esc(f.model) + '<div class="muted">' + esc(day + ' ' + clock) + ' · ' + esc(f.location) + '</div><div class="muted">' + esc(arg.qname) + ' has been alerted.</div></div><h2>Tell the seller</h2>' +
       msgCard(mine, 'Ethan’s confirmation.') + msgCard(draft, 'DRAFT: includes who is meeting them. Ethan has not set this wording yet.') +
       '<div class="gap"></div><button id="next">Back to Price</button><div class="gap"></div><button class="secondary" id="mt">See Meetups</button>');
-    bindCopy(); $('next').onclick = function () { P = { model: '', storage: null, faults: {}, asked: '', label: '' }; go('vaprice'); }; $('mt').onclick = function () { go('vameetups'); };
+    bindCopy(); $('next').onclick = function () { P = { model: '', storage: null, faults: {}, asked: '', label: '', tone: P.tone }; saveP(); go('vaprice'); }; $('mt').onclick = function () { go('vameetups'); };
   };
 
   // ---------- FOLLOW-UPS ----------
@@ -257,6 +266,19 @@
     $('book').onclick = function () { BOOKFILL = null; BK.editing = null; go('vabook'); };
     $('out').onclick = function () { A.logout(); };
     A.bindMeetupActions(); A.renderPushCard && A.renderPushCard();
+  };
+
+  // ---------- KEYBOARD SHORTCUTS (iPhone / Mac text replacement) ----------
+  VIEWS.vakeys = function () {
+    COPY = [];
+    var html = head('Keyboard shortcuts', 'Type the short code, tap space, and the whole message appears. Works in any app, including Business Suite.') +
+      '<div class="card"><b>Set it up once (iPhone)</b><div class="muted" style="margin-top:6px">1. Open <b>Settings</b>, <b>General</b>, <b>Keyboard</b>, <b>Text Replacement</b>.<br>2. Tap the <b>+</b> at the top right.<br>3. Paste the message into <b>Phrase</b> and the code into <b>Shortcut</b>, then tap <b>Save</b>.</div><div class="muted" style="margin-top:10px">On a Mac: <b>System Settings</b>, <b>Keyboard</b>, <b>Text Replacements</b>. If iCloud is on, one device sets both.</div></div>' +
+      '<div class="muted" style="margin:10px 2px">The price quote still comes from the Price tab, because it changes with every phone.</div>';
+    C.KEYS.forEach(function (k) {
+      html += '<div class="msg"><div class="muted msgnote" style="margin:0 0 6px">Shortcut: <b style="color:var(--text)">' + esc(k[0]) + '</b></div><div class="msgtext">' + esc(k[1]) + '</div><div class="acts">' + copyBtn(k[1], 'Copy phrase') + copyBtn(k[0], 'Copy shortcut', 'secondary small') + '</div></div>';
+    });
+    html += '<div class="gap"></div><button class="secondary" id="back">Back to Messages</button>';
+    shell(html); bindCopy(); $('back').onclick = function () { go('vamsgs'); };
   };
 
   // ---------- RULES ----------
