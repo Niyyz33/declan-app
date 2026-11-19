@@ -182,6 +182,7 @@ a.btnlink.green { background:var(--green); box-shadow:none; }
 
 /* availability planner: several days, several slots a day */
 .avday { margin-bottom:12px; }
-.winrow { display:grid; grid-template-columns:1fr 1fr auto; gap:10px; align-items:end; margin-top:6px; }
-.winrow .rm { color:var(--red); padding:0 4px 12px; width:auto; }
+.winrow { display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:end; margin-top:6px; }
+.winrow .rm { grid-column:1 / -1; justify-self:start; color:var(--red); padding:2px 0 6px; width:auto; }
+.avday .row.links { flex-direction:column; align-items:flex-start; gap:4px; margin-top:6px; }
 #av_ev .winrow { grid-template-columns:1fr 1fr; }

@@ -262,7 +262,7 @@
           h += d.wins.map(function (w, j) {
             return '<div class="winrow"><div><label>From</label><input type="time" data-i="' + i + '" data-j="' + j + '" data-f="0" value="' + hmInput(w[0]) + '"></div><div><label>To</label><input type="time" data-i="' + i + '" data-j="' + j + '" data-f="1" value="' + hmInput(w[1]) + '"></div>' +
               (d.wins.length > 1 ? '<button type="button" class="link rm" data-rm="' + i + '" data-j="' + j + '">Remove</button>' : '') + '</div>';
-          }).join('') + '<div class="row" style="gap:16px;flex-wrap:wrap"><button type="button" class="link" data-addw="' + i + '" style="width:auto">＋ Add another time slot</button><button type="button" class="link" data-copyall="' + i + '" style="width:auto">Copy to every day</button></div>';
+          }).join('') + '<div class="row links"><button type="button" class="link" data-addw="' + i + '" style="width:auto">＋ Add another time slot</button><button type="button" class="link" data-copyall="' + i + '" style="width:auto">Copy to every day</button></div>';
         } else if (d.mode === 'off') h += '<div class="muted">You won’t be booked this day.</div>';
         else h += '<div class="muted">Nothing set. You will be asked about this day.</div>';
         h += '</div>';
