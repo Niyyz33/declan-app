@@ -220,7 +220,7 @@
   function timeline(key, tz, av, blocks, rg, cls) {
     var now = A.dayKey(0, tz) === key ? minutesOf(new Date().toISOString(), tz) : null, h = '<div class="tl ' + (cls || '') + '" data-tl="' + key + '" data-lo="' + rg.lo + '" data-hi="' + rg.hi + '">';
     if (av && av.ok) h += '<div class="free" style="left:' + pctOf(av.start, rg.lo, rg.hi) + '%;width:' + (pctOf(av.end, rg.lo, rg.hi) - pctOf(av.start, rg.lo, rg.hi)) + '%"></div>';
-    blocks.forEach(function (b) { h += '<div class="blk" title="' + esc(b.label + ' ' + b.who) + '" style="left:' + pctOf(b.min, rg.lo, rg.hi) + '%;width:' + (pctOf(b.min + 30, rg.lo, rg.hi) - pctOf(b.min, rg.lo, rg.hi)) + '%">' + (cls === 'tall' ? esc(b.label) : '') + '</div>'; });
+    blocks.forEach(function (b) { h += '<div class="blk" title="' + esc(b.label + ' ' + b.who) + '" style="left:' + pctOf(b.min, rg.lo, rg.hi) + '%;width:' + (pctOf(b.min + 30, rg.lo, rg.hi) - pctOf(b.min, rg.lo, rg.hi)) + '%">' + (cls === 'tall' ? esc(b.label.replace(/AM|PM/, '')) : '') + '</div>'; });
     if (now !== null && now >= rg.lo && now <= rg.hi) h += '<div class="now" style="left:' + pctOf(now, rg.lo, rg.hi) + '%"></div>';
     return h + '</div>';
   }
