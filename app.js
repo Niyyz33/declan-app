@@ -269,7 +269,7 @@
       });
       h += '<div class="card"><label class="chk"><input type="checkbox" id="av_all"' + (every ? ' checked' : '') + '><span>Same time every day</span></label><div class="hint">Works every day at the same time? Tick this and you will never be asked.</div>' +
         '<div id="av_ev"' + (every ? '' : ' hidden') + '><div class="winrow"><div><label>From</label><input id="ev_s" type="time" value="' + hmInput(ev.s) + '"></div><div><label>To</label><input id="ev_e" type="time" value="' + hmInput(ev.e) + '"></div></div></div></div>' +
-        '<div class="err" id="err"></div><button id="save">Save and tell Ethan</button><div class="gap"></div><button class="secondary" id="cancel">Back</button>';
+        '<div class="err" id="err"></div><button id="save">Save my times</button><div class="muted" style="text-align:center;margin-top:8px">Saving sends Ethan (and the assistant who books for you) a quick notification with your times.</div><div class="gap"></div><button class="secondary" id="cancel">Back</button>';
       shell(h); window.scrollTo(0, y);
       all('[data-mode]').forEach(function (b) { b.onclick = function () { st[+b.getAttribute('data-i')].mode = b.getAttribute('data-mode'); draw(); }; });
       all('input[data-f]').forEach(function (el) { el.oninput = el.onchange = function () { var m = inputMin(el.value); st[+el.getAttribute('data-i')].wins[+el.getAttribute('data-j')][+el.getAttribute('data-f')] = m; }; });
