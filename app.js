@@ -1385,16 +1385,23 @@
       (m.notes ? '<div class="muted" style="margin-top:4px">' + esc(m.notes) + '</div>' : '') +
       (m._pending ? '<div class="muted" style="margin-top:6px">waiting to send</div>' : '') + acts + '</div>';
   }
+  var showOldMeetups = false;
   function meetupSections() {
     var now = new Date(), list = sortedMeetups(), booked = list.filter(function (m) { return m.status === 'booked'; });
     var upcoming = booked.filter(function (m) { return new Date(m.starts_at) >= now; });
     var toClose = booked.filter(function (m) { return new Date(m.starts_at) < now; });
-    var done = list.filter(function (m) { return m.status !== 'booked'; }).reverse().slice(0, 25);
+    // finished and cancelled meetups only show the last 7 days, so the list never piles up; "Show older" opens the rest
+    var finished = list.filter(function (m) { return m.status !== 'booked'; }).reverse(), cutoff = Date.now() - 7 * 86400000;
+    var shown = showOldMeetups ? finished.slice(0, 100) : finished.filter(function (m) { return new Date(m.starts_at).getTime() >= cutoff; });
+    var done = shown.filter(function (m) { return m.status !== 'cancelled'; }), cancelled = shown.filter(function (m) { return m.status === 'cancelled'; }), older = finished.length - shown.length;
     return (toClose.length ? '<h2>Needs an answer</h2>' + toClose.map(meetupCard).join('') : '') +
       '<h2>Upcoming</h2>' + (upcoming.length ? upcoming.map(meetupCard).join('') : '<div class="empty">No meetups booked.</div>') +
-      (done.length ? '<h2>Done</h2>' + done.map(meetupCard).join('') : '');
+      (done.length ? '<h2>Done' + (showOldMeetups ? '' : ' (last 7 days)') + '</h2>' + done.map(meetupCard).join('') : '') +
+      (cancelled.length ? '<h2>Cancelled' + (showOldMeetups ? '' : ' (last 7 days)') + '</h2>' + cancelled.map(meetupCard).join('') : '') +
+      (older > 0 || showOldMeetups ? '<div style="margin-top:12px"><button type="button" class="link" id="moldtoggle">' + (showOldMeetups ? 'Hide older meetups' : 'Show ' + older + ' older') + '</button></div>' : '');
   }
   function bindMeetupActions() {
+    if ($('moldtoggle')) $('moldtoggle').onclick = function () { showOldMeetups = !showOldMeetups; go(current, undefined, true); };
     all('[data-mlog]').forEach(function (b) { b.onclick = function () { startLogFromMeetup(b.getAttribute('data-mlog')); }; });
     all('[data-mans]').forEach(function (b) {
       b.onclick = function () {

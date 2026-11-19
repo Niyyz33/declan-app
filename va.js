@@ -174,7 +174,7 @@
       leads.unshift(Object.assign({ status: 'quoted', quoted_at: new Date().toISOString(), follow_up_due_at: new Date(Date.now() + 86400000).toISOString() }, row)); A.save('valeads', leads);
       fu.textContent = 'Saved. You will be reminded tomorrow ✓'; $('err').textContent = '';
     };
-    var bk = $('tobook'); if (bk) bk.onclick = function () { var x = pricing(); if (!x) return; P.label = ($('lead').value || '').trim(); BOOKFILL = { model: phoneLine(x), issues: x.keys.length ? C.joinFaults(C.faultWords(x.keys)) : '', quote: x.p ? x.p.low + '-' + x.p.high : '', name: P.label }; go('vabook'); };
+    var bk = $('tobook'); if (bk) bk.onclick = function () { var x = pricing(); if (!x) return; P.label = ($('lead').value || '').trim(); BOOKFILL = { model: phoneLine(x), issueKeys: x.keys.slice(), issues: x.keys.length ? C.joinFaults(C.faultWords(x.keys)) : '', quote: x.p ? x.p.low + '-' + x.p.high : '', name: P.label }; go('vabook'); };
   }
 
   // ---------- MESSAGES ----------
@@ -202,7 +202,16 @@
   };
 
   // ---------- BOOK ----------
-  var BK = { day: null, time: '' };
+  var BK = { day: null, time: '', iss: {} };
+  // the issues a seller can mention, from the price table (one entry per fault)
+  function issueList() { var seen = {}, out = []; deds.slice().sort(function (a, b) { return a.sort_order - b.sort_order; }).forEach(function (d) { if (!seen[d.issue_key]) { seen[d.issue_key] = 1; out.push({ key: d.issue_key, name: d.issue_name }); } }); return out; }
+  function issueText(other) {
+    var keys = Object.keys(BK.iss).filter(function (k) { return BK.iss[k] && k !== 'none'; }), list = issueList();
+    var names = C.faultNames(keys.map(function (k) { var x = list.filter(function (i) { return i.key === k; })[0]; return x ? x.name : k; }));
+    if (other) names.push(other);
+    return names.length ? names.join(', ') : (BK.iss.none ? 'No issues' : '');
+  }
+  function issueFillOther(fill) { return fill && fill.issueKeys ? '' : (fill && fill.issues) || ''; }
   // ---- Quinn's calendar: a day as a bar from morning to night. Gold wash = free, solid = booked, red line = now ----
   function pctOf(m, lo, hi) { return Math.max(0, Math.min(100, (m - lo) / (hi - lo) * 100)); }
   function dayBlocks(q, key, tz, excludeId) {
@@ -241,7 +250,7 @@
   VIEWS.vabook = function (id) {
     var q = quinn(); COPY = [];
     if (!q) { shell(head('Book a meetup') + '<div class="card">Quinn’s details haven’t loaded yet. Check your signal and try again in a moment.</div>'); return; }
-    if (!BK.rerender) BK.draft = null; BK.rerender = false;
+    if (!BK.rerender) { BK.draft = null; BK.iss = {}; if (BOOKFILL && BOOKFILL.issueKeys) BOOKFILL.issueKeys.forEach(function (k) { BK.iss[k] = true; }); } BK.rerender = false;
     var tz = q.timezone || 'Australia/Brisbane', m = id ? A.meetups().filter(function (x) { return x.id === id; })[0] : null, fill = BK.draft || (!m && BOOKFILL ? BOOKFILL : {}), dr = BK.draft || {};
     if (m && !BK.editing) { BK.editing = id; BK.day = dayOf(m.starts_at, tz); BK.time = A.toZonedInput(m.starts_at, tz).slice(11); }
     if (!m) BK.editing = null;
@@ -256,7 +265,8 @@
       '<label>Seller’s name</label><input id="sn" autocomplete="off" value="' + esc(dr.name !== undefined ? dr.name : m ? m.seller_name : fill.name || '') + '">' +
       '<label>Seller’s phone number (needed to book)</label><input id="sc" type="tel" inputmode="tel" autocomplete="off" placeholder="e.g. 0412 345 678" value="' + esc(dr.phone !== undefined ? dr.phone : m ? m.seller_contact || '' : '') + '">' +
       '<label>Phone model</label><input id="sm" autocomplete="off" placeholder="e.g. iPhone 14 Pro 128GB" value="' + esc(dr.model !== undefined ? dr.model : m ? m.model : fill.model || '') + '"><div class="gap"></div><button type="button" class="link" id="pickm">Choose from the list</button><div id="mlist" hidden>' + modelChips('', 'bm') + '</div>' +
-      '<label>Issues</label><textarea id="si" rows="2" placeholder="e.g. cracked screen, battery 82%">' + esc(dr.issues !== undefined ? dr.issues : m ? m.issues || '' : fill.issues || '') + '</textarea>' +
+      '<label>Issues the seller mentioned</label><div class="chips" id="isschips"><button type="button" class="chip good' + (BK.iss.none ? ' on' : '') + '" data-iss="none">No issues</button>' + issueList().map(function (i) { return '<button type="button" class="chip bad' + (BK.iss[i.key] ? ' on' : '') + '" data-iss="' + esc(i.key) + '">' + esc(i.name) + '</button>'; }).join('') + '</div>' +
+      '<input id="si" autocomplete="off" style="margin-top:10px" placeholder="Anything else? (optional), e.g. battery 82%" value="' + esc(dr.issues !== undefined ? dr.issues : m ? m.issues || '' : issueFillOther(fill)) + '">' +
       '<label>Price you told them ($)</label><input id="sq" inputmode="text" placeholder="e.g. 230-290, or one number if agreed" value="' + esc(dr.quote !== undefined ? dr.quote : m ? (m.quoted_min_cents === m.quoted_max_cents ? m.quoted_min_cents / 100 : m.quoted_min_cents / 100 + '-' + m.quoted_max_cents / 100) : fill.quote || '') + '">' +
       '<label>Day</label><div class="chips">' + days.map(function (k, i) { return '<button type="button" class="chip' + (k === BK.day ? ' on' : '') + '" data-day="' + k + '">' + esc(dayLabel(k, i)) + '</button>'; }).join('') + '</div>' +
       '<div class="hint" id="avline">' + (av ? (av.ok ? '<span style="color:var(--green)">✓ ' + esc(q.name) + ' is free ' + esc(av.text) + '</span>' : '<span style="color:var(--amber)">⚠ ' + esc(q.name) + ' is not available this day</span>') : '<span class="muted">' + esc(q.name) + ' hasn’t said when he is free this day.</span>') + '</div>' +
@@ -281,6 +291,7 @@
     all('[data-bm]').forEach(function (b) { b.onclick = function () { var x = modelByCode(b.getAttribute('data-bm')); $('sm').value = x.name; $('mlist').hidden = true; }; });
     $('st').onchange = function () { BK.time = $('st').value; };
     $('st').oninput = function () { BK.time = $('st').value; };
+    all('[data-iss]').forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-iss'); if (k === 'none') { BK.iss = { none: !BK.iss.none }; } else { delete BK.iss.none; BK.iss[k] = !BK.iss[k]; } all('[data-iss]').forEach(function (c) { c.classList.toggle('on', !!BK.iss[c.getAttribute('data-iss')]); }); }; });
     function keepFields() { BK.draft = { name: $('sn').value, phone: $('sc').value, model: $('sm').value, issues: $('si').value, quote: $('sq').value, loc: $('sl').value, notes: $('sx').value }; BK.rerender = true; }
     $('cancel').onclick = function () { BOOKFILL = null; BK.editing = null; BK.draft = null; go('vameetups'); };
     $('save').onclick = async function () {
@@ -302,7 +313,7 @@
       var clash = bookedMin.some(function (b) { return Math.abs(b - mins) < 30; });
       if (clash && !confirm('That’s within 30 minutes of another meetup that day. Book it anyway?')) return;
       $('save').disabled = true;
-      var fields = { seller_name: $('sn').value.trim(), seller_contact: $('sc').value.trim(), model: $('sm').value.trim(), issues: $('si').value.trim() || null, quoted_min_cents: rng.min, quoted_max_cents: rng.max, starts_at: when.toISOString(), location: $('sl').value.trim(), notes: $('sx').value.trim() || null };
+      var fields = { seller_name: $('sn').value.trim(), seller_contact: $('sc').value.trim(), model: $('sm').value.trim(), issues: issueText($('si').value.trim()) || null, quoted_min_cents: rng.min, quoted_max_cents: rng.max, starts_at: when.toISOString(), location: $('sl').value.trim(), notes: $('sx').value.trim() || null };
       var sb = A.sb(), r = m ? await sb.from('partner_meetups').update(fields).eq('id', id).select('id') : await sb.from('partner_meetups').insert(Object.assign({ id: A.uuid(), partner_id: q.id, status: 'booked' }, fields));
       if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; $('save').disabled = false; return; }
       // a lead that was waiting for a follow-up is now booked
