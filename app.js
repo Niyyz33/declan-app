@@ -328,7 +328,7 @@
   }
   // ---- more than one partner (Declan in Townsville, Quinn in Melbourne, Harry in Sydney) ----
   var LOGOS = { Townsville: 'icons/logo.png', Melbourne: 'icons/logo-melbourne.png', Sydney: 'icons/logo-sydney.png', Australia: 'icons/logo-parent.png' };
-  function cityName() { return profile.city_name || (window.BRAND && window.BRAND.city) || 'Townsville'; }
+  function cityName() { if (window.BRAND && window.BRAND.va) return 'Australia'; return profile.city_name || (window.BRAND && window.BRAND.city) || 'Townsville'; } // the VA page is never branded as a city, whatever an old login left in the browser
   function logoSrc() { return LOGOS[cityName()] || 'icons/logo.png'; }
   // Each partner lives in their own city's version (own icon, name and logo): Declan on the main address, Quinn on melbourne.html.
   // If someone opens the wrong one, send them to theirs. Ethan (owner) can use either.
@@ -621,7 +621,7 @@
 
   // ---------- login ----------
   VIEWS.login = function (msg) {
-    shell('<div class="brand"><img src="' + logoSrc() + '" alt="Cash for Phones ' + esc(cityName()) + '"><h1>Cash for Phones</h1><div class="sub">' + esc(cityName()) + ' partner app</div></div>' +
+    shell('<div class="brand"><img src="' + logoSrc() + '" alt="Cash for Phones ' + esc(cityName()) + '"><h1>Cash for Phones</h1><div class="sub">' + (window.BRAND && window.BRAND.va ? 'VA app' : esc(cityName()) + ' partner app') + '</div></div>' +
       installTip() +
       '<div class="card"><label>Email</label><input id="em" type="email" autocomplete="username" autocapitalize="none" autocorrect="off">' +
       '<label>Password</label><input id="pw" type="password" autocomplete="current-password"><div class="gap"></div><button id="go">Log in</button><div class="err" id="err">' + esc(msg || '') + '</div>' +
