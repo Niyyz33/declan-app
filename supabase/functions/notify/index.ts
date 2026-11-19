@@ -77,6 +77,14 @@ Deno.serve(async (req: Request) => {
     sentOutcome += await send(m.partner_id, { title: `How did the ${clock} meetup go?`, body: `${m.model} with ${m.seller_name}. Log the phone, or tap No sale or No show.`, url: './?go=meetups', tag: 'out-' + m.id });
     await db.from('partner_meetups').update({ outcome_reminded_at: new Date().toISOString() }).eq('id', m.id);
   }
+  // 2c. 60 minutes after the start and still "booked": tell Ethan (and the VA) the outcome is missing, so they can text the partner
+  let sentChase = 0;
+  const { data: stale } = await db.from('partner_meetups').select('*').eq('status', 'booked').is('outcome_alerted_at', null).lte('starts_at', new Date(now - 60 * 60000).toISOString()).gt('starts_at', new Date(now - 86400000).toISOString());
+  for (const m of stale ?? []) {
+    const w = who(m.partner_id), tz = w?.timezone ?? 'Australia/Brisbane', clock = new Date(m.starts_at).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' });
+    sentChase += await sendOwners({ title: (w?.name ?? 'Partner') + ': outcome missing', body: `${clock} meetup with ${m.seller_name} (${m.model}). Tap to text ${(w?.name ?? 'them').split(' ')[0]}.`, url: './?go=meetups', tag: 'chase-' + m.id });
+    await db.from('partner_meetups').update({ outcome_alerted_at: new Date().toISOString() }).eq('id', m.id);
+  }
   // 3. shipping: Ethan sent the label -> tell Declan; Declan posted it -> tell Ethan
   let ship = 0;
   const count = async (batchId: string) => (await db.from('partner_phones').select('id', { count: 'exact', head: true }).eq('batch_id', batchId)).count ?? 0;
@@ -110,12 +118,23 @@ Deno.serve(async (req: Request) => {
   // 7. availability: the partner said when they're free -> tell Ethan (so he knows when to send leads)
   const hm = (min: number) => { const h = Math.floor(min / 60), m = min % 60, ap = h >= 12 ? 'pm' : 'am', h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + String(m).padStart(2, '0') + ' ' + ap; };
   const dayLabel = (day: string, tz: string) => { const today = new Date().toLocaleDateString('en-CA', { timeZone: tz }); return day === today ? 'today' : new Date(day + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }); };
-  const { data: avs } = await db.from('partner_availability').select('*').is('notified_at', null).gte('set_at', new Date(now - 86400000).toISOString());
-  for (const a of avs ?? []) {
-    const w = who(a.partner_id), tz = w?.timezone ?? 'Australia/Brisbane', day = dayLabel(a.day, tz);
-    const title = a.available ? `${w?.name ?? 'Partner'} is free ${day}` : `${w?.name ?? 'Partner'} is not available ${day}`;
-    availPings += await sendOwners({ title, body: a.available ? `${hm(a.start_min)} to ${hm(a.end_min)}. Good time to send leads.` : 'No leads for them that day.', url: './?go=meetups', tag: 'avail-' + a.partner_id + a.day });
-    await db.from('partner_availability').update({ notified_at: new Date().toISOString() }).eq('partner_id', a.partner_id).eq('day', a.day);
+  const { data: avs } = await db.from('partner_availability').select('*').is('notified_at', null).gte('set_at', new Date(now - 86400000).toISOString()).order('day');
+  const byPartner = new Map<string, Array<{ partner_id: string; day: string; available: boolean; start_min: number | null; end_min: number | null }>>();
+  for (const a of avs ?? []) { const l = byPartner.get(a.partner_id) ?? []; l.push(a); byPartner.set(a.partner_id, l); }
+  for (const [pid, list] of byPartner) {
+    const w = who(pid), tz = w?.timezone ?? 'Australia/Brisbane', name = w?.name ?? 'Partner';
+    const yes = list.filter((a) => a.available), no = list.filter((a) => !a.available);
+    let title: string, body: string;
+    if (list.length === 1) {
+      const a = list[0], day = dayLabel(a.day, tz);
+      title = a.available ? `${name} is free ${day}` : `${name} is not available ${day}`;
+      body = a.available ? `${hm(a.start_min!)} to ${hm(a.end_min!)}. Good time to send leads.` : 'No leads for them that day.';
+    } else {
+      title = `${name} set ${list.length} days`;
+      body = (yes.length ? `Free ${yes.length} of them (${hm(yes[0].start_min!)} to ${hm(yes[0].end_min!)} on ${dayLabel(yes[0].day, tz)}). ` : '') + (no.length ? `Not available on ${no.length}. ` : '') + 'Open the app to see each day.';
+    }
+    availPings += await sendOwners({ title, body, url: './?go=meetups', tag: 'avail-' + pid + list[0].day });
+    for (const a of list) await db.from('partner_availability').update({ notified_at: new Date().toISOString() }).eq('partner_id', pid).eq('day', a.day);
   }
   for (const p of (people ?? []) as Person[]) {
     if (p.role !== 'partner') continue;
@@ -133,5 +152,5 @@ Deno.serve(async (req: Request) => {
       await db.from('partners').update({ avail_asked_on: today }).eq('id', p.id);
     }
   }
-  return Response.json({ newBookings: sentNew, oneHour: sentSoon, outcomeReminders: sentOutcome, shipping: ship, checklist, availPings, asked });
+  return Response.json({ newBookings: sentNew, oneHour: sentSoon, outcomeReminders: sentOutcome, outcomeChase: sentChase, shipping: ship, checklist, availPings, asked });
 });

@@ -1,0 +1,7 @@
+/* Cash for Phones Melbourne: purple version of the same flat look (loaded after styles.css, only by melbourne.html). */
+:root { --bg:#0a0614; --bg2:#14092c; --card:#150e29; --card2:#1d1338; --line:#34265a; --blue:#7c4fd0; --blue2:#a888f0; }
+input, select, textarea, .seg, .stepper, .bar, .dedrow .tog, .fbbox, .pricerow > div { background:#0f0a1f; }
+.chip.on { background:#3a2275; border-color:var(--blue2); }
+.bought { background:#2e1d5a; color:#d3c0ff; }
+.kept { background:#251a45; color:#cdbdf0; }
+.tip { background:#241548; }

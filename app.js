@@ -227,14 +227,14 @@
   }
   function availCard() {
     if (isOwner() || !session || !session.user) return '';
-    var t = availFor(myPartner(), dayKey(0)), tm = availFor(myPartner(), dayKey(1));
+    var t = availFor(myPartner(), dayKey(0)), tm = availFor(myPartner(), dayKey(1)), t3 = availFor(myPartner(), dayKey(2));
     return '<div class="card"><div class="row between"><b>Your times</b><button class="link fixed" id="availgo" style="width:auto">' + (t ? 'Change' : 'Set today') + '</button></div>' +
       '<div class="row between" style="margin-top:8px"><span class="muted">Today</span><b>' + (t ? esc(t.text) : '<span style="color:var(--amber)">not set yet</span>') + '</b></div>' +
       '<div class="row between" style="margin-top:6px"><span class="muted">Tomorrow</span><span>' + (tm ? esc(tm.text) : 'not set') + '</span></div></div>';
   }
   function availOwnerCard() {
     var v = viewingPartner(); if (!v) return '';
-    var rows = [0, 1, 2].map(function (d) { var key = dayKey(d, v.timezone), a = availFor(v, key); return '<div class="row between" style="margin-top:6px"><span class="muted">' + (d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : new Date(key + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' })) + '</span><b>' + (a ? esc(a.text) : '<span class="muted">not set</span>') + '</b></div>'; }).join('');
+    var rows = [0, 1, 2, 3, 4, 5, 6].map(function (d) { var key = dayKey(d, v.timezone), a = availFor(v, key); return '<div class="row between" style="margin-top:6px"><span class="muted">' + (d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : new Date(key + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' })) + '</span><b>' + (a ? esc(a.text) : '<span class="muted">not set</span>') + '</b></div>'; }).join('');
     return '<div class="card"><b>' + esc(v.name) + ' · free times</b>' + rows + '</div>';
   }
   function viewAvail() {
@@ -242,10 +242,11 @@
     function draw() {
       var day = dayKey(pick), cur = availFor(me, day), row = avail.filter(function (r) { return r.partner_id === me.id && r.day === day; })[0];
       var off = row ? !row.available : false, st = cur && cur.ok ? cur.start : (profile.avail_start != null ? profile.avail_start : 16 * 60), en = cur && cur.ok ? cur.end : (profile.avail_end != null ? profile.avail_end : 20 * 60);
-      shell('<h1>When are you free?</h1><div class="chips" style="margin-bottom:14px"><button type="button" class="chip' + (pick === 0 ? ' on' : '') + '" data-d="0">Today</button><button type="button" class="chip' + (pick === 1 ? ' on' : '') + '" data-d="1">Tomorrow</button></div>' +
+      shell('<h1>When are you free?</h1><div class="chips" style="margin-bottom:14px">' + [0, 1, 2, 3, 4, 5, 6].map(function (d) { var k = dayKey(d); return '<button type="button" class="chip' + (pick === d ? ' on' : '') + '" data-d="' + d + '">' + (d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : new Date(k + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric' })) + '</button>'; }).join('') + '</div>' +
         '<div class="card"><label class="chk"><input type="checkbox" id="av_off"' + (off ? ' checked' : '') + '><span>I’m not available this day</span></label>' +
         '<div id="av_times"' + (off ? ' style="opacity:.4"' : '') + '><label>From</label><input id="av_s" type="time" value="' + hmInput(st) + '"><label>To</label><input id="av_e" type="time" value="' + hmInput(en) + '">' +
-        '<label class="chk"><input type="checkbox" id="av_all"' + (profile.avail_on ? ' checked' : '') + '><span>Use these times every day</span></label><div class="hint">You work every day at the same time? Tick this and you won’t be asked each morning.</div></div>' +
+        '<label>Save these times for</label><select id="av_n"><option value="1">Just this day</option><option value="3">This day and the next 2 days</option><option value="7">The next 7 days</option></select><div class="hint">Set your times ahead of time and you won’t be pinged on those days. You only get asked on a day you haven’t set.</div>' +
+        '<label class="chk"><input type="checkbox" id="av_all"' + (profile.avail_on ? ' checked' : '') + '><span>Use these times every day</span></label><div class="hint">You work every day at the same time? Tick this and you won’t be asked at all.</div></div>' +
         '<div class="err" id="err"></div></div><button id="save">Save and tell Ethan</button><div class="gap"></div><button class="secondary" id="cancel">Back</button>');
       all('[data-d]').forEach(function (b) { b.onclick = function () { pick = +b.getAttribute('data-d'); draw(); }; });
       $('av_off').onchange = function () { $('av_times').style.opacity = this.checked ? '.4' : '1'; };
@@ -255,7 +256,9 @@
         if (!isOff && (s0 === null || e0 === null || e0 <= s0)) { $('err').textContent = 'Pick a start time that is before the end time.'; return; }
         if (!navigator.onLine) { $('err').textContent = 'You need signal to send this to Ethan.'; return; }
         $('save').disabled = true;
-        var r = await sb.from('partner_availability').upsert({ partner_id: me.id, day: day, available: !isOff, start_min: isOff ? null : s0, end_min: isOff ? null : e0 }, { onConflict: 'partner_id,day' });
+        var n = Math.max(1, Math.min(7, +$('av_n').value || 1)), rowsOut = [];
+        for (var i = 0; i < n; i++) { rowsOut.push({ partner_id: me.id, day: dayKey(pick + i), available: !isOff, start_min: isOff ? null : s0, end_min: isOff ? null : e0 }); }
+        var r = await sb.from('partner_availability').upsert(rowsOut, { onConflict: 'partner_id,day' });
         if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; $('save').disabled = false; return; }
         if (!isOff && (every !== profile.avail_on || (every && (s0 !== profile.avail_start || e0 !== profile.avail_end)))) { // marking one day off never touches “every day”
           var rr = await sb.rpc('set_default_availability', { p_enabled: every, p_start: every ? s0 : null, p_end: every ? e0 : null });
@@ -1350,10 +1353,21 @@
     return '<div style="margin-top:8px"><a class="btnlink green" href="' + smsTo(tel, confirmTxt) + '">💬 Confirm with ' + esc(first) + '</a></div>' +
       '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink" href="' + smsTo(tel, arriveTxt) + '">📍 I’ve arrived</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
   }
+  // "Outcome missing": a booked meetup that started 30+ minutes ago with no result logged yet
+  function outcomeMissing(m) { return m.status === 'booked' && Date.now() - new Date(m.starts_at).getTime() >= 30 * 60000; }
+  // owner / VA: one tap opens a text to the partner asking how it went (only if the partner's number is saved)
+  function chaseButton(m) {
+    if (!outcomeMissing(m)) return '';
+    var p = partnerById(m.partner_id), tz = p && p.timezone || 'Australia/Brisbane', first = p ? String(p.name).split(' ')[0] : 'there';
+    var clock = new Date(m.starts_at).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' });
+    var txt = 'Hey ' + first + ', how did the ' + clock + ' meetup with ' + m.seller_name + ' go? Log the phone, or tap No sale / No show in the app.';
+    return p && p.ship_phone ? '<a class="btnlink green small" href="' + smsTo(telFor(p.ship_phone), txt) + '">💬 Text ' + esc(first) + '</a>' : '';
+  }
   function meetupCard(m) {
     var st = MEETUP_STATUS[m.status] || ['bought', m.status], owner = isOwner(), booked = m.status === 'booked', late = booked && new Date(m.starts_at) < new Date();
+    if (booked && outcomeMissing(m)) st = ['shipped', 'Outcome missing'];
     var acts = '';
-    if (owner && booked) acts = '<div class="acts"><button class="secondary small" data-medit="' + m.id + '">Edit</button><button class="secondary small" data-mcancel="' + m.id + '" style="color:var(--red)">Cancel meetup</button></div>';
+    if (owner && booked) acts = '<div class="acts">' + chaseButton(m) + '<button class="secondary small" data-medit="' + m.id + '">Edit</button><button class="secondary small" data-mcancel="' + m.id + '" style="color:var(--red)">Cancel meetup</button></div>';
     if (!owner && booked) acts = '<div class="acts"><button class="small" data-mlog="' + m.id + '">Log this phone</button><button class="secondary small" data-mans="no_sale" data-id="' + m.id + '">No sale</button><button class="secondary small" data-mans="no_show" data-id="' + m.id + '">No show</button>' + (reviewUrl() ? '<button class="secondary small" data-review="share">⭐ Review link</button>' : '') + '</div>';
     return '<div class="card phonecard"><div class="top"><div><div class="name">' + fmtWhen(m.starts_at, m.partner_id) + '</div><div class="meta">' + (late ? '<span style="color:var(--amber)">Did this happen? </span>' : '') + esc(m.model) + '</div></div><span class="pill ' + st[0] + '">' + st[1] + '</span></div>' +
       '<div style="margin-top:8px"><b>' + esc(m.seller_name) + '</b> · Quote ' + money(m.quoted_min_cents) + (m.quoted_max_cents !== m.quoted_min_cents ? '–' + money(m.quoted_max_cents) : '') + '</div>' +
@@ -1423,7 +1437,7 @@
     shell('<h1>' + (m ? 'Edit meetup' : 'Book a meetup') + '</h1><div class="card">' +
       (!m && partnerOptions().length > 1 ? '<label>Booking for</label><select id="sp">' + partnerOptions().map(function (p) { return '<option value="' + p.id + '"' + (who && who.id === p.id ? ' selected' : '') + '>' + esc(p.name) + (p.city_name ? ' · ' + esc(p.city_name) : '') + '</option>'; }).join('') + '</select>' : '') +
       '<label>Seller’s name</label><input id="sn" autocomplete="off" value="' + esc(m ? m.seller_name : '') + '">' +
-      '<label>Seller’s phone number</label><input id="sc" type="tel" inputmode="tel" autocomplete="off" placeholder="e.g. 0412 345 678" value="' + esc(m ? m.seller_contact || '' : '') + '"><div class="hint">Declan gets this on his meetup card so he can message them.</div>' +
+      '<label>Seller’s phone number (needed to book)</label><input id="sc" type="tel" inputmode="tel" autocomplete="off" placeholder="e.g. 0412 345 678" value="' + esc(m ? m.seller_contact || '' : '') + '"><div class="hint">The partner gets this on their meetup card so they can message the seller. A meetup can’t be booked without it.</div>' +
       '<label>Phone model</label><input id="sm" list="modellist" autocomplete="off" placeholder="e.g. iPhone 14 Pro 256GB" value="' + esc(m ? m.model : '') + '"><datalist id="modellist">' + catalogue.models.map(function (x) { return '<option value="' + esc(x.name) + '">'; }).join('') + '</datalist>' +
       '<label>Issues</label><textarea id="si" rows="2" placeholder="e.g. cracked screen, battery 82%">' + esc(m ? m.issues || '' : '') + '</textarea>' +
       '<label>Quote ($)</label><input id="sq" inputmode="text" placeholder="e.g. 230-260" value="' + esc(m ? quoteText(m.quoted_min_cents, m.quoted_max_cents) : '') + '">' +
@@ -1439,7 +1453,9 @@
       var a = availFor(p, v.slice(0, 10)), mins = inputMin(v.slice(11)), out = false;
       if (!a) { $('avh').innerHTML = '<span class="muted">' + esc(p.name) + ' hasn’t said when he’s free that day.</span>'; return null; }
       out = !a.ok || (mins !== null && (mins < a.start || mins >= a.end));
-      $('avh').innerHTML = (out ? '<span style="color:var(--amber)">⚠ ' : '<span style="color:var(--green)">✓ ') + esc(p.name) + ': ' + esc(a.text) + '</span>';
+      var ask = '';
+      if (out && p.ship_phone) { var tf = new Date(v).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); ask = ' <a class="maplink" href="' + smsTo(telFor(p.ship_phone), 'Hey ' + String(p.name).split(' ')[0] + ', a seller can only do ' + tf + ' (' + new Date(v.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'long' }) + '). Can you make that time?') + '">💬 Text to ask</a>'; }
+      $('avh').innerHTML = (out ? '<span style="color:var(--amber)">⚠ ' : '<span style="color:var(--green)">✓ ') + esc(p.name) + ': ' + esc(a.text) + '</span>' + ask;
       return out ? a : null;
     }
     $('sw').onchange = availHint; $('sw').oninput = availHint; availHint();
@@ -1452,6 +1468,7 @@
       var picked = $('sp') ? partnerById($('sp').value) : who, ptz = picked ? (picked.timezone || 'Australia/Brisbane') : tz;
       var q = parseQuote($('sq').value), when = $('sw').value ? zonedToUtc($('sw').value, ptz) : null, declan = picked, err = '';
       if (!$('sn').value.trim()) err = 'Enter the seller’s name.';
+      else if (String($('sc').value).replace(/\D/g, '').length < 8) err = 'Enter the seller’s phone number. A meetup can’t be booked without it.';
       else if (!$('sm').value.trim()) err = 'Enter the phone model.';
       else if (!q) err = 'Enter the quote, like 230-260.';
       else if (!when || isNaN(when)) err = 'Pick the date and time.';
@@ -1461,7 +1478,7 @@
       if (err) { $('err').textContent = err; return; }
       var outside = availHint(); if (outside && !confirm('That’s outside ' + (picked ? picked.name : 'their') + '’s free times (' + outside.text + '). Book it anyway?')) return;
       $('save').disabled = true;
-      var fields = { seller_name: $('sn').value.trim(), seller_contact: $('sc').value.trim() || null, model: $('sm').value.trim(), issues: $('si').value.trim() || null, quoted_min_cents: q.min, quoted_max_cents: q.max, starts_at: when.toISOString(), location: $('sl').value.trim(), notes: $('sx').value.trim() || null };
+      var fields = { seller_name: $('sn').value.trim(), seller_contact: $('sc').value.trim(), model: $('sm').value.trim(), issues: $('si').value.trim() || null, quoted_min_cents: q.min, quoted_max_cents: q.max, starts_at: when.toISOString(), location: $('sl').value.trim(), notes: $('sx').value.trim() || null };
       var r = m ? await sb.from('partner_meetups').update(fields).eq('id', id).select('id') : await sb.from('partner_meetups').insert(Object.assign({ id: uuid(), partner_id: declan.id, status: 'booked' }, fields));
       if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; $('save').disabled = false; return; }
       await refreshPhones(); go('omeetups');
