@@ -1323,7 +1323,7 @@
     var el = $('pushcard');
     if (!el || !(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY)) return;
     if (pushHtml && !el.innerHTML) { el.innerHTML = pushHtml; bindPush(); }
-    var what = isOwner() ? 'when Declan asks for a label or posts a batch, and an hour before each meetup' : isVA() ? 'when a quote is due for a follow-up, when a meetup has no outcome, and when Quinn sets his free times' : 'the moment Ethan books a meetup, and another one an hour before';
+    var what = isOwner() ? 'when Declan asks for a label or posts a batch, and an hour before each meetup' : isVA() ? 'when a quote is due for a follow-up, when a meetup has no outcome, and when the partner sets their free times' : 'the moment Ethan books a meetup, and another one an hour before';
     if (!pushSupported() || !isStandalone()) { paintPush(el, '<div class="tip"><b>Want alerts?</b> ' + (isAndroidMode() ? 'Install the app first (Chrome ⋮ menu › Install app), open it from its icon, then turn alerts on here.' : 'Add the app to your Home Screen first (Share ⬆︎ → Add to Home Screen), open it from the icon, then turn alerts on here.') + '</div>'); return; }
     if (Notification.permission === 'denied') { paintPush(el, '<div class="tip">Alerts are blocked. ' + (isAndroidMode() ? 'Press and hold the app icon, tap <b>App info</b> › <b>Notifications</b> and turn them on.' : 'Turn them on in <b>Settings › Notifications › Cash for Phones</b>.') + '</div>'); return; }
     var on = false;

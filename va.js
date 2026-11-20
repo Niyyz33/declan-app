@@ -1,4 +1,4 @@
-// Aston's screens: price a phone, copy a message, book a meetup into Quinn's calendar, one-day follow-ups. Loaded only by va.html.
+// Aston's screens: price a phone, copy a message, book a meetup into the partner's calendar, one-day follow-ups. Loaded only by va.html.
 // Everything he sees comes from tables the database lets him read (price table, meetups for the partners marked va_can_book, his leads).
 (function () {
   'use strict';
@@ -11,6 +11,7 @@
   var MSG = { time: '', price: '' }; // fill-ins on the Messages screen
 
   function ethanPhone() { return (A.settings() || {}).ethan_phone || ''; }
+  function pname() { var q = quinn(); return q ? q.name : 'your partner'; }
   function quinn() { return A.partners().filter(function (p) { return p.role === 'partner'; })[0] || null; }
   function modelByName(n) { n = String(n || '').trim().toLowerCase(); return models.filter(function (m) { return m.name.toLowerCase() === n; })[0] || null; }
   function modelByCode(c) { return models.filter(function (m) { return m.code === c; })[0] || null; }
@@ -72,7 +73,7 @@
     var missing = mine.filter(function (m) { return now - new Date(m.starts_at).getTime() >= 30 * 60000; }).length, due = dueLeads().length, av = q ? A.availFor(q, A.dayKey(0, tz)) : null;
     out.push('<button type="button" class="stat' + (due ? ' hot' : '') + '" data-go="vafollow"><b>' + due + '</b><span>follow-up' + (due === 1 ? '' : 's') + ' due</span></button>');
     out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (next ? new Date(next.starts_at).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).replace(' ', '').toUpperCase() : '–') + '</b><span>' + (next ? 'next meetup' : 'no meetups booked') + '</span></button>');
-    out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (av && av.ok ? esc((av.wins || [[av.start, av.end]]).map(function (w) { return shortRange(w[0], w[1]); }).join(', ')) : av ? 'Off' : 'Not set') + '</b><span>' + esc(q ? q.name : 'Quinn') + ' today</span></button>');
+    out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (av && av.ok ? esc((av.wins || [[av.start, av.end]]).map(function (w) { return shortRange(w[0], w[1]); }).join(', ')) : av ? 'Off' : 'Not set') + '</b><span>' + esc(pname()) + ' today</span></button>');
     if (missing) out.push('<button type="button" class="stat hot" data-go="vameetups"><b>' + missing + '</b><span>outcome' + (missing === 1 ? '' : 's') + ' missing</span></button>');
     return '<div class="stats">' + out.join('') + '</div>';
   }
@@ -266,7 +267,7 @@
   function dayLabel(key, i) { return i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : new Date(key + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }); }
   VIEWS.vabook = function (id) {
     var q = quinn(); COPY = [];
-    if (!q) { shell(head('Book a meetup') + '<div class="card">Quinn’s details haven’t loaded yet. Check your signal and try again in a moment.</div>'); return; }
+    if (!q) { shell(head('Book a meetup') + '<div class="card">The partner’s details haven’t loaded yet. Check your signal and try again in a moment.</div>'); return; }
     if (!BK.rerender) { BK.draft = null; BK.iss = {}; if (BOOKFILL && BOOKFILL.issueKeys) BOOKFILL.issueKeys.forEach(function (k) { BK.iss[k] = true; }); } BK.rerender = false;
     var tz = q.timezone || 'Australia/Brisbane', m = id ? A.meetups().filter(function (x) { return x.id === id; })[0] : null, fill = BK.draft || (!m && BOOKFILL ? BOOKFILL : {}), dr = BK.draft || {};
     if (m && !BK.editing) { BK.editing = id; BK.day = dayOf(m.starts_at, tz); BK.time = A.toZonedInput(m.starts_at, tz).slice(11); }
@@ -323,7 +324,7 @@
       else if (!navigator.onLine) err = 'You need signal to book.';
       if (err) { $('err').textContent = err; return; }
       var num = C.auMobile($('sc').value); $('sc').value = num.formatted;
-      if (!num.mobile && !confirm('That doesn’t look like a mobile number (it should be 04xx xxx xxx), and Quinn needs to text it. Check it with the seller. Book anyway?')) return;
+      if (!num.mobile && !confirm('That doesn’t look like a mobile number (it should be 04xx xxx xxx), and ' + pname() + ' needs to text it. Check it with the seller. Book anyway?')) return;
       var mins = BK.time.split(':'); mins = +mins[0] * 60 + +mins[1];
       var outside = !av || !av.ok || !fitsWin(av, mins, 15);
       if (outside && !confirm((!av ? q.name + ' hasn’t said when he is free that day. ' : 'That’s outside ' + q.name + '’s free times (' + (av.text || 'not available') + '). ') + 'Check with him first. Book it anyway?')) return;
@@ -404,7 +405,7 @@
     } else {
       out.push({ id: 'homescreen', t: 'Add the app to your Home Screen', body: '<div class="gcard">' + gmini(['Open the link Ethan sent you in <b>Safari</b>.', 'Tap the <b>Share</b> button (the square with an arrow).', 'Scroll down, tap <b>Add to Home Screen</b>, then <b>Add</b>.']) + '</div><div class="gwarn"><b>From now on, open the app from its icon</b>, never from Safari. That keeps you logged in.</div>' });
     }
-    out.push({ id: 'alerts', t: 'Turn on alerts', body: '<div class="gcard">' + gmini(['Go to the <b>Price</b> tab (the first page).', 'Tap <b>Turn on alerts</b> in the box near the top, then <b>Allow</b>.']) + '</div><div class="gtip">You get an alert when a follow-up is due, when Quinn sets his free times, and when a meetup has no result. ' + (dev === 'laptop' ? 'On a Mac, alerts work best if you also use Safari’s <b>File, Add to Dock</b>.' : 'Alerts only work from the Home Screen icon.') + '</div><div class="gact"><button type="button" class="secondary" data-go="vaprice">Go to the first page</button></div>' });
+    out.push({ id: 'alerts', t: 'Turn on alerts', body: '<div class="gcard">' + gmini(['Go to the <b>Price</b> tab (the first page).', 'Tap <b>Turn on alerts</b> in the box near the top, then <b>Allow</b>.']) + '</div><div class="gtip">You get an alert when a follow-up is due, when ' + pname() + ' sets their free times, and when a meetup has no result. ' + (dev === 'laptop' ? 'On a Mac, alerts work best if you also use Safari’s <b>File, Add to Dock</b>.' : 'Alerts only work from the Home Screen icon.') + '</div><div class="gact"><button type="button" class="secondary" data-go="vaprice">Go to the first page</button></div>' });
     out.push({ id: 'keys', t: 'Set up your keyboard shortcuts', body: '<div class="gcard">' + gmini(['Open <b>Settings</b>, <b>General</b>, <b>Keyboard</b>, <b>Text Replacement</b> (on a Mac: <b>System Settings, Keyboard, Text Replacements</b>).', 'Tap the <b>+</b>.', 'Paste the message into <b>Phrase</b> and the code into <b>Shortcut</b>, then <b>Save</b>.']) + '</div><div class="gtip">Then in any chat, type <b>zzany</b> and press space, and “Sweet any issues?” appears. The full list has a Copy button for each.</div><div class="gact"><button type="button" class="secondary" data-go="vakeys">Open the shortcut list</button></div>' });
     out.push({ id: 'invite', t: 'Accept the Business Suite invite', body: '<div class="gcard">' + gmini(['On the Meet, Ethan sends an invite to your email from Meta Business Suite.', 'Open it and click <b>Accept</b>.', 'Go to <b>business.facebook.com/latest/inbox</b> and check you can see the chats.']) + '</div><div class="gtip"><b>Best setup:</b> Business Suite on one half of the screen, this app on the other half.</div>' });
     out.push({ id: 'practice', t: 'Price a practice phone', body: '<div class="gcard">' + gmini(['On the <b>Price</b> tab tap a model, then a storage size.', 'Tap a fault or two, pick a tone, and tap <b>Copy</b>.', 'Paste it into a note to see it work. Nothing is sent to anyone.']) + '</div><div class="gact"><button type="button" class="secondary" data-go="vaprice">Try it now</button></div>' });
@@ -425,7 +426,7 @@
     });
     h += '<section class="gstep"><div class="gsh"><div class="gnum">★</div><h2>How a chat goes</h2></div><div class="gcard">' + gmini([
       'Reply to the chat with <b>Hey, which model is it and any issues?</b> If they only give the model, send <b>Sweet any issues?</b>', '<b>Price</b> tab: pick the model, tap the faults, pick a tone, tap <b>Copy</b>, paste the quote.', 'If they say yes, agree a <b>time at the meetup spot</b>, then ask for their <b>number</b>.',
-      '<b>Book</b> it into Quinn’s calendar, then send <b>easy as booked in see you then</b>.', 'If they go quiet, tap <b>Start 1-day follow-up</b>. You get reminded tomorrow.']) + '</div></section>' +
+      '<b>Book</b> it into ' + pname() + '’s calendar, then send <b>easy as booked in see you then</b>.', 'If they go quiet, tap <b>Start 1-day follow-up</b>. You get reminded tomorrow.']) + '</div></section>' +
       '<div class="gact"><button id="gfinish">Back to the first page</button></div></div>';
     shell(h); bindCopy();
     all('[data-go]').forEach(function (b) { b.onclick = function () { go(b.getAttribute('data-go')); }; });
@@ -454,14 +455,14 @@
     shell(head('Rules and when to text Ethan') +
       '<h2>Before you book</h2>' +
       rule('Reply within 5 minutes', 'Ethan wants a reply inside 5 minutes, 99.67% of the time. Fast first replies win the seller.') +
-      rule('Always get the seller’s phone number', 'You can’t book without it. ' + (q ? q.name : 'Quinn') + ' texts them an hour before and when he arrives.') +
+      rule('Always get the seller’s phone number', 'You can’t book without it. ' + pname() + ' texts them an hour before and when he arrives.') +
       rule('It has to turn on', 'If it does not turn on, do not book. Use “Unfortunately will need it to turn on.”') +
       rule('Mainly iPhone 13 and above', 'The ads say 12 and up, but Ethan is mainly buying 13s and above. Older models only if the price table gives a price.') +
       rule('Stay inside the price table', 'Never go above “Most you can say”. If a seller wants more, offer the most, then text Ethan only if they will not move.') +
       '<h2>Booking</h2>' +
-      rule('Only ' + (q ? q.name : 'Quinn') + '’s calendar', 'Times come from the free times he sets in the app. If a seller needs a time outside them, text ' + (q ? q.name : 'Quinn') + ' to ask first.') +
+      rule('Only ' + pname() + '’s calendar', 'Times come from the free times he sets in the app. If a seller needs a time outside them, text ' + pname() + ' to ask first.') +
       rule('One spot', 'Everyone meets at the meetup spot on the Book screen. If a seller asks for somewhere else, use the “all my customers come to me” message and offer another time.') +
-      rule('The price only changes in person', (q ? q.name : 'Quinn') + ' checks the phone at the meetup. The price can only go down if he finds something wrong that the seller did not say.') +
+      rule('The price only changes in person', pname() + ' checks the phone at the meetup. The price can only go down if he finds something wrong that the seller did not say.') +
       '<h2>Follow-ups</h2>' +
       rule('One follow-up, one day later', 'Only if they seem interested and have not replied. The Follow-ups tab reminds you. After that, let it go.') +
       '<h2>Text Ethan if</h2>' +
