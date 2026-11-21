@@ -132,7 +132,7 @@ Deno.serve(async (req: Request) => {
   // 7. availability: the partner said when they're free -> tell Ethan (so he knows when to send leads)
   const hm = (min: number) => { const h = Math.floor(min / 60), m = min % 60, ap = h >= 12 ? 'pm' : 'am', h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + String(m).padStart(2, '0') + ' ' + ap; };
   const dayLabel = (day: string, tz: string) => { const today = new Date().toLocaleDateString('en-CA', { timeZone: tz }); return day === today ? 'today' : new Date(day + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }); };
-  const { data: avs } = await db.from('partner_availability').select('*').is('notified_at', null).gte('set_at', new Date(now - 86400000).toISOString()).order('day');
+  const { data: avs } = await db.from('partner_availability').select('*').is('notified_at', null).gte('set_at', new Date(now - 86400000).toISOString()).lt('set_at', new Date(now - 90000).toISOString()).order('day'); // wait 90s after the last edit so one change = one alert
   const byPartner = new Map<string, Array<{ partner_id: string; day: string; available: boolean; start_min: number | null; end_min: number | null; extra?: number[][] | null }>>();
   for (const a of avs ?? []) { const l = byPartner.get(a.partner_id) ?? []; l.push(a); byPartner.set(a.partner_id, l); }
   const wt = (a: { start_min: number | null; end_min: number | null; extra?: number[][] | null }) => [[a.start_min ?? 0, a.end_min ?? 0], ...(a.extra ?? [])].map((w) => `${hm(w[0])} to ${hm(w[1])}`).join(' and ');

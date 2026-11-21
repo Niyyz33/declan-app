@@ -230,6 +230,7 @@
       if (r.error) return;
       var before = JSON.stringify(avail); avail = r.data; save('avail', avail);
       if (JSON.stringify(avail) !== before && ['home', 'omeetups', 'avail'].indexOf(current) > -1 && current !== 'avail' && !typingNow()) go(current, undefined, true);
+      if (JSON.stringify(avail) !== before) rerenderVA();
     } catch (e) { /* offline */ }
   }
   function availCard() {
@@ -491,6 +492,12 @@
   }
   var refreshing = null;
   function dataSig() { return JSON.stringify([serverPhones, serverBatches, meetups, payments, ownerData]); }
+  // Aston keeps this open all day beside Business Suite, so when Declan's times or a booking change, his screen redraws by itself (but never over a half-filled booking form)
+  function rerenderVA() {
+    if (!isVA() || typingNow()) return;
+    if (current === 'vaprice' || current === 'vameetups') go(current, undefined, true);
+    else if (current === 'vabook') { var f = ['sn', 'sc', 'sm', 'si', 'sq', 'sx'].map(function (k) { var e = $(k); return e ? e.value : ''; }).join(''); if (!f) go(current, undefined, true); }
+  }
   function typingNow() { var a = document.activeElement; return !!(a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'checkbox' && a.type !== 'button'))); }
   function syncLine() { return (lastSync ? 'Synced ' + fmtDate(lastSync) + ' · ' : '') + esc(versionText(VERSION)); }
   // One refresh at a time, and the screen is only redrawn when something really changed. Before this, every refresh
@@ -529,6 +536,7 @@
       if (isVA() && window.VA) window.VA.refresh();
       if (dataSig() === before) { var sl = $('syncline'); if (sl) sl.innerHTML = syncLine(); return; }
       if (['home', 'phones', 'ship', 'oship', 'meetups', 'omeetups', 'ostatement'].indexOf(current) > -1 && !typingNow()) go(current, undefined, true);
+      rerenderVA();
     } catch (e) { /* offline */ }
   }
   async function loadCatalogue() {
@@ -1574,6 +1582,7 @@
     window.addEventListener('offline', renderBanner);
     document.addEventListener('visibilitychange', function () { if (document.hidden) { if (pendingReload && !(current === 'log' && draft && draft.model)) location.reload(); } else { syncQueue(); refreshPhones(); } });
     setInterval(syncQueue, 30000);
+    setInterval(function () { if (isVA() && !document.hidden && navigator.onLine) refreshPhones(); }, 60000); // Aston: pick up the partner's new times and bookings within a minute
   }
   // Helpers for va.js (Aston's screens). Getters, because the underlying lists are replaced as data arrives.
   window.APP = {
