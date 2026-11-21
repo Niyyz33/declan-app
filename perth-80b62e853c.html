@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
+<title>Perth Partner Role</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap">
+<style>
+/* Layout: one calm reading column, a big pay summary first, then plain sections. */
+:root {
+  --bg: #f4f6f3;
+  --surface: #ffffff;
+  --fg: #16231c;
+  --muted: #55655b;
+  --line: #d8e0da;
+  --accent: #1f7a4d;
+  --accent-soft: #e2f1e8;
+  --accent-fg: #ffffff;
+  --warn: #8a5a00;
+  --warn-soft: #fbf0d9;
+  --font-body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  --font-head: 'Fraunces', Georgia, 'Times New Roman', serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1713; --surface: #172019; --fg: #e9f1ec; --muted: #9db0a4; --line: #27352c;
+    --accent: #5ed98a; --accent-soft: #17301f; --accent-fg: #07130b; --warn: #f0c36a; --warn-soft: #2c2410;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1713; --surface: #172019; --fg: #e9f1ec; --muted: #9db0a4; --line: #27352c;
+  --accent: #5ed98a; --accent-soft: #17301f; --accent-fg: #07130b; --warn: #f0c36a; --warn-soft: #2c2410;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 17px; line-height: 1.6;
+  padding-block: 40px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+.eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+h1 { font-family: var(--font-head); font-weight: 700; font-size: clamp(34px, 7vw, 52px); line-height: 1.08; margin: 0 0 14px; text-wrap: balance; }
+h2 { font-family: var(--font-head); font-weight: 600; font-size: 26px; line-height: 1.2; margin: 0 0 12px; text-wrap: balance; }
+h3 { font-size: 17px; margin: 0 0 4px; }
+p { margin: 0 0 12px; }
+.lede { font-size: 19px; color: var(--muted); max-width: 60ch; margin: 0; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.fact b { display: block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.fact span { font-size: 18px; font-weight: 500; }
+.pay { background: var(--accent-soft); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
+.pay .big { font-family: var(--font-head); font-size: clamp(30px, 6vw, 44px); font-weight: 700; color: var(--accent); line-height: 1.1; margin: 0 0 6px; }
+ul, ol { padding-left: 22px; margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+table { border-collapse: collapse; width: 100%; min-width: 440px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-weight: 700; color: var(--accent); font-size: 20px; }
+.note { background: var(--warn-soft); border-radius: 12px; padding: 14px 18px; color: var(--warn); font-size: 15px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; }
+.card p { margin: 0; color: var(--muted); font-size: 16px; }
+.steps { list-style: none; padding: 0; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+.steps li::before { content: counter(s); background: var(--accent); color: var(--accent-fg); width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+footer { color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 18px; }
+</style>
+
+<main>
+  <header>
+    <p class="eyebrow">Cash for Phones</p>
+    <h1>Perth Partner</h1>
+    <p class="lede">You meet sellers in Perth, check their iPhone, pay cash and send the phone on. Sellers, prices and bookings are already handled for you.</p>
+  </header>
+
+  <section class="facts" aria-label="Role summary">
+    <div class="fact"><b>Paid</b><span>Per phone, not a salary</span></div>
+    <div class="fact"><b>Hours</b><span>You set your free times each day</span></div>
+    <div class="fact"><b>Cash to start</b><span>At least $2,000</span></div>
+    <div class="fact"><b>Transport</b><span>No car needed</span></div>
+  </section>
+
+  <section class="pay">
+    <p class="eyebrow">What you earn</p>
+    <p class="big">About $3,850 to $5,850 a month</p>
+    <p style="margin:0">Depending on how many phones you buy. These are estimates from Townsville’s best month, not guarantees. Perth has not been tested yet.</p>
+  </section>
+
+  <section>
+    <h2>The business</h2>
+    <p>Cash for Phones buys used iPhones for cash from people in your city. Ads bring in sellers, we agree a price range with them by message, and you meet them in person to check the phone and pay. You don’t find sellers or negotiate over chat.</p>
+  </section>
+
+  <section>
+    <h2>What you do</h2>
+    <ol class="steps">
+      <li><div><h3>Meet sellers</h3>Meetups are booked into your calendar from your free times, always at the same public spot.</div></li>
+      <li><div><h3>Inspect the phone</h3>Follow the same checklist every time: parts and service history, battery, screen, back, frame, cameras, Face ID and charging.</div></li>
+      <li><div><h3>Say the price once</h3>The app gives you the quote and the deduction for each fault. You say the final number, then pay cash.</div></li>
+      <li><div><h3>Stay safe with locked phones</h3>You never sign in with a seller’s Apple ID. If a phone is locked, won’t turn on, or the seller won’t erase it, you walk away.</div></li>
+      <li><div><h3>Log it</h3>Log every phone in the app straight after the meetup.</div></li>
+      <li><div><h3>Handle the two kinds of phone</h3><b>Damaged</b> (any fault at all): keep it safe, then post it to us in a box with a label we send. <b>Mint</b> (nothing wrong): you sell it yourself on Facebook Marketplace and share the listing into local groups.</div></li>
+      <li><div><h3>Finish properly</h3>Ask if they have other phones to sell, hand over a business card and ask for a Google review.</div></li>
+    </ol>
+    <p>You’re not responsible for ads, chat messages, prices, bookings or accounts. A virtual assistant and the owner handle those.</p>
+  </section>
+
+  <section>
+    <h2>What you need</h2>
+    <div class="grid2">
+      <div class="card"><h3>An iPhone</h3><p>iOS 16.4 or newer, so the app and its alerts work.</p></div>
+      <div class="card"><h3>At least $2,000 in cash</h3><p>You pay each seller before the phone is yours, then you’re paid back what you paid for each damaged phone, plus your fee. The more you can float, the more meetups you can take.</p></div>
+      <div class="card"><h3>A way to reach the meetup spot</h3><p>A car is not needed.</p></div>
+      <div class="card"><h3>Confidence with cash and strangers</h3><p>Meetups are in a busy public place in daylight. You say the price clearly and hold it politely. We train you on this.</p></div>
+      <div class="card"><h3>A Facebook account</h3><p>One with some history, for selling mint phones.</p></div>
+      <div class="card"><h3>A few steady hours</h3><p>Most meetups take 20 to 30 minutes plus travel.</p></div>
+    </div>
+    <p style="margin-top:14px">$2,000 covers roughly eight or nine phones at the average price before your first repayment, so you post a box as soon as you have five damaged phones.</p>
+    <p>You don’t need any experience buying phones. Training covers the whole process, including practice meetups.</p>
+  </section>
+
+  <section>
+    <h2>How you get paid</h2>
+    <ul>
+      <li><b>Damaged phones:</b> $30 for every phone, going up to $35 for each one after your 35th in a month. You’re also paid back exactly what you paid the seller.</li>
+      <li><b>Mint phones:</b> you keep the sale money after paying the seller, minus a set commission to us that depends on the profit on that phone. For example $45 on a $100 to $149 spread, or $75 on a $200 to $249 spread.</li>
+      <li><b>Repayment on damaged phones:</b> half when you post the box, half when it arrives.</li>
+      <li><b>Statements:</b> your fees and commission go on a fortnightly statement.</li>
+    </ul>
+
+    <div class="tablewrap" style="margin-top:16px">
+      <table>
+        <tr><th>Phones bought a month</th><th>Damaged / mint</th><th>Your approximate earnings</th></tr>
+        <tr><td>67 (Townsville’s level)</td><td>53 / 14</td><td class="num">~$3,850</td></tr>
+        <tr><td>100 (1.5 times that)</td><td>79 / 21</td><td class="num">~$5,850</td></tr>
+      </table>
+    </div>
+    <p style="margin-top:12px; color:var(--muted); font-size:15px">The first row is what Townsville bought in its best month. The second is one and a half times that, which is what a bigger city is expected to reach. An average mint phone earns you about $155, against a flat $30 on a damaged one.</p>
+  </section>
+
+  <section>
+    <h2>What you get</h2>
+    <ul>
+      <li>The Cash for Phones app: your meetups, the price table, guides and logging.</li>
+      <li>Alerts when a meetup is booked and an hour before it.</li>
+      <li>Business cards, a shipping guide and training slides.</li>
+      <li>Support by text.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Safety</h2>
+    <p class="note">Always meet in a busy public place in daylight. Count the cash and check the phone before you hand it over. Walk away from any phone or person that doesn’t feel right. You never have to complete a meetup.</p>
+  </section>
+
+  <section>
+    <h2>Next steps</h2>
+    <ol class="steps">
+      <li><div>A short call to talk through the role.</div></li>
+      <li><div>Three short training sessions, including a practice meetup.</div></li>
+      <li><div>A one-week start, then a catch-up on how it went.</div></li>
+    </ol>
+  </section>
+
+  <footer>Cash for Phones · Perth partner role</footer>
+</main>
+</html>
