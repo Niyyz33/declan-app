@@ -93,7 +93,7 @@
       if (ph.type === 'mint') {
         var t = new Date(ph.bought_at).getTime();
         if (t < p.start || t >= p.end) return;
-        var v = val[ph.id] || {}, sheet = v.sheet_price_cents != null ? v.sheet_price_cents : sheetPrice(ph, ctx.ff);
+        var v = val[ph.id] || {}, base = sheetPrice(ph, ctx.ff), sheet = v.sheet_price_cents != null ? v.sheet_price_cents : (base === null ? null : base - (ph.total_deductions_cents || 0)); // a worn battery lowers what the phone is worth, so it lowers the spread too
         var spread = sheet === null ? null : sheet - ph.price_paid_cents, fee = mintCommission(spread, ctx.bands);
         mint.push({ phone: ph, sheet: sheet, spread: spread, fee: fee, needsPrice: sheet === null });
       }

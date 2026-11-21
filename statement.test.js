@@ -65,6 +65,11 @@ assert.strictEqual(s.mint.length, 2, 'only mint phones bought in the fortnight')
 assert.strictEqual(s.mint.find((l) => l.phone.id === 'm1').spread, 6000, 'sheet 300 - paid 240');
 assert.strictEqual(s.mint.find((l) => l.phone.id === 'm1').fee, 3000);
 assert.strictEqual(s.mint.find((l) => l.phone.id === 'm2').fee, 7000, 'manual sheet price 400 - 150 = 250 spread');
+// a worn battery lowers what the phone is worth, so the deductions come off the sheet value before the spread
+const mw = ph({ id: 'mw', type: 'mint', price_paid_cents: 17000, total_deductions_cents: 7000 });
+const sw = S.statement(7, Object.assign({}, ctx, { phones: [mw] }));
+assert.strictEqual(sw.mint[0].sheet, 23000, 'sheet 300 - deductions 70');
+assert.strictEqual(sw.mint[0].spread, 6000, '230 - paid 170');
 assert.strictEqual(s.damaged.length, 1, 'only batches received in the fortnight');
 const dl = s.damaged[0];
 assert.strictEqual(dl.reimburse, 20000);

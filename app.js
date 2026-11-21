@@ -938,7 +938,7 @@
       '<div class="muted" id="dnote" style="margin-top:6px">' + dnote(t) + '</div></div>';
     html += '<div class="card"><label>Type</label><div class="seg" id="typeseg"><button type="button" data-type="damaged" class="' + (draft.type === 'damaged' ? 'on damaged' : '') + '">Damaged</button><button type="button" data-type="mint" class="' + (draft.type === 'mint' ? 'on mint' : '') + '">Mint</button></div>' +
       '<div class="hint">' + (draft.type === 'damaged' ? 'Ships to Ethan.' : 'You keep it.') + ' Suggested: ' + suggestType + (suggestType === 'mint' ? ' (nothing wrong)' : ' (it has a fault)') + '. Not sure? Ask Ethan.</div>' +
-      '<label>Price paid ($)</label><input id="paid" type="number" inputmode="decimal" value="' + esc(draft.paid) + '"><div id="capwarn"></div></div>';
+      '<label>Price paid ($)</label><input id="paid" type="number" inputmode="decimal" value="' + esc(draft.paid) + '"><div id="capwarn"></div><div id="commhint"></div></div>';
     $('sum').innerHTML = html;
     all('[data-inc]').forEach(function (el) { el.onclick = function () { var id = el.getAttribute('data-inc'); var cur = lineState({ id: id, required: false, cents: 0 }); draft.ded[id] = Object.assign({}, draft.ded[id], { include: !cur.include }); persistDraft(); renderSummary(); }; });
     all('[data-amt]').forEach(function (el) { el.oninput = function () { var id = el.getAttribute('data-amt'); var c = dollarsToCents(el.value); draft.ded[id] = Object.assign({}, draft.ded[id], { cents: c === null ? 0 : c }); persistDraft(); updateTotalsOnly(); }; });
@@ -956,8 +956,28 @@
     var note = $('dnote'); if (note) { note.innerHTML = dnote(t); wireReset(); }
     var hint = $('quotehint'); if (hint) hint.textContent = q ? (q.min === q.max ? 'Quote: ' + money(q.max) : 'Quote: ' + money(q.min) + ' to ' + money(q.max)) : 'Type it like 230-260, or just one price like 250.';
     var cap = maxPay(q, t.total), paid = dollarsToCents(draft.paid);
+    refreshCommission(t);
     var warn = $('capwarn');
     if (warn) warn.innerHTML = (cap !== null && paid !== null && paid > cap) ? '<div class="err">This is ' + money(paid - cap) + ' over the limit (' + money(cap) + ' = top of the quote minus deductions). You can still save it — Ethan will see it flagged.</div>' : '';
+  }
+
+  // For a mint phone: show Declan the commission this phone adds to his statement, worked out by the database (he never sees the price sheet)
+  var commTimer = null, commSeq = 0;
+  function refreshCommission(t) {
+    var el = $('commhint'); if (!el) return;
+    if (draft.type !== 'mint') { el.innerHTML = ''; return; }
+    var paid = dollarsToCents(draft.paid), storage = draft.storage ? parseInt(draft.storage, 10) : null;
+    if (!draft.model || !storage || paid === null) { el.innerHTML = '<div class="hint">Choose the storage and enter the price paid to see the commission on this phone.</div>'; return; }
+    var seq = ++commSeq; clearTimeout(commTimer);
+    commTimer = setTimeout(async function () {
+      var out;
+      try {
+        var r = await sb.rpc('mint_commission_preview', { p_model: draft.model, p_storage: storage, p_paid_cents: paid, p_deductions_cents: t.total });
+        var d = r && r.data;
+        out = d && d.known ? '<div class="hint" style="color:var(--text)">Commission to Ethan on this phone: <b>' + money(d.commission_cents) + '</b>. It goes on your fortnightly statement.</div>' : '<div class="hint">Ethan will work out the commission on this one.</div>';
+      } catch (e) { out = '<div class="hint">The commission shows when you are online. It goes on your statement either way.</div>'; }
+      if (seq === commSeq && $('commhint')) $('commhint').innerHTML = out;
+    }, 350);
   }
 
   var saving = false;
@@ -1313,7 +1333,7 @@
     var os = ownerSettings(), bands = (ownerData.bands || []).slice().sort(function (a, b) { return a.band_no - b.band_no; });
     shell('<h1>Rates</h1><div class="card"><b>Damaged phones — fee to Declan</b><div class="muted">You pay back what he paid, plus a fee for each phone.</div><label>Fee per phone ($)</label><input id="rflat" type="number" inputmode="decimal" value="' + os.flat_cents / 100 + '">' +
       '<div class="row"><div><label>After this many damaged phones in a month</label><input id="rafter" type="number" inputmode="numeric" value="' + (os.bonus_after || '') + '" placeholder="e.g. 35"></div><div><label>…the rest of the month pays ($)</label><input id="rbonus" type="number" inputmode="decimal" value="' + (os.bonus_cents ? os.bonus_cents / 100 : '') + '" placeholder="e.g. 35"></div></div><div class="hint">Leave both empty for one flat fee all month.</div></div>' +
-      '<div class="card"><b>Mint phones — commission by spread</b><div class="muted">Spread = price-sheet value minus what Declan paid.</div>' + bands.map(function (b) {
+      '<div class="card"><b>Mint phones — commission by spread</b><div class="muted">Spread = price-sheet value, minus the phone’s deductions, minus what Declan paid.</div>' + bands.map(function (b) {
         return '<div class="row" style="margin-top:10px"><div>' + (b.min_spread_cents == null ? '<label>Under the next band</label><input disabled value="from $0 (or less)">' : '<label>Spread from ($)</label><input type="number" inputmode="decimal" data-bmin="' + b.band_no + '" value="' + b.min_spread_cents / 100 + '">') + '</div><div><label>Commission ($)</label><input type="number" inputmode="decimal" data-bfee="' + b.band_no + '" value="' + b.fee_cents / 100 + '"></div></div>';
       }).join('') + '</div><div class="err" id="err"></div><button id="save">Save rates</button><div class="gap"></div><button class="secondary" id="back">Back</button>');
     $('back').onclick = function () { go('ostatement'); };
