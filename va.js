@@ -393,7 +393,7 @@
   // ---------- MEETUPS ----------
   VIEWS.vameetups = function () {
     var q = quinn();
-    shell(head((q ? q.name + '’s' : '') + ' meetups') + weekView(q) + '<button id="book">＋ Book a meetup</button>' + A.meetupSections() +
+    shell(head((q ? q.name + '’s' : '') + ' meetups') + (A.timesTable ? A.timesTable(q) : '') + weekView(q) + '<button id="book">＋ Book a meetup</button>' + A.meetupSections() +
       '<div class="row" style="margin-top:18px"><span class="muted">' + esc(A.profile().name || 'Aston') + ' · ' + esc(A.versionText()) + '</span><button class="link" id="out" style="text-align:right">Log out</button></div>');
     $('book').onclick = function () { BOOKFILL = null; BK.editing = null; go('vabook'); };
     $('out').onclick = function () { A.logout(); };

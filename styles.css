@@ -186,3 +186,16 @@ a.btnlink.green { background:var(--green); box-shadow:none; }
 .winrow .rm { grid-column:1 / -1; justify-self:start; color:var(--red); padding:2px 0 6px; width:auto; }
 .avday .row.links { flex-direction:column; align-items:flex-start; gap:4px; margin-top:6px; }
 #av_ev .winrow { grid-template-columns:1fr 1fr; }
+
+/* a partner's next 7 days in words */
+.avt .avt-row { display: grid; grid-template-columns: 104px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line, #2a2a30); margin-top: 10px; }
+.avt .avt-day { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.avt .avt-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.avt .avt-line { display: grid; grid-template-columns: 60px 1fr; gap: 8px; align-items: baseline; }
+.avt .avt-k { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted, #9a9aa5); }
+.avt .avt-v { min-width: 0; overflow-wrap: anywhere; }
+.avt .avt-pill { display: inline-block; align-self: flex-start; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 14px; }
+.avt .avt-pill.unset { background: rgba(240, 180, 40, .16); color: var(--amber, #e3a21a); }
+.avt .avt-pill.off { background: rgba(200, 200, 210, .14); color: var(--muted, #9a9aa5); }
+.avt .avt-note { margin-top: 6px; font-size: 13px; }
+@media (max-width: 380px) { .avt .avt-row { grid-template-columns: 88px 1fr; } .avt .avt-line { grid-template-columns: 52px 1fr; } }

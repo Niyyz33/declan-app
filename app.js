@@ -240,10 +240,36 @@
       '<div class="row between" style="margin-top:8px"><span class="muted">Today</span><b>' + (t ? esc(t.text) : '<span style="color:var(--amber)">not set yet</span>') + '</b></div>' +
       '<div class="row between" style="margin-top:6px"><span class="muted">Tomorrow</span><span>' + (tm ? esc(tm.text) : 'not set') + '</span></div></div>';
   }
+  // A plain list of a partner's next 7 days: free times, booked times and what is still open, in words (not a bar to squint at)
+  function timesTable(v) {
+    if (!v) return '';
+    var tz = v.timezone || 'Australia/Brisbane', rows = '', free = 0, nb = 0;
+    function dayOfIso(iso) { var p = tzParts(new Date(iso).getTime(), tz); return p.year + '-' + p.month + '-' + p.day; }
+    for (var d = 0; d < 7; d++) {
+      var key = dayKey(d, tz), a = availFor(v, key), wins = a && a.ok ? (a.wins || [[a.start, a.end]]) : [];
+      var bk = meetups.filter(function (m) { return m.partner_id === v.id && m.status === 'booked' && dayOfIso(m.starts_at) === key; }).map(function (m) { var p = tzParts(new Date(m.starts_at).getTime(), tz); return { min: (+p.hour % 24) * 60 + +p.minute, who: m.seller_name || '' }; }).sort(function (x, y) { return x.min - y.min; });
+      var open = [];
+      wins.forEach(function (w) {
+        var cur = w[0];
+        bk.forEach(function (b) { if (b.min >= w[1] || b.min + 30 <= cur) return; if (b.min > cur) open.push([cur, b.min]); cur = Math.max(cur, b.min + 30); });
+        if (cur < w[1]) open.push([cur, w[1]]);
+      });
+      open = open.filter(function (x) { return x[1] - x[0] >= 30; });
+      nb += bk.length; if (a && a.ok) free++;
+      var lab = new Date(key + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
+      var body;
+      if (!a) body = '<span class="avt-pill unset">Not set yet</span>';
+      else if (!a.ok) body = '<span class="avt-pill off">Off</span>';
+      else body = '<div class="avt-line"><span class="avt-k">Free</span><span class="avt-v">' + esc(winsText(wins)) + '</span></div>' +
+        '<div class="avt-line"><span class="avt-k">Booked</span><span class="avt-v">' + (bk.length ? esc(bk.map(function (b) { return hmText(b.min) + (b.who ? ' ' + b.who : ''); }).join(', ')) : '<span class="muted">nothing yet</span>') + '</span></div>' +
+        '<div class="avt-line"><span class="avt-k">Open</span><span class="avt-v">' + (open.length ? '<b>' + esc(winsText(open)) + '</b>' : '<span class="muted">nothing left</span>') + '</span></div>';
+      rows += '<div class="avt-row"><div class="avt-day"><b>' + esc(lab) + '</b>' + (d === 0 ? '<span class="muted">today</span>' : d === 1 ? '<span class="muted">tomorrow</span>' : '') + '</div><div class="avt-main">' + body + '</div></div>';
+    }
+    return '<div class="card avt"><div class="row between"><b>' + esc(v.name) + '’s times, next 7 days</b><span class="muted">' + free + ' of 7 days free' + (nb ? ' · ' + nb + ' booked' : '') + '</span></div>' + rows + '<div class="muted avt-note">“Open” is free time with no meetup in it (each meetup takes about 30 minutes).</div></div>';
+  }
   function availOwnerCard() {
     var v = viewingPartner(); if (!v) return '';
-    var rows = [0, 1, 2, 3, 4, 5, 6].map(function (d) { var key = dayKey(d, v.timezone), a = availFor(v, key); return '<div class="row between" style="margin-top:6px"><span class="muted">' + (d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : new Date(key + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' })) + '</span><b>' + (a ? esc(a.text) : '<span class="muted">not set</span>') + '</b></div>'; }).join('');
-    return '<div class="card"><b>' + esc(v.name) + ' · free times</b>' + rows + '</div>';
+    return timesTable(v);
   }
   function viewAvail() {
     var me = myPartner(), days = [0, 1, 2, 3, 4, 5, 6].map(function (d) { return dayKey(d); }), every = !!profile.avail_on, ev = { s: profile.avail_start != null ? profile.avail_start : 16 * 60, e: profile.avail_end != null ? profile.avail_end : 20 * 60 };
@@ -1590,7 +1616,7 @@
     sb: function () { return sb; }, session: function () { return session; }, profile: function () { return profile; }, settings: function () { return settings; },
     meetups: function () { return meetups; }, allMeetups: allMeetups, partners: function () { return partnersList; }, setPartners: function (l) { partnersList = l; save('partners', l); },
     avail: function () { return avail; }, availFor: availFor, inWins: inWins, dayKey: dayKey, hmText: hmText, inputMin: inputMin, partnerById: partnerById, viewingPartner: viewingPartner,
-    zonedToUtc: zonedToUtc, toZonedInput: toZonedInput, tzParts: tzParts, fmtWhen: fmtWhen, meetupSections: meetupSections, bindMeetupActions: bindMeetupActions, availOwnerCard: availOwnerCard,
+    timesTable: timesTable, zonedToUtc: zonedToUtc, toZonedInput: toZonedInput, tzParts: tzParts, fmtWhen: fmtWhen, meetupSections: meetupSections, bindMeetupActions: bindMeetupActions, availOwnerCard: availOwnerCard,
     refreshPhones: refreshPhones, renderPushCard: renderPushCard, typingNow: typingNow, current: function () { return current; }, renderBanner: renderBanner, versionText: function () { return versionText(VERSION); },
     logout: async function () { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; current = ''; clearCaches(); go('login'); }
   };
