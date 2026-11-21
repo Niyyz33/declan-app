@@ -248,9 +248,10 @@
     for (var d = 0; d < 7; d++) {
       var key = dayKey(d, tz), a = availFor(v, key), wins = a && a.ok ? (a.wins || [[a.start, a.end]]) : [];
       var bk = meetups.filter(function (m) { return m.partner_id === v.id && m.status === 'booked' && dayOfIso(m.starts_at) === key; }).map(function (m) { var p = tzParts(new Date(m.starts_at).getTime(), tz); return { min: (+p.hour % 24) * 60 + +p.minute, who: m.seller_name || '' }; }).sort(function (x, y) { return x.min - y.min; });
-      var open = [];
+      var open = [], nowMin = null;
+      if (d === 0) { var np = tzParts(Date.now(), tz); nowMin = (+np.hour % 24) * 60 + +np.minute; }
       wins.forEach(function (w) {
-        var cur = w[0];
+        var cur = nowMin !== null ? Math.max(w[0], nowMin) : w[0];
         bk.forEach(function (b) { if (b.min >= w[1] || b.min + 30 <= cur) return; if (b.min > cur) open.push([cur, b.min]); cur = Math.max(cur, b.min + 30); });
         if (cur < w[1]) open.push([cur, w[1]]);
       });
@@ -522,7 +523,7 @@
   function rerenderVA() {
     if (!isVA() || typingNow()) return;
     if (current === 'vaprice' || current === 'vameetups') go(current, undefined, true);
-    else if (current === 'vabook') { var f = ['sn', 'sc', 'sm', 'si', 'sq', 'sx'].map(function (k) { var e = $(k); return e ? e.value : ''; }).join(''); if (!f) go(current, undefined, true); }
+    else if (current === 'vabook') { var f = ['sn', 'sc', 'sm', 'si', 'sq', 'sx'].map(function (k) { var e = $(k); return e ? e.value : ''; }).join(''); if (!f && window.VA && window.VA.bookIsEmpty && window.VA.bookIsEmpty()) go(current, undefined, true); }
   }
   function typingNow() { var a = document.activeElement; return !!(a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'checkbox' && a.type !== 'button'))); }
   function syncLine() { return (lastSync ? 'Synced ' + fmtDate(lastSync) + ' · ' : '') + esc(versionText(VERSION)); }
@@ -972,7 +973,7 @@
     commTimer = setTimeout(async function () {
       var out;
       try {
-        var r = await sb.rpc('mint_commission_preview', { p_model: draft.model, p_storage: storage, p_paid_cents: paid, p_deductions_cents: t.total });
+        var r = await sb.rpc('mint_commission_preview', { p_model: draft.model, p_storage: storage, p_paid_cents: paid });
         var d = r && r.data;
         out = d && d.known ? '<div class="hint" style="color:var(--text)">Commission to Ethan on this phone: <b>' + money(d.commission_cents) + '</b>. It goes on your fortnightly statement.</div>' : '<div class="hint">Ethan will work out the commission on this one.</div>';
       } catch (e) { out = '<div class="hint">The commission shows when you are online. It goes on your statement either way.</div>'; }
@@ -1333,7 +1334,7 @@
     var os = ownerSettings(), bands = (ownerData.bands || []).slice().sort(function (a, b) { return a.band_no - b.band_no; });
     shell('<h1>Rates</h1><div class="card"><b>Damaged phones — fee to Declan</b><div class="muted">You pay back what he paid, plus a fee for each phone.</div><label>Fee per phone ($)</label><input id="rflat" type="number" inputmode="decimal" value="' + os.flat_cents / 100 + '">' +
       '<div class="row"><div><label>After this many damaged phones in a month</label><input id="rafter" type="number" inputmode="numeric" value="' + (os.bonus_after || '') + '" placeholder="e.g. 35"></div><div><label>…the rest of the month pays ($)</label><input id="rbonus" type="number" inputmode="decimal" value="' + (os.bonus_cents ? os.bonus_cents / 100 : '') + '" placeholder="e.g. 35"></div></div><div class="hint">Leave both empty for one flat fee all month.</div></div>' +
-      '<div class="card"><b>Mint phones — commission by spread</b><div class="muted">Spread = price-sheet value, minus the phone’s deductions, minus what Declan paid.</div>' + bands.map(function (b) {
+      '<div class="card"><b>Mint phones — commission by spread</b><div class="muted">Spread = price-sheet value minus what Declan paid.</div>' + bands.map(function (b) {
         return '<div class="row" style="margin-top:10px"><div>' + (b.min_spread_cents == null ? '<label>Under the next band</label><input disabled value="from $0 (or less)">' : '<label>Spread from ($)</label><input type="number" inputmode="decimal" data-bmin="' + b.band_no + '" value="' + b.min_spread_cents / 100 + '">') + '</div><div><label>Commission ($)</label><input type="number" inputmode="decimal" data-bfee="' + b.band_no + '" value="' + b.fee_cents / 100 + '"></div></div>';
       }).join('') + '</div><div class="err" id="err"></div><button id="save">Save rates</button><div class="gap"></div><button class="secondary" id="back">Back</button>');
     $('back').onclick = function () { go('ostatement'); };

@@ -479,5 +479,5 @@
     $('back').onclick = function () { go('vamsgs'); };
   };
 
-  window.VA = { refresh: refresh, tabs: tabs };
+  window.VA = { refresh: refresh, tabs: tabs, bookIsEmpty: function () { return !BK.editing && !BK.time && !Object.keys(BK.iss || {}).some(function (k) { return BK.iss[k]; }); } };
 })();
