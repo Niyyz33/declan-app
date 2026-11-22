@@ -54,10 +54,12 @@ Deno.serve(async (req: Request) => {
 
   const now = Date.now();
   let sentNew = 0, sentSoon = 0;
+  // meetups booked for Ethan himself (the VA can book those too): he gets ONE alert, and no "outcome missing" nagging because he logs those in his own app
+  const forOwner = (partnerId: string) => who(partnerId)?.role === 'owner';
   // 1. brand-new bookings
   const { data: fresh } = await db.from('partner_meetups').select('*').eq('status', 'booked').is('notified_new_at', null).gt('created_at', new Date(now - 86400000).toISOString());
   for (const m of fresh ?? []) {
-    sentNew += await send(m.partner_id, { title: 'New meetup booked', body: `${when(m.starts_at, who(m.partner_id)?.timezone ?? 'Australia/Brisbane')} — ${m.model} (${m.seller_name})${m.location ? ' at ' + m.location : ''}`, url: './?go=meetups', tag: 'new-' + m.id });
+    if (!forOwner(m.partner_id)) sentNew += await send(m.partner_id, { title: 'New meetup booked', body: `${when(m.starts_at, who(m.partner_id)?.timezone ?? 'Australia/Brisbane')} — ${m.model} (${m.seller_name})${m.location ? ' at ' + m.location : ''}`, url: './?go=meetups', tag: 'new-' + m.id });
     await db.from('partner_meetups').update({ notified_new_at: new Date().toISOString() }).eq('id', m.id);
     const by = m.created_by ? who(m.created_by) : undefined;
     if (by && by.role === 'va') await sendOwners({ title: `${by.name} booked ${who(m.partner_id)?.name ?? 'a partner'}`, body: `${when(m.starts_at, who(m.partner_id)?.timezone ?? 'Australia/Brisbane')} — ${m.model} (${m.seller_name}) quote $${Math.round(m.quoted_min_cents / 100)}${m.quoted_max_cents !== m.quoted_min_cents ? '-$' + Math.round(m.quoted_max_cents / 100) : ''}`, url: './?go=meetups', tag: 'vabook-' + m.id });
@@ -71,7 +73,7 @@ Deno.serve(async (req: Request) => {
     // with a seller number on the booking: tell the partner to message them and check they're still good
     const pTitle = m.seller_contact ? `${title}: message ${m.seller_name}` : title, pBody = m.seller_contact ? `Check they’re still good for ${clock}. Tap to open your meetup.` : body;
     sentSoon += await send(m.partner_id, { title: pTitle, body: pBody, url: './?go=meetups', tag: 'soon-' + m.id });
-    await sendOwners({ title: (who(m.partner_id)?.name ?? 'Partner') + ': ' + title.toLowerCase(), body, url: './?go=meetups', tag: 'osoon-' + m.id });
+    if (!forOwner(m.partner_id)) await sendOwners({ title: (who(m.partner_id)?.name ?? 'Partner') + ': ' + title.toLowerCase(), body, url: './?go=meetups', tag: 'osoon-' + m.id });
     await db.from('partner_meetups').update({ reminded_at: new Date().toISOString() }).eq('id', m.id);
   }
   // 2a. Ethan or the VA moved, relocated or cancelled a meetup the partner already knew about -> tell the partner (90s after the last edit, so a few quick edits are one alert)
@@ -98,6 +100,7 @@ Deno.serve(async (req: Request) => {
   let sentOutcome = 0;
   const { data: overdue } = await db.from('partner_meetups').select('*').eq('status', 'booked').is('outcome_reminded_at', null).lte('starts_at', new Date(now - 30 * 60000).toISOString()).gt('starts_at', new Date(now - 86400000).toISOString());
   for (const m of overdue ?? []) {
+    if (forOwner(m.partner_id)) { await db.from('partner_meetups').update({ outcome_reminded_at: new Date().toISOString() }).eq('id', m.id); continue; }
     const tz = who(m.partner_id)?.timezone ?? 'Australia/Brisbane', clock = new Date(m.starts_at).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' });
     sentOutcome += await send(m.partner_id, { title: `How did the ${clock} meetup go?`, body: `${m.model} with ${m.seller_name}. Log the phone, or tap No sale or No show.`, url: './?go=meetups', tag: 'out-' + m.id });
     await db.from('partner_meetups').update({ outcome_reminded_at: new Date().toISOString() }).eq('id', m.id);
@@ -106,6 +109,7 @@ Deno.serve(async (req: Request) => {
   let sentChase = 0;
   const { data: stale } = await db.from('partner_meetups').select('*').eq('status', 'booked').is('outcome_alerted_at', null).lte('starts_at', new Date(now - 60 * 60000).toISOString()).gt('starts_at', new Date(now - 86400000).toISOString());
   for (const m of stale ?? []) {
+    if (forOwner(m.partner_id)) { await db.from('partner_meetups').update({ outcome_alerted_at: new Date().toISOString() }).eq('id', m.id); continue; }
     const w = who(m.partner_id), tz = w?.timezone ?? 'Australia/Brisbane', clock = new Date(m.starts_at).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' });
     const chase = { title: (w?.name ?? 'Partner') + ': outcome missing', body: `${clock} meetup with ${m.seller_name} (${m.model}). Tap to text ${(w?.name ?? 'them').split(' ')[0]}.`, url: './?go=meetups', tag: 'chase-' + m.id };
     sentChase += await sendOwners(chase);

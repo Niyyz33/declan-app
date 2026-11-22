@@ -11,6 +11,8 @@
   var MSG = { time: '', price: '' }; // fill-ins on the Messages screen
 
   function ethanPhone() { return (A.settings() || {}).ethan_phone || ''; }
+  function ethanP() { return A.partners().filter(function (p) { return p.role === 'owner'; })[0] || null; }
+  var ETHAN_SPOT = 'Annandale Central';
   function pname() { var q = quinn(); return q ? q.name : 'your partner'; }
   function quinn() { return A.partners().filter(function (p) { return p.role === 'partner'; })[0] || null; }
   function modelByName(n) { n = String(n || '').trim().toLowerCase(); return models.filter(function (m) { return m.name.toLowerCase() === n; })[0] || null; }
@@ -29,7 +31,7 @@
       var pr = await sb.rpc('va_partners'), m = await sb.from('va_models').select('*').order('sort_order'), d = await sb.from('va_deductions').select('*').limit(2000), l = await sb.from('va_leads').select('*').order('quoted_at', { ascending: false }).limit(200);
       var s = await sb.from('app_settings').select('key,value'); var before = JSON.stringify([models, deds, leads, A.partners()]);
       if (s && !s.error) { var o = {}; s.data.forEach(function (x) { o[x.key] = x.value; }); var cur = A.settings(); Object.keys(o).forEach(function (k) { cur[k] = o[k]; }); A.save('settings', cur); }
-      if (pr && !pr.error) A.setPartners(pr.data.map(function (p) { return Object.assign({}, p, { role: 'partner' }); }));
+      if (pr && !pr.error) A.setPartners(pr.data.map(function (p) { return Object.assign({}, p, { role: p.role === 'owner' ? 'owner' : 'partner' }); }));
       if (m && !m.error && m.data.length) { models = m.data; A.save('vamodels', models); }
       if (d && !d.error) { deds = d.data; A.save('vadeds', deds); }
       if (l && !l.error) { leads = l.data; A.save('valeads', leads); }
@@ -77,7 +79,7 @@
   function stats() {
     var q = quinn(), tz = (q && q.timezone) || 'Australia/Brisbane', now = Date.now(), out = [];
     var mine = A.allMeetups().filter(function (m) { return m.status === 'booked'; }), next = mine.filter(function (m) { return new Date(m.starts_at).getTime() >= now; }).sort(function (a, b) { return new Date(a.starts_at) - new Date(b.starts_at); })[0];
-    var missing = mine.filter(function (m) { return now - new Date(m.starts_at).getTime() >= 30 * 60000; }).length, due = dueLeads().length, av = q ? A.availFor(q, A.dayKey(0, tz)) : null;
+    var missing = mine.filter(function (m) { return now - new Date(m.starts_at).getTime() >= 30 * 60000 && !(A.forOwnerMeetup && A.forOwnerMeetup(m)); }).length, due = dueLeads().length, av = q ? A.availFor(q, A.dayKey(0, tz)) : null;
     out.push('<button type="button" class="stat' + (due ? ' hot' : '') + '" data-go="vafollow"><b>' + due + '</b><span>follow-up' + (due === 1 ? '' : 's') + ' due</span></button>');
     out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (next ? new Date(next.starts_at).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).replace(' ', '').toUpperCase() : '–') + '</b><span>' + (next ? 'next meetup' + nextDay(next, tz) : 'no meetups booked') + '</span></button>');
     out.push('<button type="button" class="stat" data-go="vameetups"><b>' + (av && av.ok ? esc((av.wins || [[av.start, av.end]]).map(function (w) { return shortRange(w[0], w[1]); }).join(', ')) : av ? 'Off' : 'Not set') + '</b><span>' + esc(pname()) + ' today</span></button>');
@@ -275,18 +277,22 @@
   VIEWS.vabook = function (id) {
     var q = quinn(); COPY = [];
     if (!q) { shell(head('Book a meetup') + '<div class="card">The partner’s details haven’t loaded yet. Check your signal and try again in a moment.</div>'); return; }
-    if (!BK.rerender) { BK.draft = null; BK.iss = {}; if (BOOKFILL && BOOKFILL.issueKeys) BOOKFILL.issueKeys.forEach(function (k) { BK.iss[k] = true; }); } BK.rerender = false;
-    var tz = q.timezone || 'Australia/Brisbane', m = id ? A.meetups().filter(function (x) { return x.id === id; })[0] : null, fill = BK.draft || (!m && BOOKFILL ? BOOKFILL : {}), dr = BK.draft || {};
+    if (!BK.rerender) { BK.draft = null; BK.iss = {}; BK.who = null; if (BOOKFILL && BOOKFILL.issueKeys) BOOKFILL.issueKeys.forEach(function (k) { BK.iss[k] = true; }); } BK.rerender = false;
+    var eP = ethanP(), m = id ? A.meetups().filter(function (x) { return x.id === id; })[0] : null;
+    if (!BK.who) BK.who = (m && eP && m.partner_id === eP.id) ? 'owner' : 'partner';
+    var tgt = (BK.who === 'owner' && eP) ? eP : q, forMe = tgt !== q;
+    var tz = tgt.timezone || 'Australia/Brisbane', fill = BK.draft || (!m && BOOKFILL ? BOOKFILL : {}), dr = BK.draft || {};
     if (m && !BK.editing) { BK.editing = id; BK.day = dayOf(m.starts_at, tz); BK.time = A.toZonedInput(m.starts_at, tz).slice(11); }
     if (!m) BK.editing = null;
-    var days = [0, 1, 2, 3, 4, 5, 6].map(function (i) { return A.dayKey(i, tz); }); if (!BK.day || days.indexOf(BK.day) < 0 && !m) BK.day = days[0];
-    var av = A.availFor(q, BK.day), nowMin = BK.day === days[0] ? minutesOf(new Date().toISOString(), tz) : null;
-    var bookedMin = A.meetups().filter(function (x) { return x.partner_id === q.id && x.status === 'booked' && x.id !== id && dayOf(x.starts_at, tz) === BK.day; }).map(function (x) { return minutesOf(x.starts_at, tz); });
+    var days = [0, 1, 2, 3, 4, 5, 6].map(function (i) { return A.dayKey(i, tz); }); if (!BK.day || (!m && BK.day < days[0])) BK.day = days[0];
+    var av = forMe ? null : A.availFor(tgt, BK.day), nowMin = BK.day === days[0] ? minutesOf(new Date().toISOString(), tz) : null;
+    var bookedMin = A.meetups().filter(function (x) { return x.partner_id === tgt.id && x.status === 'booked' && x.id !== id && dayOf(x.starts_at, tz) === BK.day; }).map(function (x) { return minutesOf(x.starts_at, tz); });
     var slots = av && av.ok ? C.suggestSlots({ windows: av.wins || [[av.start, av.end]], booked: bookedMin, now: nowMin, n: 5 }) : [];
-    var bookedBlocks = dayBlocks(q, BK.day, tz, id), dayRg = { lo: 480, hi: 1260 };
+    var bookedBlocks = dayBlocks(tgt, BK.day, tz, id), dayRg = { lo: 480, hi: 1260 };
     if (av && av.ok) { dayRg.lo = Math.min(dayRg.lo, Math.floor(av.start / 60) * 60); dayRg.hi = Math.max(dayRg.hi, Math.ceil(av.end / 60) * 60); }
     bookedBlocks.forEach(function (b) { dayRg.lo = Math.min(dayRg.lo, Math.floor(b.min / 60) * 60); dayRg.hi = Math.max(dayRg.hi, Math.ceil((b.min + 30) / 60) * 60); });
-    var html = head(m ? 'Edit meetup' : 'Book a meetup', 'Into ' + esc(q.name) + '’s calendar. ' + esc(q.name) + ' gets an alert straight away.') + '<div class="card">' +
+    var html = head(m ? 'Edit meetup' : 'Book a meetup', 'Into ' + esc(tgt.name) + '’s calendar. ' + esc(tgt.name) + ' gets an alert straight away.') + '<div class="card">' +
+      (eP ? '<label>Who is meeting them?</label><div class="chips"><button type="button" class="chip' + (!forMe ? ' on' : '') + '" data-who="partner">' + esc(q.name) + '</button><button type="button" class="chip' + (forMe ? ' on' : '') + '" data-who="owner">Ethan</button></div>' : '') +
       '<label>Seller’s name</label><input id="sn" autocomplete="off" value="' + esc(dr.name !== undefined ? dr.name : m ? m.seller_name : fill.name || '') + '">' +
       '<label>Seller’s phone number (needed to book)</label><input id="sc" type="tel" inputmode="tel" autocomplete="off" placeholder="e.g. 0412 345 678" value="' + esc(dr.phone !== undefined ? dr.phone : m ? m.seller_contact || '' : '') + '">' +
       '<label>Phone model</label><input id="sm" autocomplete="off" placeholder="e.g. iPhone 14 Pro 128GB" value="' + esc(dr.model !== undefined ? dr.model : m ? m.model : fill.model || '') + '"><div class="gap"></div><button type="button" class="link" id="pickm">Choose from the list</button><div id="mlist" hidden>' + modelChips('', 'bm') + '</div>' +
@@ -294,14 +300,17 @@
       '<input id="si" autocomplete="off" style="margin-top:10px" placeholder="Anything else? (optional), e.g. battery 82%" value="' + esc(dr.issues !== undefined ? dr.issues : m ? m.issues || '' : issueFillOther(fill)) + '">' +
       '<label>Price you told them ($)</label><input id="sq" inputmode="text" placeholder="e.g. 230-290, or one number if agreed" value="' + esc(dr.quote !== undefined ? dr.quote : m ? (m.quoted_min_cents === m.quoted_max_cents ? m.quoted_min_cents / 100 : m.quoted_min_cents / 100 + '-' + m.quoted_max_cents / 100) : fill.quote || '') + '">' +
       '<label>Day</label><div class="chips">' + days.map(function (k, i) { return '<button type="button" class="chip' + (k === BK.day ? ' on' : '') + '" data-day="' + k + '">' + esc(dayLabel(k, i)) + '</button>'; }).join('') + '</div>' +
-      '<div class="hint" id="avline">' + (av ? (av.ok ? '<span style="color:var(--green)">✓ ' + esc(q.name) + ' is free ' + esc(av.text) + '</span>' : '<span style="color:var(--amber)">⚠ ' + esc(q.name) + ' is not available this day</span>') : '<span class="muted">' + esc(q.name) + ' hasn’t said when he is free this day.</span>') + '</div>' +
+      '<label>Or pick any other day</label><input id="sdate" type="date" min="' + days[0] + '" value="' + esc(BK.day) + '">' +
+      '<div class="hint" id="avline">' + (forMe ? '<span class="muted">This one is for Ethan, so there is no free-times check. Any day works.</span>' : av ? (av.ok ? '<span style="color:var(--green)">✓ ' + esc(tgt.name) + ' is free ' + esc(av.text) + '</span>' : '<span style="color:var(--amber)">⚠ ' + esc(tgt.name) + ' is not available this day</span>') : '<span class="muted">' + esc(tgt.name) + ' hasn’t said when he is free this day.</span>') + '</div>' +
       '<div class="gap"></div>' + timeline(BK.day, tz, av, bookedBlocks, dayRg, 'tall') + axis(dayRg) + '<div class="muted" style="margin-top:4px">Tap the bar to pick a time.</div>' +
       (slots.length ? '<label>Suggested times</label><div class="chips">' + slots.map(function (t) { var v = (t < 600 ? '0' : '') + Math.floor(t / 60) + ':' + (t % 60 < 10 ? '0' : '') + (t % 60); return '<button type="button" class="chip' + (BK.time === v ? ' on' : '') + '" data-time="' + v + '">' + C.clock(t) + '</button>'; }).join('') + '</div>' : '') +
       '<label>Or pick a time</label><input id="st" type="time" value="' + esc(BK.time) + '">' +
-      '<label>Where?</label><input id="sl" autocomplete="off" placeholder="Meetup spot" value="' + esc(dr.loc !== undefined ? dr.loc : m ? m.location || '' : q.meet_location || '') + '">' +
-      '<label>Note for ' + esc(q.name) + ' (optional)</label><textarea id="sx" rows="2">' + esc(dr.notes !== undefined ? dr.notes : m ? m.notes || '' : '') + '</textarea>' +
+      '<label>Where?</label><input id="sl" autocomplete="off" placeholder="Meetup spot" value="' + esc(dr.loc !== undefined ? dr.loc : m ? m.location || '' : (forMe ? ETHAN_SPOT : tgt.meet_location) || '') + '">' +
+      '<label>Note for ' + esc(tgt.name) + ' (optional)</label><textarea id="sx" rows="2">' + esc(dr.notes !== undefined ? dr.notes : m ? m.notes || '' : '') + '</textarea>' +
       '<div class="err" id="err"></div></div><button id="save">' + (m ? 'Save changes' : 'Book it') + '</button><div class="gap"></div><button class="secondary" id="cancel">Cancel</button>';
     shell(html);
+    all('[data-who]').forEach(function (b) { b.onclick = function () { var prev = BK.who === 'owner' ? ETHAN_SPOT : (q.meet_location || ''); keepFields(); BK.who = b.getAttribute('data-who'); if (!BK.draft.loc || BK.draft.loc === prev) delete BK.draft.loc; VIEWS.vabook(id); }; });
+    $('sdate').onchange = function () { if (!this.value) return; keepFields(); BK.day = this.value; BK.time = ''; VIEWS.vabook(id); };
     all('[data-day]').forEach(function (b) { b.onclick = function () { keepFields(); BK.day = b.getAttribute('data-day'); BK.time = ''; VIEWS.vabook(id); }; });
     all('[data-time]').forEach(function (b) { b.onclick = function () { keepFields(); BK.time = b.getAttribute('data-time'); VIEWS.vabook(id); }; });
     var tlEl = w_tl();
@@ -333,19 +342,19 @@
       var num = C.auMobile($('sc').value); $('sc').value = num.formatted;
       if (!num.mobile && !confirm('That doesn’t look like a mobile number (it should be 04xx xxx xxx), and ' + pname() + ' needs to text it. Check it with the seller. Book anyway?')) return;
       var mins = BK.time.split(':'); mins = +mins[0] * 60 + +mins[1];
-      var outside = !av || !av.ok || !fitsWin(av, mins, 15);
-      if (outside && !confirm((!av ? q.name + ' hasn’t said when he is free that day. ' : 'That’s outside ' + q.name + '’s free times (' + (av.text || 'not available') + '). ') + 'Check with him first. Book it anyway?')) return;
+      var outside = !forMe && (!av || !av.ok || !fitsWin(av, mins, 15));
+      if (outside && !confirm((!av ? tgt.name + ' hasn’t said when he is free that day. ' : 'That’s outside ' + tgt.name + '’s free times (' + (av.text || 'not available') + '). ') + 'Check with him first. Book it anyway?')) return;
       var clash = bookedMin.some(function (b) { return Math.abs(b - mins) < 30; });
       if (clash && !confirm('That’s within 30 minutes of another meetup that day. Book it anyway?')) return;
       $('save').disabled = true;
       var fields = { seller_name: $('sn').value.trim(), seller_contact: $('sc').value.trim(), model: $('sm').value.trim(), issues: issueText($('si').value.trim()) || null, quoted_min_cents: rng.min, quoted_max_cents: rng.max, starts_at: when.toISOString(), location: $('sl').value.trim(), notes: $('sx').value.trim() || null };
-      var sb = A.sb(), r = m ? await sb.from('partner_meetups').update(fields).eq('id', id).select('id') : await sb.from('partner_meetups').insert(Object.assign({ id: A.uuid(), partner_id: q.id, status: 'booked' }, fields));
+      var sb = A.sb(), r = m ? await sb.from('partner_meetups').update(fields).eq('id', id).select('id') : await sb.from('partner_meetups').insert(Object.assign({ id: A.uuid(), partner_id: tgt.id, status: 'booked' }, fields));
       if (r.error) { $('err').textContent = 'Couldn’t save: ' + r.error.message; $('save').disabled = false; return; }
       // a lead that was waiting for a follow-up is now booked
       var nm = fields.seller_name.toLowerCase();
       var lead = leads.filter(function (l) { return (l.status === 'quoted' || l.status === 'followed_up' || l.status === 'replied') && (nm.indexOf(String(l.label).toLowerCase()) > -1 || String(l.label).toLowerCase().indexOf(nm) > -1); })[0];
       if (lead) { await sb.from('va_leads').update({ status: 'booked', updated_at: new Date().toISOString() }).eq('id', lead.id); lead.status = 'booked'; A.save('valeads', leads); }
-      BOOKFILL = null; BK.editing = null; BK.draft = null; await A.refreshPhones(); go('vabooked', { fields: fields, tz: tz, qname: q.name });
+      BOOKFILL = null; BK.editing = null; BK.draft = null; await A.refreshPhones(); go('vabooked', { fields: fields, tz: tz, qname: tgt.name });
     };
   };
   VIEWS.vabooked = function (arg) {

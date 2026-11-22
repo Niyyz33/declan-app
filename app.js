@@ -1454,7 +1454,9 @@
       '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink" href="' + smsTo(tel, arriveTxt) + '">📍 I’ve arrived</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
   }
   // "Outcome missing": a booked meetup that started 30+ minutes ago with no result logged yet
-  function outcomeMissing(m) { return m.status === 'booked' && Date.now() - new Date(m.starts_at).getTime() >= 30 * 60000; }
+  // a meetup booked for Ethan himself has no outcome to log here (he keeps those in his own app)
+  function forOwnerMeetup(m) { var p = partnerById(m.partner_id); return !!(p && p.role === 'owner'); }
+  function outcomeMissing(m) { return m.status === 'booked' && !forOwnerMeetup(m) && Date.now() - new Date(m.starts_at).getTime() >= 30 * 60000; }
   // owner / VA: one tap opens a text to the partner asking how it went (only if the partner's number is saved)
   function chaseButton(m) {
     if (!outcomeMissing(m)) return '';
@@ -1470,7 +1472,7 @@
     if (owner && booked) acts = '<div class="acts">' + chaseButton(m) + '<button class="secondary small" data-medit="' + m.id + '">Edit</button><button class="secondary small" data-mcancel="' + m.id + '" style="color:var(--red)">Cancel meetup</button></div>';
     if (!owner && booked) acts = '<div class="acts"><button class="small" data-mlog="' + m.id + '">Log this phone</button><button class="secondary small" data-mans="no_sale" data-id="' + m.id + '">No sale</button><button class="secondary small" data-mans="no_show" data-id="' + m.id + '">No show</button>' + (reviewUrl() ? '<button class="secondary small" data-review="share">⭐ Review link</button>' : '') + '</div>';
     return '<div class="card phonecard"><div class="top"><div><div class="name">' + fmtWhen(m.starts_at, m.partner_id) + '</div><div class="meta">' + (late ? '<span style="color:var(--amber)">Did this happen? </span>' : '') + esc(m.model) + '</div></div><span class="pill ' + st[0] + '">' + st[1] + '</span></div>' +
-      '<div style="margin-top:8px"><b>' + esc(m.seller_name) + '</b> · Quote ' + money(m.quoted_min_cents) + (m.quoted_max_cents !== m.quoted_min_cents ? '–' + money(m.quoted_max_cents) : '') + '</div>' +
+      '<div style="margin-top:8px">' + (forOwnerMeetup(m) ? '<span style="color:var(--amber)">For Ethan · </span>' : '') + '<b>' + esc(m.seller_name) + '</b> · Quote ' + money(m.quoted_min_cents) + (m.quoted_max_cents !== m.quoted_min_cents ? '–' + money(m.quoted_max_cents) : '') + '</div>' +
       (m.issues ? '<div class="muted">' + esc(m.issues) + '</div>' : '') +
       (m.seller_contact ? sellerButtons(m) : '') +
       (m.location ? '<div style="margin-top:6px"><a class="maplink" href="' + mapsLink(m.location) + '">📍 ' + esc(m.location) + '</a></div>' : '') +
@@ -1481,7 +1483,7 @@
   function meetupSections() {
     var now = new Date(), list = sortedMeetups(), booked = list.filter(function (m) { return m.status === 'booked'; });
     var upcoming = booked.filter(function (m) { return new Date(m.starts_at) >= now; });
-    var toClose = booked.filter(function (m) { return new Date(m.starts_at) < now; });
+    var toClose = booked.filter(function (m) { return new Date(m.starts_at) < now && !forOwnerMeetup(m); });
     // finished and cancelled meetups only show the last 7 days, so the list never piles up; "Show older" opens the rest
     var finished = list.filter(function (m) { return m.status !== 'booked'; }).reverse(), cutoff = Date.now() - 7 * 86400000;
     var shown = showOldMeetups ? finished.slice(0, 100) : finished.filter(function (m) { return new Date(m.starts_at).getTime() >= cutoff; });
@@ -1637,7 +1639,7 @@
     sb: function () { return sb; }, session: function () { return session; }, profile: function () { return profile; }, settings: function () { return settings; },
     meetups: function () { return meetups; }, allMeetups: allMeetups, partners: function () { return partnersList; }, setPartners: function (l) { partnersList = l; save('partners', l); },
     avail: function () { return avail; }, availFor: availFor, inWins: inWins, dayKey: dayKey, hmText: hmText, inputMin: inputMin, partnerById: partnerById, viewingPartner: viewingPartner,
-    timesTable: timesTable, zonedToUtc: zonedToUtc, toZonedInput: toZonedInput, tzParts: tzParts, fmtWhen: fmtWhen, meetupSections: meetupSections, bindMeetupActions: bindMeetupActions, availOwnerCard: availOwnerCard,
+    timesTable: timesTable, forOwnerMeetup: forOwnerMeetup, zonedToUtc: zonedToUtc, toZonedInput: toZonedInput, tzParts: tzParts, fmtWhen: fmtWhen, meetupSections: meetupSections, bindMeetupActions: bindMeetupActions, availOwnerCard: availOwnerCard,
     refreshPhones: refreshPhones, renderPushCard: renderPushCard, typingNow: typingNow, current: function () { return current; }, renderBanner: renderBanner, versionText: function () { return versionText(VERSION); },
     logout: async function () { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; current = ''; clearCaches(); go('login'); }
   };
