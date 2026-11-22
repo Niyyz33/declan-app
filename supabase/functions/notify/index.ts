@@ -74,6 +74,26 @@ Deno.serve(async (req: Request) => {
     await sendOwners({ title: (who(m.partner_id)?.name ?? 'Partner') + ': ' + title.toLowerCase(), body, url: './?go=meetups', tag: 'osoon-' + m.id });
     await db.from('partner_meetups').update({ reminded_at: new Date().toISOString() }).eq('id', m.id);
   }
+  // 2a. Ethan or the VA moved, relocated or cancelled a meetup the partner already knew about -> tell the partner (90s after the last edit, so a few quick edits are one alert)
+  let sentChanged = 0;
+  const { data: changed } = await db.from('partner_meetups').select('*').not('change_at', 'is', null).is('change_alerted_at', null).lt('change_at', new Date(now - 90000).toISOString()).gt('change_at', new Date(now - 86400000).toISOString());
+  for (const m of changed ?? []) {
+    const tz = who(m.partner_id)?.timezone ?? 'Australia/Brisbane';
+    const dayKeyOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: tz });
+    const dayWord = (iso: string) => { const k = dayKeyOf(iso), t0 = dayKeyOf(new Date(now).toISOString()), t1 = dayKeyOf(new Date(now + 86400000).toISOString()); return k === t0 ? 'today' : k === t1 ? 'tomorrow' : new Date(iso).toLocaleDateString('en-AU', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' }); };
+    const clockOf = (iso: string) => new Date(iso).toLocaleTimeString('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit' });
+    const was = m.moved_from_at ?? m.starts_at, who2 = m.seller_name ?? 'the seller';
+    let title = '', body = '';
+    if (m.change_kind === 'cancelled' || m.status === 'cancelled') {
+      title = 'Meetup cancelled'; body = `Your ${clockOf(was)} meetup ${dayWord(was)} with ${who2} (${m.model}) has been cancelled.`;
+    } else if (m.status === 'booked') {
+      const movedTime = new Date(m.starts_at).getTime() !== new Date(was).getTime(), movedSpot = (m.location ?? '') !== (m.moved_from_location ?? '');
+      if (movedTime) { title = 'Meetup moved'; body = `Your ${clockOf(was)} meetup ${dayWord(was)} with ${who2} has been moved to ${dayWord(m.starts_at)} at ${clockOf(m.starts_at)}${movedSpot && m.location ? ', at ' + m.location : ''}.`; }
+      else if (movedSpot) { title = 'Meetup spot changed'; body = `Your ${clockOf(m.starts_at)} meetup ${dayWord(m.starts_at)} with ${who2} is now at ${m.location || 'a new spot'}.`; }
+    }
+    if (title) sentChanged += await send(m.partner_id, { title, body, url: './?go=meetups', tag: 'chg-' + m.id + '-' + now });
+    await db.from('partner_meetups').update({ change_alerted_at: new Date().toISOString() }).eq('id', m.id);
+  }
   // 2b. 30 minutes after the start and still "booked" (no outcome logged): nudge the partner once to log it, or tap No sale / No show
   let sentOutcome = 0;
   const { data: overdue } = await db.from('partner_meetups').select('*').eq('status', 'booked').is('outcome_reminded_at', null).lte('starts_at', new Date(now - 30 * 60000).toISOString()).gt('starts_at', new Date(now - 86400000).toISOString());
@@ -168,5 +188,5 @@ Deno.serve(async (req: Request) => {
       await db.from('partners').update({ avail_asked_on: today }).eq('id', p.id);
     }
   }
-  return Response.json({ newBookings: sentNew, oneHour: sentSoon, outcomeReminders: sentOutcome, outcomeChase: sentChase, followUps, shipping: ship, checklist, availPings, asked });
+  return Response.json({ newBookings: sentNew, oneHour: sentSoon, changed: sentChanged, outcomeReminders: sentOutcome, outcomeChase: sentChase, followUps, shipping: ship, checklist, availPings, asked });
 });
