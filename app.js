@@ -499,6 +499,15 @@
           var m1 = await sb.from('partner_meetups').update(item.patch).eq('id', item.id).select('id');
           error = m1.error;
           if (!error && !(m1.data || []).length) error = { message: 'That meetup couldn’t be updated. Tell Ethan.' };
+        } else if (item.kind === 'photo') {
+          var du = await photoGet(item.id);
+          if (du) {
+            var ppath = (session && session.user ? session.user.id : '') + '/' + item.id + '.jpg';
+            var up = await sb.storage.from('phone-photos').upload(ppath, dataUrlToBlob(du), { upsert: true, contentType: 'image/jpeg' });
+            error = up.error;
+            if (!error) { var pu = await sb.from('partner_phones').update({ photo_path: ppath }).eq('id', item.id).select('id'); error = pu.error; }
+          }
+          if (!error) { photoForget(item.id); } // sent, or the phone was deleted meanwhile
         } else if (item.kind === 'onb') {
           error = item.done ? (await sb.from('onboarding_progress').upsert({ partner_id: item.pid, item_id: item.item }, { onConflict: 'partner_id,item_id' })).error
             : (await sb.from('onboarding_progress').delete().eq('partner_id', item.pid).eq('item_id', item.item)).error;
@@ -740,7 +749,7 @@
     renderPushCard();
     $('log').onclick = function () { go('log'); }; if ($('ship')) $('ship').onclick = function () { go('ship'); };
     if ($('cont')) $('cont').onclick = function () { go('log'); };
-    if ($('discard')) $('discard').onclick = function () { if (confirm('Throw this phone away without saving?')) { draft = null; persistDraft(); go('home'); } };
+    if ($('discard')) $('discard').onclick = function () { if (confirm('Throw this phone away without saving?')) { draft = null; draftPhoto = null; persistDraft(); go('home'); } };
     $('help').onclick = function () { go('help'); };
     $('mydetails').onclick = function () { go('details'); };
     $('out').onclick = async function () {
@@ -789,6 +798,7 @@
     if (i.kind === 'edit') return 'A change to a saved phone';
     if (i.kind === 'onb') return 'A checklist tick';
     if (i.kind === 'meetup') return 'Your answer for a meetup';
+    if (i.kind === 'photo') return 'A photo of a phone';
     return 'Deleting a phone';
   }
 
@@ -940,7 +950,11 @@
     html += '<div class="card"><label>Type</label><div class="seg" id="typeseg"><button type="button" data-type="damaged" class="' + (draft.type === 'damaged' ? 'on damaged' : '') + '">Damaged</button><button type="button" data-type="mint" class="' + (draft.type === 'mint' ? 'on mint' : '') + '">Mint</button></div>' +
       '<div class="hint">' + (draft.type === 'damaged' ? 'Ships to Ethan.' : 'You keep it.') + ' Suggested: ' + suggestType + (suggestType === 'mint' ? ' (nothing wrong)' : ' (it has a fault)') + '. Not sure? Ask Ethan.</div>' +
       '<label>Price paid ($)</label><input id="paid" type="number" inputmode="decimal" value="' + esc(draft.paid) + '"><div id="capwarn"></div><div id="commhint"></div></div>';
+    html += '<div class="card"><b>📷 Photo of the phone</b><div class="muted">Optional, but it makes the phones much easier to tell apart later.</div>' + (draftPhoto ? '<img class="pthumb big" alt="Your photo" src="' + draftPhoto + '">' : '') +
+      '<div style="margin-top:10px"><button type="button" class="secondary small" id="takephoto">' + (draftPhoto ? 'Retake photo' : '📷 Take a photo') + '</button>' + (draftPhoto ? ' <button type="button" class="link" id="dropphoto">Remove</button>' : '') + '</div></div>';
     $('sum').innerHTML = html;
+    $('takephoto').onclick = function () { pickPhoto(function (du) { draftPhoto = du; renderSummary(); }); };
+    if ($('dropphoto')) $('dropphoto').onclick = function () { draftPhoto = null; renderSummary(); };
     all('[data-inc]').forEach(function (el) { el.onclick = function () { var id = el.getAttribute('data-inc'); var cur = lineState({ id: id, required: false, cents: 0 }); draft.ded[id] = Object.assign({}, draft.ded[id], { include: !cur.include }); persistDraft(); renderSummary(); }; });
     all('[data-amt]').forEach(function (el) { el.oninput = function () { var id = el.getAttribute('data-amt'); var c = dollarsToCents(el.value); draft.ded[id] = Object.assign({}, draft.ded[id], { cents: c === null ? 0 : c }); persistDraft(); updateTotalsOnly(); }; });
     $('dtotal').oninput = function () { draft.dedTotal = this.value; persistDraft(); updateTotalsOnly(true); };
@@ -1009,6 +1023,7 @@
     };
     queue.push({ kind: 'phone', row: row });
     if (draft.meetupId) queue.push({ kind: 'meetup', id: draft.meetupId, patch: { status: 'bought', phone_id: row.id } });
+    if (draftPhoto) { photoPut(row.id, draftPhoto); queue.push({ kind: 'photo', id: row.id }); draftPhoto = null; }
     setQueue(queue); draft = null; persistDraft(); saving = false; syncQueue();
     current = 'saved'; $actions.innerHTML = ''; renderTabs();
     shell('<div class="brand"><h1 class="ok">Saved ✓</h1></div><div class="card"><b>' + esc(row.model) + (row.storage_gb ? ' ' + storageText(row.storage_gb) : '') + '</b><div class="muted">' + esc(row.colour || '') + '</div><div style="margin-top:8px">Paid ' + money(row.price_paid_cents) + ' · <span class="pill ' + row.type + '">' + row.type + '</span></div></div>' +
@@ -1017,6 +1032,80 @@
       '<button id="again">Log another</button><div class="gap"></div><button class="secondary" id="home">Home</button>');
     $app.className = '';
     $('again').onclick = function () { go('log'); }; $('home').onclick = function () { go('home'); };
+  }
+
+  // ---------- phone photos ----------
+  // One small photo per phone so it is easy to tell them apart later. Taken photos wait here (memory + IndexedDB, not localStorage)
+  // until they have uploaded, so a bad signal never loses them.
+  var photoMem = {}, draftPhoto = null, photoUrls = {}, photoTarget = null;
+  function idbOpen() { return new Promise(function (res, rej) { try { var r = indexedDB.open('declan-photos', 1); r.onupgradeneeded = function () { r.result.createObjectStore('p'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); }; } catch (e) { rej(e); } }); }
+  function idbDo(mode, fn) { return idbOpen().then(function (db) { return new Promise(function (res) { try { var tx = db.transaction('p', mode), rq = fn(tx.objectStore('p')); tx.oncomplete = function () { res(rq ? rq.result : null); }; tx.onerror = function () { res(null); }; } catch (e) { res(null); } }); }).catch(function () { return null; }); }
+  function photoPut(id, dataUrl) { photoMem[id] = dataUrl; return idbDo('readwrite', function (st) { return st.put(dataUrl, id); }); }
+  function photoGet(id) { if (photoMem[id]) return Promise.resolve(photoMem[id]); return idbDo('readonly', function (st) { return st.get(id); }); }
+  function photoForget(id) { delete photoMem[id]; idbDo('readwrite', function (st) { return st.delete(id); }); }
+  function dataUrlToBlob(u) { var parts = String(u).split(','), bin = atob(parts[1] || ''), arr = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: 'image/jpeg' }); }
+  // shrink to about 1000px wide so each photo is roughly 100 KB
+  function compressPhoto(file) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var max = 1000, sc = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('That photo couldn’t be read.')); };
+      img.src = url;
+    });
+  }
+  function photoPending(id) { return !!photoMem[id] || queue.some(function (i) { return i.kind === 'photo' && i.id === id; }); }
+  function photoRow(p) {
+    var has = !!p.photo_path || photoPending(p.id), mine = !isOwner() && !p._failed;
+    if (!has && !mine) return '';
+    return '<div class="photorow">' + (has ? '<img class="pthumb" alt="Photo of the phone" data-photo="' + esc(p.photo_path || '') + '" data-pid="' + esc(p.id) + '">' : '') +
+      (mine ? '<button class="secondary small" type="button" data-photoadd="' + esc(p.id) + '">📷 ' + (has ? 'Change photo' : 'Add a photo') + '</button>' : '') + '</div>';
+  }
+  function showBigPhoto(src) {
+    var d = document.createElement('div'); d.id = 'photoview'; d.innerHTML = '<img src="' + esc(src) + '" alt="Photo of the phone"><div>Tap to close</div>';
+    d.onclick = function () { d.remove(); }; document.body.appendChild(d);
+  }
+  async function hydratePhotos() {
+    var imgs = all('img[data-pid]');
+    if (!imgs.length) return;
+    var need = [];
+    imgs.forEach(function (im) { var path = im.getAttribute('data-photo'); if (path && !photoUrls[path] && need.indexOf(path) < 0) need.push(path); });
+    // a photo still waiting to upload shows straight from the phone
+    for (var i = 0; i < imgs.length; i++) {
+      var id = imgs[i].getAttribute('data-pid'), local = photoMem[id] || (queue.some(function (q) { return q.kind === 'photo' && q.id === id; }) ? await photoGet(id) : null);
+      if (local) { imgs[i].src = local; imgs[i].onclick = (function (u) { return function () { showBigPhoto(u); }; })(local); imgs[i].setAttribute('data-done', '1'); }
+    }
+    if (need.length && sb && navigator.onLine) {
+      try { var r = await sb.storage.from('phone-photos').createSignedUrls(need, 3600); (r.data || []).forEach(function (x) { if (x.signedUrl && x.path) photoUrls[x.path] = x.signedUrl; }); } catch (e) { /* offline: no thumbnails */ }
+    }
+    all('img[data-pid]').forEach(function (im) {
+      var u = photoUrls[im.getAttribute('data-photo')];
+      if (u && !im.getAttribute('data-done')) { im.src = u; im.onclick = function () { showBigPhoto(u); }; }
+    });
+  }
+  function pickPhoto(cb) {
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment'); inp.style.display = 'none';
+    inp.onchange = async function () {
+      var f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
+      try { cb(await compressPhoto(f)); } catch (e) { alert(e.message || 'That photo couldn’t be read.'); }
+    };
+    document.body.appendChild(inp); inp.click();
+  }
+  function bindPhotoButtons() {
+    all('[data-photoadd]').forEach(function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-photoadd');
+        pickPhoto(async function (du) {
+          await photoPut(id, du); queue = queue.filter(function (i) { return !(i.kind === 'photo' && i.id === id); }); queue.push({ kind: 'photo', id: id });
+          setQueue(queue); syncQueue(); go('phones', undefined, true);
+        });
+      };
+    });
+    hydratePhotos();
   }
 
   // ---------- my phones ----------
@@ -1047,7 +1136,7 @@
           '<div style="margin-top:10px"><span class="pill ' + st[0] + '">' + st[1] + '</span>' + (overLimit(p) ? ' <span class="pill damaged">⚠ Over limit</span>' : '') + (p._failed ? ' <span class="err">couldn’t send</span>' : p._pending ? ' <span class="muted">waiting to send</span>' : '') + (track ? ' <span class="muted">· Tracking ' + esc(track) + '</span>' : '') + '</div>' +
           (p.type === 'mint' && p.sold_price_cents != null ? '<div style="margin-top:8px"><b>Sold for ' + money(p.sold_price_cents) + '</b> <span class="muted">· ' + (p.sold_price_cents - p.price_paid_cents >= 0 ? '+' : '') + money(p.sold_price_cents - p.price_paid_cents) + ' on what you paid</span>' + (priceFor(p) ? '<div class="muted">Recommended list was ' + money(priceFor(p).list_cents) + ' · ' + (p.sold_price_cents - priceFor(p).list_cents >= 0 ? '+' : '') + money(p.sold_price_cents - priceFor(p).list_cents) + '</div>' : '') + '</div>' : '') +
           (!isOwner() && p.type === 'mint' && !p._failed ? '<div class="acts"><button class="small" data-sold="' + p.id + '">' + (p.sold_price_cents != null ? 'Change sale price' : '💰 Mark sold') + '</button>' + (p.sold_price_cents == null ? '<button class="secondary small" data-fb="' + p.id + '">📋 Facebook description</button>' : '') + (canEdit && p.sold_price_cents == null ? '<button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button>' : '') + '</div>'
-            : canEdit ? '<div class="acts"><button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button></div>' : '') + '</div>';
+            : canEdit ? '<div class="acts"><button class="secondary small" data-edit="' + p.id + '">Edit</button><button class="secondary small" data-del="' + p.id + '" style="color:var(--red)">Delete</button></div>' : '') + photoRow(p) + '</div>';
       }).join('') : '<div class="empty">' + (phones.length ? 'Nothing matches that.' : 'No phones yet. Log your first one!') + '</div>'));
     $('search').oninput = function () { phoneSearch = this.value; var pos = this.selectionStart; go('phones', undefined, true); var s = $('search'); s.focus(); s.setSelectionRange(pos, pos); };
     all('[data-filter]').forEach(function (b) { b.onclick = function () { phoneFilter = b.getAttribute('data-filter'); go('phones', undefined, true); }; });
@@ -1055,6 +1144,7 @@
     all('[data-sold]').forEach(function (b) { b.onclick = function () { go('sold', b.getAttribute('data-sold')); }; });
     all('[data-fb]').forEach(function (b) { b.onclick = function () { go('fbdesc', b.getAttribute('data-fb')); }; });
     all('[data-del]').forEach(function (b) { b.onclick = function () { deletePhone(b.getAttribute('data-del')); }; });
+    bindPhotoButtons();
   };
   function deletePhone(id) {
     if (!confirm('Delete this phone? Only do this if you logged it by mistake.')) return;
@@ -1445,13 +1535,14 @@
   // Drafted texts for the seller: one to confirm the time (the app alerts Declan an hour before) and one for when he arrives
   function sellerButtons(m) {
     var tel = telFor(m.seller_contact), me = profile.name || 'Declan', first = String(m.seller_name || '').split(' ')[0] || 'there';
-    if (isStaff()) return '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink green" href="sms:' + tel + '">💬 Message ' + esc(first) + '</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
+    if (!isStaff() && m.status !== 'booked') return '<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
+    if (isStaff()) return '<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><a class="btnlink green" href="sms:' + tel + '">💬 Message ' + esc(first) + '</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
     var d = new Date(m.starts_at), clock = d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }), isToday = d.toDateString() === new Date().toDateString(),
       day = isToday ? ' today' : ' on ' + d.toLocaleDateString('en-AU', { weekday: 'long' });
     var confirmTxt = 'Hey ' + first + ', it’s ' + me + ' from Cash for Phones. Just checking you’re still good for our ' + clock + ' meetup' + (m.location ? ' at ' + m.location : '') + day + ' for your ' + m.model + '?';
     var arriveTxt = 'Hey ' + first + ', it’s ' + me + '. I’ve just arrived' + (m.location ? ' at ' + m.location : '') + '.';
-    return '<div style="margin-top:8px"><a class="btnlink green" href="' + smsTo(tel, confirmTxt) + '">💬 Confirm with ' + esc(first) + '</a></div>' +
-      '<div class="row" style="margin-top:8px;gap:8px"><a class="btnlink" href="' + smsTo(tel, arriveTxt) + '">📍 I’ve arrived</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
+    return (m.reschedule_requested_at ? '' : '<div style="margin-top:8px"><a class="btnlink green" href="' + smsTo(tel, confirmTxt) + '">💬 Confirm with ' + esc(first) + '</a></div>') +
+      '<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><a class="btnlink" href="' + smsTo(tel, arriveTxt) + '">📍 I’ve arrived</a><a class="btnlink" href="tel:' + tel + '">📞 Call</a></div><div class="muted" style="margin-top:4px">' + esc(m.seller_contact) + '</div>';
   }
   // "Outcome missing": a booked meetup that started 30+ minutes ago with no result logged yet
   // a meetup booked for Ethan himself has no outcome to log here (he keeps those in his own app)
@@ -1470,14 +1561,36 @@
     if (booked && outcomeMissing(m)) st = ['shipped', 'Outcome missing'];
     var acts = '';
     if (owner && booked) acts = '<div class="acts">' + chaseButton(m) + '<button class="secondary small" data-medit="' + m.id + '">Edit</button><button class="secondary small" data-mcancel="' + m.id + '" style="color:var(--red)">Cancel meetup</button></div>';
-    if (!owner && booked) acts = '<div class="acts"><button class="small" data-mlog="' + m.id + '">Log this phone</button><button class="secondary small" data-mans="no_sale" data-id="' + m.id + '">No sale</button><button class="secondary small" data-mans="no_show" data-id="' + m.id + '">No show</button>' + (reviewUrl() ? '<button class="secondary small" data-review="share">⭐ Review link</button>' : '') + '</div>';
+    if (!owner && booked) acts = '<div class="acts"><button class="small" data-mlog="' + m.id + '">Log this phone</button><button class="secondary small" data-mans="no_sale" data-id="' + m.id + '">No sale</button><button class="secondary small" data-mans="no_show" data-id="' + m.id + '">No show</button>' + (reviewUrl() ? '<button class="secondary small" data-review="share">⭐ Review link</button>' : '') + '</div>' + (m.reschedule_requested_at ? '' : '<div class="acts" style="margin-top:8px"><button class="secondary small" data-resched="' + m.id + '">🔁 Seller wants to reschedule</button></div>');
     return '<div class="card phonecard"><div class="top"><div><div class="name">' + fmtWhen(m.starts_at, m.partner_id) + '</div><div class="meta">' + (late ? '<span style="color:var(--amber)">Did this happen? </span>' : '') + esc(m.model) + '</div></div><span class="pill ' + st[0] + '">' + st[1] + '</span></div>' +
       '<div style="margin-top:8px">' + (forOwnerMeetup(m) ? '<span style="color:var(--amber)">For Ethan · </span>' : '') + '<b>' + esc(m.seller_name) + '</b> · Quote ' + money(m.quoted_min_cents) + (m.quoted_max_cents !== m.quoted_min_cents ? '–' + money(m.quoted_max_cents) : '') + '</div>' +
       (m.issues ? '<div class="muted">' + esc(m.issues) + '</div>' : '') +
       (m.seller_contact ? sellerButtons(m) : '') +
       (m.location ? '<div style="margin-top:6px"><a class="maplink" href="' + mapsLink(m.location) + '">📍 ' + esc(m.location) + '</a></div>' : '') +
       (m.notes ? '<div class="muted" style="margin-top:4px">' + esc(m.notes) + '</div>' : '') +
-      (m._pending ? '<div class="muted" style="margin-top:6px">waiting to send</div>' : '') + acts + '</div>';
+      (m._pending ? '<div class="muted" style="margin-top:6px">waiting to send</div>' : '') + reschedBox(m) + acts + reviewBox(m) + '</div>';
+  }
+  // ---- seller asked to reschedule (they message the partner's own account, so the partner taps this and Ethan / the VA rebook it)
+  function reschedBox(m) {
+    if (m.status !== 'booked' || !m.reschedule_requested_at) return '';
+    var first = String(m.seller_name || '').split(' ')[0] || 'them', note = m.reschedule_note ? ' They said: “' + esc(m.reschedule_note) + '”.' : '';
+    if (isStaff()) return '<div class="tip" style="margin-top:10px;border-color:var(--amber)"><b style="color:var(--amber)">🔁 ' + esc(first) + ' asked to reschedule.</b>' + note + '<div class="muted" style="margin-top:4px">Agree a new time with them, then tap Edit and move the meetup. ' + esc((partnerById(m.partner_id) || { name: 'The partner' }).name.split(' ')[0]) + ' gets an alert when you do.</div></div>';
+    var tel = telFor(m.seller_contact), txt = 'Hey ' + first + ', no worries! Let me check my diary and I’ll confirm a new time shortly.';
+    return '<div class="tip" style="margin-top:10px;border-color:var(--amber)"><b style="color:var(--amber)">🔁 Reschedule requested.</b>' + note + '<div class="muted" style="margin-top:4px">Ethan or Aston will rebook it and you’ll get an alert with the new time. Keep this booking until then.</div>' +
+      '<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">' + (m.seller_contact ? '<a class="btnlink" href="' + smsTo(tel, txt) + '">💬 Tell ' + esc(first) + ' you’re sorting it</a>' : '') + '<button class="secondary small" data-reschedclear="' + m.id + '">Cancel request</button></div></div>';
+  }
+  // ---- after a phone is bought: "did you ask for a Google review?" (one tap to say yes, or a drafted text with the link)
+  function reviewBox(m) {
+    if (m.status !== 'bought' || forOwnerMeetup(m)) return '';
+    if (m.review_sent_at) return '<div class="muted" style="margin-top:8px">⭐ Review ' + (m.review_how === 'texted' ? 'link texted' : 'asked') + ' ✓</div>';
+    if (isStaff()) return '<div class="muted" style="margin-top:8px">⭐ No review asked yet</div>';
+    if (!reviewUrl()) return '';
+    var first = String(m.seller_name || '').split(' ')[0] || 'there';
+    return '<div class="tip" style="margin-top:10px"><b>⭐ Did you ask ' + esc(first) + ' for a Google review?</b><div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="small" data-revdone="' + m.id + '">Yes, I asked ✓</button><button class="secondary small" data-revtext="' + m.id + '">' + (m.seller_contact ? 'No, text them the link' : 'No, share the link') + '</button></div></div>';
+  }
+  function reviewText(m) {
+    var me = profile.name || 'Declan', first = String(m.seller_name || '').split(' ')[0] || 'there';
+    return 'Hey ' + first + ', it’s ' + me + ' from Cash for Phones. Thanks again for today! We’re growing our Google reviews. Would you mind leaving us a quick one? It only takes a minute: ' + reviewUrl();
   }
   var showOldMeetups = false;
   function meetupSections() {
@@ -1502,6 +1615,35 @@
         var st = b.getAttribute('data-mans'), id = b.getAttribute('data-id');
         if (!confirm(st === 'no_sale' ? 'Mark this as No sale (you met but didn’t buy)?' : 'Mark this as No show (the seller didn’t turn up)?')) return;
         queue.push({ kind: 'meetup', id: id, patch: { status: st } }); setQueue(queue); syncQueue(); go('meetups', undefined, true);
+      };
+    });
+    all('[data-resched]').forEach(function (b) {
+      b.onclick = function () {
+        var note = prompt('What did the seller ask for? For example “Thursday after 3pm” or “same time tomorrow”. Leave blank if they didn’t say.', '');
+        if (note === null) return;
+        queue.push({ kind: 'meetup', id: b.getAttribute('data-resched'), patch: { reschedule_requested_at: new Date().toISOString(), reschedule_note: String(note).trim().slice(0, 200) || null } });
+        setQueue(queue); syncQueue(); go('meetups', undefined, true);
+      };
+    });
+    all('[data-reschedclear]').forEach(function (b) {
+      b.onclick = function () {
+        if (!confirm('Cancel the reschedule request? The meetup stays as booked.')) return;
+        queue.push({ kind: 'meetup', id: b.getAttribute('data-reschedclear'), patch: { reschedule_requested_at: null, reschedule_note: null } });
+        setQueue(queue); syncQueue(); go('meetups', undefined, true);
+      };
+    });
+    all('[data-revdone]').forEach(function (b) {
+      b.onclick = function () { queue.push({ kind: 'meetup', id: b.getAttribute('data-revdone'), patch: { review_sent_at: new Date().toISOString(), review_how: 'asked' } }); setQueue(queue); syncQueue(); go('meetups', undefined, true); };
+    });
+    all('[data-revtext]').forEach(function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-revtext'), m = allMeetups().filter(function (x) { return x.id === id; })[0];
+        if (!m || !reviewUrl()) return;
+        queue.push({ kind: 'meetup', id: id, patch: { review_sent_at: new Date().toISOString(), review_how: 'texted' } }); setQueue(queue); syncQueue();
+        if (m.seller_contact) window.location.href = smsTo(telFor(m.seller_contact), reviewText(m));
+        else if (navigator.share) navigator.share({ title: 'Leave us a review', text: reviewText(m) }).catch(function () { /* cancelled */ });
+        else try { navigator.clipboard.writeText(reviewText(m)); alert('Copied. Paste it to the seller.'); } catch (e) { alert(reviewText(m)); }
+        setTimeout(function () { go('meetups', undefined, true); }, 400);
       };
     });
     all('[data-medit]').forEach(function (b) { b.onclick = function () { go(isVA() ? 'vabook' : 'obook', b.getAttribute('data-medit')); }; });

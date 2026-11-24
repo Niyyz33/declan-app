@@ -116,6 +116,17 @@ Deno.serve(async (req: Request) => {
     if (w?.va_can_book) sentChase += await sendVAs(chase);
     await db.from('partner_meetups').update({ outcome_alerted_at: new Date().toISOString() }).eq('id', m.id);
   }
+  // 2d. the seller messaged the partner asking to reschedule and the partner tapped "Seller wants to reschedule" -> tell Ethan and the VA to rebook it (90s settle, so an edited note is one alert)
+  let sentResched = 0;
+  const { data: resched } = await db.from('partner_meetups').select('*').eq('status', 'booked').not('reschedule_requested_at', 'is', null).is('reschedule_alerted_at', null).lt('reschedule_requested_at', new Date(now - 20000).toISOString()).gt('reschedule_requested_at', new Date(now - 86400000 * 3).toISOString());
+  for (const m of resched ?? []) {
+    if (forOwner(m.partner_id)) { await db.from('partner_meetups').update({ reschedule_alerted_at: new Date().toISOString() }).eq('id', m.id); continue; }
+    const w = who(m.partner_id), tz = w?.timezone ?? 'Australia/Brisbane', first = (w?.name ?? 'Partner').split(' ')[0];
+    const alert = { title: `${first}: seller wants to reschedule`, body: `${m.seller_name} (${m.model}), booked ${when(m.starts_at, tz)}.${m.reschedule_note ? ' They said: "' + String(m.reschedule_note).slice(0, 120) + '".' : ''} Tap to rebook.`, url: './?go=meetups', tag: 'resch-' + m.id + '-' + new Date(m.reschedule_requested_at).getTime() };
+    sentResched += await sendOwners(alert);
+    if (w?.va_can_book) sentResched += await sendVAs(alert);
+    await db.from('partner_meetups').update({ reschedule_alerted_at: new Date().toISOString() }).eq('id', m.id);
+  }
   // 3. shipping: Ethan sent the label -> tell Declan; Declan posted it -> tell Ethan
   let ship = 0;
   const count = async (batchId: string) => (await db.from('partner_phones').select('id', { count: 'exact', head: true }).eq('batch_id', batchId)).count ?? 0;
@@ -192,5 +203,5 @@ Deno.serve(async (req: Request) => {
       await db.from('partners').update({ avail_asked_on: today }).eq('id', p.id);
     }
   }
-  return Response.json({ newBookings: sentNew, oneHour: sentSoon, changed: sentChanged, outcomeReminders: sentOutcome, outcomeChase: sentChase, followUps, shipping: ship, checklist, availPings, asked });
+  return Response.json({ newBookings: sentNew, oneHour: sentSoon, changed: sentChanged, reschedule: sentResched, outcomeReminders: sentOutcome, outcomeChase: sentChase, followUps, shipping: ship, checklist, availPings, asked });
 });
