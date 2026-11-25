@@ -17,10 +17,14 @@
 </head>
 <body>
 <div id="banner" hidden></div>
-<main id="app"></main>
+<main id="app"><p style="color:#c9aaad;font:16px -apple-system,Arial,sans-serif;padding:40px 20px;text-align:center">Loading Cash for Phones Sydney…</p></main>
 <nav id="tabs" hidden></nav>
 <div id="actions"></div>
-<script>window.BRAND = { city: 'Sydney' };</script>
+<script>window.BRAND = { city: 'Sydney' };
+// If anything stops the app from starting, say so on screen instead of leaving a blank page
+window.addEventListener('error', function (e) { var a = document.getElementById('app'); if (a && /^Loading/.test(a.textContent)) a.innerHTML = '<p style="color:#ffb4ab;font:15px -apple-system,Arial,sans-serif;padding:30px 20px">Something stopped the app from opening. Screenshot this and send it to Ethan:<br><br>' + String(e.message || '').replace(/</g, '&lt;') + '<br>' + String(e.filename || '').split('/').pop() + ':' + (e.lineno || '') + '<br>' + (navigator.userAgent || '') + '</p>'; });
+setTimeout(function () { var a = document.getElementById('app'); if (a && /^Loading/.test(a.textContent)) a.innerHTML += '<p style="color:#c9aaad;font:14px -apple-system,Arial,sans-serif;padding:0 20px;text-align:center">Still loading. Check your signal, then close and reopen the page in Safari.</p>'; }, 8000);
+</script>
 <script src="vendor/supabase.min.js"></script>
 <script src="config.js"></script>
 <script src="deductions.js"></script>
