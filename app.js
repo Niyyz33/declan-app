@@ -1758,6 +1758,8 @@
     if (!session && hasStoredLogin()) session = { offlineUntilSignal: true };
     renderBanner();
     if (!session) return go('login');
+    // a VA login left in this browser (the VA app and the partner apps share one address) must not open a partner page: it has no VA screens and used to leave a blank page
+    if (isVA() && !(window.BRAND && window.BRAND.va)) { try { await sb.auth.signOut(); } catch (e) { /* offline */ } session = null; clearCaches(); renderBanner(); return go('login', 'This browser was logged in as the VA. Log in below with your buying login. (The VA app on its own Home Screen icon keeps its own login.)'); }
     routeToMyCity();
     go(homeView());
     var deep = new URLSearchParams(location.search).get('go');
