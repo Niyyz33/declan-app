@@ -35,7 +35,9 @@ Deno.serve(async (req: Request) => {
   const S: Record<string, string> = {}; for (const r of rows ?? []) S[r.key] = r.value;
   const text = (status: string, answer: string) => json({ status, answer });
 
-  if (S.ai_enabled !== '1' && !isOwner) return text('off', 'The AI helper isn’t switched on yet. Use the Text Ethan button for now.');
+  // ai_enabled: '1' = every partner, '0' = only Ethan, or a comma-separated list of partner ids to let just those people try it.
+  const aiOn = S.ai_enabled === '1' || (S.ai_enabled || '').split(',').map((x) => x.trim()).includes(me.id);
+  if (!aiOn && !isOwner) return text('off', 'The AI helper isn’t switched on yet. Use the Text Ethan button for now.');
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) return text('off', 'The AI helper isn’t set up yet. Use the Text Ethan button for now.');
 

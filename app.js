@@ -769,7 +769,7 @@
   // The chat is kept on this phone only. Ethan sees every question in his own copy of this tab.
   var askThread = load('askthread', []), askBusy = false;
   var ASK_STARTERS = ['The seller can’t reset the phone', 'The battery says 82%. What do I deduct?', 'A buyer says my price is too high', 'How do I get into a wiped phone?'];
-  function askOn() { return isOwner() || settings.ai_enabled === '1'; }
+  function askOn() { var v = String(settings.ai_enabled || '0'); return isOwner() || v === '1' || (!!session && !!session.user && v.split(',').map(function (x) { return x.trim(); }).indexOf(session.user.id) > -1); }
   function nl(s) { return s.replace(/\n/g, '<br>'); }
   function askTextLink(q, a) {
     var tel = phoneForLinks(); if (!tel) return '';
