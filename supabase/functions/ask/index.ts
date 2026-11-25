@@ -80,11 +80,11 @@ Deno.serve(async (req: Request) => {
     // deno-lint-ignore no-explicit-any
     const res: any = await client.messages.create({
       model,
-      max_tokens: 800,
+      max_tokens: 500,
       output_config: { effort: 'low' },
       system: [
         { type: 'text', text: kb.body, cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: 'The partner asking is ' + first + ' (' + (me.city_name || 'unknown city') + '). Answer in plain text with short paragraphs or numbered steps. No tables, no headings, no markdown symbols.' },
+        { type: 'text', text: 'The partner asking is ' + first + ' (' + (me.city_name || 'unknown city') + '). Answer in plain text. Keep it short: lead with the answer in the first sentence, then at most 4 short numbered steps if needed, under about 80 words in total. Do not repeat the question or add tips nobody asked for. No tables, no headings, no markdown symbols.' },
       ],
       messages,
     });
