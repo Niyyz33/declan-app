@@ -70,7 +70,7 @@
   function fmtDate(iso) { var d = new Date(iso); return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }); }
   function persistDraft() { save('draft', draft); }
   // On logout, forget the previous person's saved data so the next login on this phone starts clean.
-  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml', 'onb', 'avail', 'agreements', 'vamodels', 'vadeds', 'valeads'].forEach(function (k) { save(k, null); }); agreementRows = []; listPrices = []; pushHtml = ''; onb = { items: [], progress: [] }; avail = []; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
+  function clearCaches() { ['profile', 'phones', 'batches', 'meetups', 'settings', 'partners', 'lastsync', 'payments', 'ownerdata', 'listprices', 'pushhtml', 'onb', 'avail', 'agreements', 'vamodels', 'vadeds', 'valeads', 'askthread'].forEach(function (k) { save(k, null); }); askThread = []; agreementRows = []; listPrices = []; pushHtml = ''; onb = { items: [], progress: [] }; avail = []; profile = { name: '', role: '', price_city: 'townsville', city_name: '', timezone: '', calendar_token: '' }; serverPhones = []; serverBatches = []; payments = []; ownerData = { ff: [], bands: [], settings: {}, valuations: [] }; meetups = []; settings = {}; partnersList = []; lastSync = null; }
   // The version stamp is year.month.day.hhmm (e.g. 2026.11.03.2013) — show it as a plain "Updated 3 Nov, 8:13 pm".
   function versionText(v) {
     var m = /^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)(\d\d)$/.exec(v || '');
@@ -444,7 +444,8 @@
     list: '<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
     cal: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
     doc: '<svg viewBox="0 0 24 24"><path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M14.5 3.5V7.5h4M9 12h6M9 15.5h6"/></svg>',
-    box: '<svg viewBox="0 0 24 24"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/></svg>'
+    box: '<svg viewBox="0 0 24 24"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/></svg>',
+    chat: '<svg viewBox="0 0 24 24"><path d="M4.5 5h15v10.5H10L5.5 19.5v-4H4.5z"/><path d="M8.5 9.5h7M8.5 12.5h4.5"/></svg>'
   };
 
   // ---------- offline queue ----------
@@ -689,13 +690,13 @@
     if (isVA() && window.VA) { $tabs.innerHTML = window.VA.tabs(tab, ICON); }
     else if (isOwner()) {
       var waiting = allBatches().filter(function (b) { return batchStage(b) === 'waiting'; }).length;
-      $tabs.innerHTML = tab('omeetups', 'Meetups', ICON.cal) + tab('obook', 'Book', ICON.plus) + tab('oship', 'Shipments', ICON.box, waiting ? '<span class="dot">' + waiting + '</span>' : '') + tab('phones', 'Phones', ICON.list) + tab('ostatement', 'Statement', ICON.doc);
+      $tabs.innerHTML = tab('omeetups', 'Meetups', ICON.cal) + tab('obook', 'Book', ICON.plus) + tab('oship', 'Ship', ICON.box, waiting ? '<span class="dot">' + waiting + '</span>' : '') + tab('phones', 'Phones', ICON.list) + tab('ostatement', 'Statement', ICON.doc) + tab('ask', 'Ask AI', ICON.chat);
     }
     else {
       var labelsReady = allBatches().filter(function (b) { return batchStage(b) === 'label'; }).length;
       var due = allMeetups().filter(function (m) { return m.status === 'booked' && new Date(m.starts_at) < new Date(); }).length;
       $tabs.innerHTML = tab('home', 'Home', ICON.home) + tab('meetups', 'Meetups', ICON.cal, due ? '<span class="dot">' + due + '</span>' : '') + tab('log', 'Log', ICON.plus) + tab('phones', 'Phones', ICON.list) +
-        tab('ship', 'Ship', ICON.box, labelsReady ? '<span class="dot">' + labelsReady + '</span>' : ready >= MIN_SHIP ? '<span class="dot">' + ready + '</span>' : '');
+        tab('ship', 'Ship', ICON.box, labelsReady ? '<span class="dot">' + labelsReady + '</span>' : ready >= MIN_SHIP ? '<span class="dot">' + ready + '</span>' : '') + (askOn() ? tab('ask', 'Ask AI', ICON.chat) : '');
     }
     all('[data-tab]').forEach(function (b) { b.onclick = function () { go(b.getAttribute('data-tab')); }; });
   }
@@ -763,6 +764,86 @@
   };
   function phoneForLinks() { var n = (settings.ethan_phone || '').replace(/[^\d+]/g, ''); if (!n) return ''; if (n.charAt(0) === '0') n = '+61' + n.slice(1); return n; }
 
+  // ---------- Ask the AI helper ----------
+  // A partner types a question; the "ask" server function answers it from Ethan's approved text only (nothing else is sent to it).
+  // The chat is kept on this phone only. Ethan sees every question in his own copy of this tab.
+  var askThread = load('askthread', []), askBusy = false;
+  var ASK_STARTERS = ['The seller can’t reset the phone', 'The battery says 82%. What do I deduct?', 'A buyer says my price is too high', 'How do I get into a wiped phone?'];
+  function askOn() { return isOwner() || settings.ai_enabled === '1'; }
+  function nl(s) { return s.replace(/\n/g, '<br>'); }
+  function askTextLink(q, a) {
+    var tel = phoneForLinks(); if (!tel) return '';
+    return smsTo(tel, 'Hi Ethan, I asked the app’s AI helper: “' + q + '”' + (a ? '\n\nIt said: ' + a.slice(0, 300) + (a.length > 300 ? '…' : '') : '') + '\n\nCan you help?');
+  }
+  VIEWS.ask = function () {
+    var draft = '';
+    function lastOf(role) { for (var i = askThread.length - 1; i >= 0; i--) if (askThread[i].role === role) return askThread[i]; return null; }
+    function render(scrollDown) {
+      var lastAi = lastOf('ai'), lastMe = lastOf('me'), link = lastMe ? askTextLink(lastMe.text, lastAi && !lastAi.err ? lastAi.text : '') : (phoneForLinks() ? askTextLink('(my question)', '') : '');
+      var h = '<h1>Ask the AI helper</h1>' +
+        '<div class="muted" style="margin:-6px 0 14px">Ask about checking a phone, what to say, selling on Marketplace or the app. I’m an AI, so if it’s about money or safety and you’re not sure, check with Ethan.</div>';
+      if (!askThread.length) h += '<div class="card"><b>Try asking</b><div class="chips" style="margin-top:10px">' + ASK_STARTERS.map(function (s, i) { return '<button class="secondary small" data-st="' + i + '">' + esc(s) + '</button>'; }).join('') + '</div></div>';
+      askThread.forEach(function (m, i) {
+        if (m.role === 'me') { h += '<div class="bub me">' + nl(esc(m.text)) + '</div>'; return; }
+        h += '<div class="bub ai">' + nl(esc(m.text)) + (m.id && !m.err ? '<div class="rate"><button class="secondary small' + (m.rating === 1 ? ' picked' : '') + '" data-rate="1" data-i="' + i + '">👍 Helpful</button><button class="secondary small' + (m.rating === -1 ? ' picked' : '') + '" data-rate="-1" data-i="' + i + '">👎 Not right</button></div>' : '') + '</div>';
+      });
+      if (askBusy) h += '<div class="bub ai muted">Thinking…</div>';
+      h += '<div class="card" style="margin-top:6px"><textarea id="askq" rows="3" maxlength="600" placeholder="Type your question" enterkeyhint="send" autocomplete="off"></textarea><div class="gap"></div><button id="asksend"' + (askBusy ? ' disabled' : '') + '>Ask</button></div>';
+      if (link) h += '<a class="btnlink green" id="asktext" href="' + link + '">💬 Still not sure? Text Ethan</a>';
+      if (askThread.length) h += '<div style="text-align:center;margin-top:8px"><button class="link" id="askclear">Clear this chat</button></div>';
+      if (isOwner()) h += '<h2>What partners have asked</h2><div id="asklog" class="muted">Loading…</div>';
+      shell(h);
+      if ($('askq')) $('askq').value = draft;
+      if ($('askq')) $('askq').oninput = function () { draft = this.value; };
+      if ($('asksend')) $('asksend').onclick = function () { send($('askq').value); };
+      all('[data-st]').forEach(function (b) { b.onclick = function () { send(ASK_STARTERS[+b.getAttribute('data-st')]); }; });
+      all('[data-rate]').forEach(function (b) { b.onclick = async function () {
+        var m = askThread[+b.getAttribute('data-i')], v = +b.getAttribute('data-rate'); if (!m || !m.id) return;
+        m.rating = m.rating === v ? 0 : v; save('askthread', askThread); render();
+        await sb.rpc('rate_ai_answer', { p_id: m.id, p_rating: m.rating });
+      }; });
+      if ($('asktext')) $('asktext').onclick = function () { if (lastAi && lastAi.id) sb.rpc('ai_mark_texted', { p_id: lastAi.id }); };
+      if ($('askclear')) $('askclear').onclick = function () { askThread = []; save('askthread', askThread); render(); };
+      if (scrollDown) window.scrollTo(0, document.body.scrollHeight);
+      if (isOwner()) loadLog();
+    }
+    async function send(q) {
+      q = String(q || '').trim(); if (!q || askBusy) return;
+      draft = '';
+      askThread.push({ role: 'me', text: q }); askBusy = true; render(true);
+      var out;
+      if (!navigator.onLine) out = { role: 'ai', err: true, text: 'You’re offline right now. Try again when you have signal, or use the Text Ethan button.' };
+      else {
+        var r = await sb.functions.invoke('ask', { body: { question: q } });
+        if (r.error) {
+          var msg = '';
+          try { var j = await r.error.context.json(); msg = j.error || ''; } catch (e) { /* no detail */ }
+          out = { role: 'ai', err: true, text: msg || (isNetworkError(r.error) ? 'No signal right now. Try again when you’re back online.' : 'Something went wrong. Try again, or use the Text Ethan button.') };
+        } else out = { role: 'ai', text: (r.data && r.data.answer) || 'Something went wrong. Try again, or use the Text Ethan button.', id: r.data && r.data.id, err: !r.data || r.data.status === 'error' };
+      }
+      askThread.push(out); askThread = askThread.slice(-30); askBusy = false; save('askthread', askThread);
+      if (current === 'ask') render(true);
+    }
+    async function loadLog() {
+      var monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      var rs = await Promise.all([
+        sb.from('ai_questions').select('id,partner_id,question,answer,status,rating,texted_at,created_at').order('created_at', { ascending: false }).limit(40),
+        sb.from('ai_questions').select('cost_micro_usd').gte('created_at', monthStart)
+      ]);
+      var el = $('asklog'); if (!el || rs[0].error) return;
+      var spent = (rs[1].data || []).reduce(function (a, r) { return a + (r.cost_micro_usd || 0); }, 0);
+      var html = '<div class="muted" style="margin-bottom:10px">This month: ' + (rs[1].data || []).length + ' questions, about US$' + (spent / 1e6).toFixed(2) + '. Switch it on for partners with ai_enabled in settings.</div>';
+      html += rs[0].data.length ? rs[0].data.map(function (q) {
+        var p = partnerById(q.partner_id);
+        return '<div class="card flat"><div class="between row"><b>' + esc(p ? p.name : 'Someone') + '</b><span class="muted fixed">' + esc(fmtDate(q.created_at)) + '</span></div>' +
+          '<div style="margin:6px 0">' + nl(esc(q.question)) + '</div><div class="muted">' + nl(esc(q.answer || '')) + '</div>' +
+          '<div style="margin-top:8px">' + (q.status !== 'ok' ? '<span class="chip">' + esc(q.status) + '</span> ' : '') + (q.rating === -1 ? '<span class="chip">👎 not right</span> ' : q.rating === 1 ? '<span class="chip">👍 helpful</span> ' : '') + (q.texted_at ? '<span class="chip">texted you</span>' : '') + '</div></div>';
+      }).join('') : '<div class="empty">No questions yet.</div>';
+      el.innerHTML = html;
+    }
+    render(false);
+  };
+
   VIEWS.help = function () {
     var tel = phoneForLinks();
     shell('<h1>Rules &amp; help</h1>' +
@@ -770,7 +851,7 @@
       '<li>Log each phone <b>after</b> you’ve bought it — not during the sale.</li>' +
       '<li>Price paid should stay within <b>the quote minus the deductions</b>. If it goes over, the app still saves it but flags it for Ethan.</li>' +
       '<li>Battery under 85%: $50 off (iPhone 14 and below) or $70 off (15 and above). Always taken under 80%.</li>' +
-      '<li>Smashed camera lens: $20 each. If the camera itself is exposed: $50 each.</li>' +
+      '<li>Smashed camera lens: $50 each. If the camera itself is exposed: $50 each.</li>' +
       '<li>A scratched or replaced screen counts as a broken screen.</li>' +
       '<li>Damaged phones: when you have ' + MIN_SHIP + ' or more (or Ethan says it’s OK to ship fewer), tap <b>Ship › Message Ethan for a label</b>. It opens a text to Ethan, all written out for you. He sends back the label — print it, pack the box and post it, then tap <b>I’ve posted it</b>.</li>' +
       '<li>Mint phones you keep.</li></ul></div>' +

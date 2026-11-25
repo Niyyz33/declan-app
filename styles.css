@@ -207,3 +207,13 @@ a.btnlink.green { background:var(--green); box-shadow:none; }
 #photoview img { max-width:96vw; max-height:84vh; border-radius:12px; }
 .phonecard .acts { flex-wrap:wrap; }
 .tip .btnlink, .tip button { max-width:100%; }
+
+/* Ask the AI helper */
+.bub { max-width:88%; padding:11px 13px; border-radius:16px; margin:0 0 10px; font-size:15px; line-height:1.45; overflow-wrap:anywhere; }
+.bub.me { margin-left:auto; background:linear-gradient(180deg, var(--blue2), var(--blue)); color:#fff; border-bottom-right-radius:5px; }
+.bub.ai { background:var(--card2); border:1px solid var(--line); border-bottom-left-radius:5px; }
+.bub .rate { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.bub .rate button.picked { border-color:var(--green); color:var(--green); }
+.chips { display:flex; flex-wrap:wrap; gap:8px; }
+.chips button { text-align:left; }
+textarea { resize:none; }
