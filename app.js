@@ -46,8 +46,10 @@
   var draft = load('draft', null);
 
   // ---------- helpers ----------
-  function load(k, d) { try { var v = JSON.parse(localStorage.getItem('declan_' + k)); return v === null || v === undefined ? d : v; } catch (e) { return d; } }
-  function save(k, v) { try { if (v === null) localStorage.removeItem('declan_' + k); else localStorage.setItem('declan_' + k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } }
+  // Each app page keeps its own saved login and saved data, so the VA app and a buying app can both stay logged in on one phone (a page sets BRAND.prefix / BRAND.authKey; the others keep the old names)
+  var PFX = (window.BRAND && window.BRAND.prefix) || 'declan_', AUTH_KEY = (window.BRAND && window.BRAND.authKey) || 'declan-auth';
+  function load(k, d) { try { var v = JSON.parse(localStorage.getItem(PFX + k)); return v === null || v === undefined ? d : v; } catch (e) { return d; } }
+  function save(k, v) { try { if (v === null) localStorage.removeItem(PFX + k); else localStorage.setItem(PFX + k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function money(c) { return (c < 0 ? '−' : '') + '$' + (Math.abs(c) / 100).toLocaleString('en-AU', { minimumFractionDigits: Math.abs(c) % 100 === 0 ? 0 : 2, maximumFractionDigits: 2 }); }
   function storageText(gb) { return gb >= 1024 && gb % 1024 === 0 ? (gb / 1024) + 'TB' : gb + 'GB'; }
@@ -466,7 +468,7 @@
   // The saved login is renewed hourly in the background. With no signal that renewal fails, so a
   // phone that's been offline a while must still OPEN the app (the login is still saved) and just
   // wait to send until signal returns and the renewal works.
-  function hasStoredLogin() { try { var v = JSON.parse(localStorage.getItem('declan-auth')); return !!(v && v.refresh_token); } catch (e) { return false; } }
+  function hasStoredLogin() { try { var v = JSON.parse(localStorage.getItem(AUTH_KEY)); return !!(v && v.refresh_token); } catch (e) { return false; } }
   async function liveSession() { try { var r = await sb.auth.getSession(); return r.data && r.data.session; } catch (e) { return null; } }
   async function syncQueue() {
     if (syncing || !sb || !session || !queue.length) return;
@@ -716,8 +718,8 @@
   async function afterLogin() { await Promise.all([loadCatalogue(), loadProfile()]); await refreshPhones(); await syncQueue(); go(homeView()); }
   function installTip() {
     if (isStandalone() || load('hideinstall', false)) return '';
-    if (isAndroidMode()) return '<div class="tip"><b>Do this first:</b> open this page in <b>Chrome</b> (not inside WhatsApp, Messenger or another app). Tap the <b>⋮</b> menu at the top right, then <b>Install app</b> (or <b>Add to Home screen</b>, then <b>Install</b>). Then open the app from its icon and log in there. That way it keeps you logged in and never loses a phone you logged.' + (installPrompt ? '<div style="margin-top:8px"><button class="small" id="doinstall" type="button">Install the app</button></div>' : '') + '<div style="margin-top:8px"><button class="link" id="hideinstall" type="button" onclick="localStorage.setItem(\'declan_hideinstall\',\'true\');this.closest(\'.tip\').remove()">Already done</button></div></div>';
-    return '<div class="tip"><b>Do this first:</b> tap the Share button <b>⬆︎</b> in Safari, choose <b>Add to Home Screen</b>, then open the app from your Home Screen and log in there. That way it keeps you logged in and never loses a phone you logged.<div style="margin-top:8px"><button class="link" id="hideinstall" type="button" onclick="localStorage.setItem(\'declan_hideinstall\',\'true\');this.closest(\'.tip\').remove()">Already done</button></div></div>';
+    if (isAndroidMode()) return '<div class="tip"><b>Do this first:</b> open this page in <b>Chrome</b> (not inside WhatsApp, Messenger or another app). Tap the <b>⋮</b> menu at the top right, then <b>Install app</b> (or <b>Add to Home screen</b>, then <b>Install</b>). Then open the app from its icon and log in there. That way it keeps you logged in and never loses a phone you logged.' + (installPrompt ? '<div style="margin-top:8px"><button class="small" id="doinstall" type="button">Install the app</button></div>' : '') + '<div style="margin-top:8px"><button class="link" id="hideinstall" type="button" onclick="localStorage.setItem(\'' + PFX + 'hideinstall\',\'true\');this.closest(\'.tip\').remove()">Already done</button></div></div>';
+    return '<div class="tip"><b>Do this first:</b> tap the Share button <b>⬆︎</b> in Safari, choose <b>Add to Home Screen</b>, then open the app from your Home Screen and log in there. That way it keeps you logged in and never loses a phone you logged.<div style="margin-top:8px"><button class="link" id="hideinstall" type="button" onclick="localStorage.setItem(\'' + PFX + 'hideinstall\',\'true\');this.closest(\'.tip\').remove()">Already done</button></div></div>';
   }
 
   // ---------- home ----------
@@ -1463,7 +1465,7 @@
     try { await pushSubscribe(); } catch (e) { /* try again next launch */ }
   }
   var pushHtml = load('pushhtml', '');
-  function paintPush(el, html) { if (el.innerHTML && pushHtml === html) { bindPush(); return; } { el.innerHTML = html; try { localStorage.setItem('declan_pushhtml', JSON.stringify(html)); } catch (e) { /* fine */ } pushHtml = html; bindPush(); } }
+  function paintPush(el, html) { if (el.innerHTML && pushHtml === html) { bindPush(); return; } { el.innerHTML = html; try { localStorage.setItem(PFX + 'pushhtml', JSON.stringify(html)); } catch (e) { /* fine */ } pushHtml = html; bindPush(); } }
   async function renderPushCard() {
     var el = $('pushcard');
     if (!el || !(window.CONFIG && window.CONFIG.VAPID_PUBLIC_KEY)) return;
@@ -1753,7 +1755,7 @@
     setInterval(function () { var a = document.activeElement; if (document.body.classList.contains('kb') && !(a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'checkbox')))) document.body.classList.remove('kb'); }, 1500);
     document.addEventListener('focusout', function () { setTimeout(function () { var a = document.activeElement; if (!(a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'checkbox')))) document.body.classList.remove('kb'); }, 80); });
     if (!window.CONFIG || !window.CONFIG.SUPABASE_URL) { shell('<h1>Not set up yet</h1><p class="muted">Tell Ethan the app isn’t connected.</p>'); return; }
-    sb = window.supabase.createClient(window.CONFIG.SUPABASE_URL, window.CONFIG.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'declan-auth' } });
+    sb = window.supabase.createClient(window.CONFIG.SUPABASE_URL, window.CONFIG.SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: AUTH_KEY } });
     session = await liveSession();
     if (!session && hasStoredLogin()) session = { offlineUntilSignal: true };
     renderBanner();
