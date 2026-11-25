@@ -6,12 +6,12 @@
   --tab-h:64px;
 }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html { overflow-x:hidden; overscroll-behavior-y:none; }
+html { overflow-x:clip; overscroll-behavior-y:none; }
 html, body { margin:0; min-height:100%; width:100%; background:var(--bg); color:var(--text); font:16px/1.4 -apple-system, system-ui, "SF Pro Text", sans-serif; -webkit-text-size-adjust:100%; }
 body { background:radial-gradient(120% 50% at 50% -8%, var(--bg2) 0%, var(--bg) 70%), var(--bg); }
 main { max-width:560px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + var(--tab-h) + 28px); }
 main.nobar { padding-bottom:calc(env(safe-area-inset-bottom) + 130px); }
-main { overflow-x:clip; }
+main { overflow-x:clip; min-height:100vh; min-height:100dvh; } /* short pages (Phones, Ship) must still fill the screen, or iPhones lift the fixed tab bar */
 h1 { font-size:26px; font-weight:800; letter-spacing:-.01em; margin:4px 0 14px; }
 h2 { font-size:12px; margin:24px 4px 8px; color:var(--muted); text-transform:uppercase; letter-spacing:.09em; font-weight:700; }
 .muted { color:var(--muted); font-size:14px; } .ok { color:var(--green); } .err { color:var(--red); font-size:14px; margin-top:8px; }
@@ -72,7 +72,7 @@ button.small { padding:9px 12px; font-size:14px; border-radius:11px; width:auto;
 #banner.bad { background:var(--red); color:#fff; cursor:pointer; }
 
 /* bottom tab bar */
-#tabs { position:fixed; left:0; right:0; bottom:0; z-index:15; display:flex; justify-content:center; padding-bottom:env(safe-area-inset-bottom); background:rgba(3,14,36,.9); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); border-top:1px solid var(--line); }
+#tabs { position:fixed; left:0; right:0; bottom:0; transform:translateZ(0); will-change:transform; z-index:15; display:flex; justify-content:center; padding-bottom:env(safe-area-inset-bottom); background:rgba(3,14,36,.9); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); border-top:1px solid var(--line); }
 #tabs[hidden] { display:none; }
 #tabs .tab { flex:1; max-width:140px; height:var(--tab-h); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:none; box-shadow:none; border-radius:0; padding:0; color:var(--muted); font-size:11px; font-weight:700; position:relative; }
 #tabs .tab svg { width:25px; height:25px; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
