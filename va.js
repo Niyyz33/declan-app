@@ -14,7 +14,22 @@
   function ethanP() { return A.partners().filter(function (p) { return p.role === 'owner'; })[0] || null; }
   var ETHAN_SPOT = 'Annandale Central';
   function pname() { var q = quinn(); return q ? q.name : 'your partner'; }
-  function quinn() { return A.partners().filter(function (p) { return p.role === 'partner'; })[0] || null; }
+  // The VA can book for more than one partner (Declan in Townsville, Aston in Sydney...). One is "chosen" at a time; the chips at the top of every screen switch it.
+  var chosenPid = A.load('vapartner', '');
+  function vaPartners() { return A.partners().filter(function (p) { return p.role === 'partner'; }).sort(function (x, y) { return String(x.name).localeCompare(String(y.name)); }); }
+  function quinn() { var l = vaPartners(); return l.filter(function (p) { return p.id === chosenPid; })[0] || l[0] || null; }
+  function setChosen(pid) { chosenPid = pid; A.save('vapartner', pid); }
+  function partnerChips() {
+    var l = vaPartners(), q = quinn(); if (l.length < 2) return '';
+    return '<div style="margin:0 0 12px"><div class="muted" style="margin-bottom:6px">Booking for</div><div class="chips">' + l.map(function (p) {
+      return '<button class="chip' + (q && p.id === q.id ? ' on' : '') + '" data-vpart="' + esc(p.id) + '">' + esc(p.name) + (p.city_name ? ' · ' + esc(p.city_name) : '') + '</button>';
+    }).join('') + '</div></div>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-vpart]') : null; if (!b) return;
+    setChosen(b.getAttribute('data-vpart')); BOOKFILL = null; if (typeof BK !== 'undefined') { BK.draft = null; BK.editing = null; BK.rerender = false; BK.who = null; BK.time = ''; }
+    go(A.current(), undefined, true);
+  });
   function modelByName(n) { n = String(n || '').trim().toLowerCase(); return models.filter(function (m) { return m.name.toLowerCase() === n; })[0] || null; }
   function modelByCode(c) { return models.filter(function (m) { return m.code === c; })[0] || null; }
   function dedsFor(code) { return deds.filter(function (d) { return d.model_code === code; }).sort(function (a, b) { return a.sort_order - b.sort_order; }); }
@@ -60,7 +75,7 @@
     });
   }
   function msgCard(text, note, extra) { return '<div class="msg"><div class="msgtext">' + esc(text) + '</div>' + (note ? '<div class="muted msgnote">' + esc(note) + '</div>' : '') + '<div class="acts">' + copyBtn(text) + (extra || '') + '</div></div>'; }
-  function head(title, sub) { return '<h1>' + esc(title) + '</h1>' + (sub ? '<div class="muted" style="margin:-6px 0 14px">' + sub + '</div>' : '') + '<div id="pushcard"></div>'; }
+  function head(title, sub) { return '<h1>' + esc(title) + '</h1>' + (sub ? '<div class="muted" style="margin:-6px 0 14px">' + sub + '</div>' : '') + partnerChips() + '<div id="pushcard"></div>'; }
 
   // ---------- WELCOME, TODAY STRIP, SETUP GUIDE ----------
   function isPhone() { return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''); }
@@ -275,6 +290,8 @@
   function dayOf(iso, tz) { var p = A.tzParts(new Date(iso).getTime(), tz); return p.year + '-' + p.month + '-' + p.day; }
   function dayLabel(key, i) { return i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : new Date(key + 'T12:00:00Z').toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }); }
   VIEWS.vabook = function (id) {
+    var m0 = id ? A.meetups().filter(function (x) { return x.id === id; })[0] : null;
+    if (m0 && vaPartners().some(function (p) { return p.id === m0.partner_id; }) && m0.partner_id !== (quinn() || {}).id) setChosen(m0.partner_id);
     var q = quinn(); COPY = [];
     if (!q) { shell(head('Book a meetup') + '<div class="card">The partner’s details haven’t loaded yet. Check your signal and try again in a moment.</div>'); return; }
     if (!BK.rerender) { BK.draft = null; BK.iss = {}; BK.who = null; if (BOOKFILL && BOOKFILL.issueKeys) BOOKFILL.issueKeys.forEach(function (k) { BK.iss[k] = true; }); } BK.rerender = false;
