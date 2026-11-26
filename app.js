@@ -1272,7 +1272,7 @@
   function priceCard(p) {
     var pr = priceFor(p);
     if (!pr) return '<div class="card"><b>Recommended price</b><div class="muted" style="margin-top:6px">No price yet for this one. Ask Ethan.</div></div>';
-    return '<div class="card"><b>Recommended price</b><div class="pricerow"><div><small>List it at</small><div class="big">' + money(pr.list_cents) + '</div></div><div><small>Lowest to accept</small><div class="big">' + money(pr.lowest_cents) + '</div></div></div>' +
+    return '<div class="card"><b>Recommended price</b><div class="pricerow"><div><small>List it at</small><div class="big">' + money(pr.list_cents) + '</div></div><div><small>Lowest we’d suggest</small><div class="big">' + money(pr.lowest_cents) + '</div></div></div>' +
       (pr.estimate ? '<div class="hint">An estimate. There aren’t many recent sales of this one.</div>' : '') + '<div class="hint">Battery and the case don’t change the price. For a lowball, offer about $20 under the list price.</div></div>';
   }
   VIEWS.fbdesc = function (id) {
